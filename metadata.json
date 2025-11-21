@@ -1,0 +1,7 @@
+{
+  "name": "Snap Immobile",
+  "description": "Professional Real Estate Photography Suite with AI Enhancement, Virtual Staging, and Tour Creation.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
