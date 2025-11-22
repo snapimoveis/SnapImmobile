@@ -67,9 +67,11 @@ export const enhanceImage = async (base64Image: string): Promise<string> => {
         },
       });
       
-      const part = response.candidates?.[0]?.content?.parts?.[0];
-      if (part && part.inlineData && part.inlineData.data) {
-          return `data:image/png;base64,${part.inlineData.data}`;
+      const parts = response.candidates?.[0]?.content?.parts || [];
+      for (const part of parts) {
+          if (part.inlineData && part.inlineData.data) {
+              return `data:image/png;base64,${part.inlineData.data}`;
+          }
       }
       throw new Error("No image generated");
   } catch (error) {
@@ -115,9 +117,11 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
             },
           });
           
-          const part = response.candidates?.[0]?.content?.parts?.[0];
-          if (part && part.inlineData && part.inlineData.data) {
-              return `data:image/png;base64,${part.inlineData.data}`;
+          const parts = response.candidates?.[0]?.content?.parts || [];
+          for (const part of parts) {
+              if (part.inlineData && part.inlineData.data) {
+                  return `data:image/png;base64,${part.inlineData.data}`;
+              }
           }
           throw new Error("No image generated from edit");
     } catch (error) {
