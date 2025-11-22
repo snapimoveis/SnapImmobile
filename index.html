@@ -29,6 +29,9 @@
               secondary: '#475569',
               accent: '#f59e0b',
               dark: '#0f172a',
+            },
+            animation: {
+              'spin-slow': 'spin 3s linear infinite',
             }
           }
         }
@@ -57,6 +60,31 @@
       /* iOS Input Fixes */
       input, select, textarea {
         font-size: 16px !important; /* Prevents zoom on focus */
+      }
+
+      /* Custom Animations for UI Components */
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+      @keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+      @keyframes slideInBottom { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+      
+      .animate-in { animation-duration: 0.3s; animation-fill-mode: both; }
+      .fade-in { animation-name: fadeIn; }
+      .zoom-in { animation-name: zoomIn; }
+      .slide-in-from-left { animation-name: slideInLeft; }
+      .slide-in-from-bottom-4 { animation-name: slideInBottom; }
+      
+      .mask-linear-fade {
+        mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+        -webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+      }
+
+      /* Fix for Landscape orientation on iOS */
+      @media (orientation: landscape) {
+        .mask-linear-fade {
+           mask-image: linear-gradient(to left, black 80%, transparent 100%);
+           -webkit-mask-image: linear-gradient(to left, black 80%, transparent 100%);
+        }
       }
     </style>
   <script type="importmap">
