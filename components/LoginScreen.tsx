@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Logo } from './Logo';
 import { ArrowLeft, RefreshCw, Mail, Lock } from 'lucide-react';
@@ -15,7 +16,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack, onReg
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (email) {
-        onLogin(email, password);
+        onLogin(email.trim(), password);
     }
   };
 

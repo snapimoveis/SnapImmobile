@@ -41,14 +41,23 @@ export const registerUser = async (user: UserProfile, password?: string): Promis
         const transaction = db.transaction(['users'], 'readwrite');
         const store = transaction.objectStore('users');
         
+        // Normalize email to lowercase and trim
+        const normalizedEmail = user.email.trim().toLowerCase();
+        
         // Check if exists
-        const checkReq = store.get(user.email);
+        const checkReq = store.get(normalizedEmail);
         checkReq.onsuccess = () => {
             if (checkReq.result) {
-                reject(new Error("Utilizador já existe."));
+                reject(new Error("Este e-mail já está registado."));
             } else {
                 // Save user with password (unsafe for prod, ok for local demo)
-                const userToSave = { ...user, id: crypto.randomUUID(), password: password };
+                // Ensure the stored object uses the normalized email
+                const userToSave = { 
+                    ...user, 
+                    email: normalizedEmail,
+                    id: crypto.randomUUID(), 
+                    password: password 
+                };
                 store.add(userToSave);
                 resolve(userToSave);
             }
@@ -64,14 +73,20 @@ export const loginUser = async (email: string, password?: string): Promise<UserP
     return new Promise((resolve, reject) => {
         const transaction = db.transaction(['users'], 'readonly');
         const store = transaction.objectStore('users');
-        const request = store.get(email);
+        
+        // Normalize email to match registration
+        const normalizedEmail = email.trim().toLowerCase();
+        const request = store.get(normalizedEmail);
         
         request.onsuccess = () => {
             const user = request.result as UserProfile;
-            if (user && user.password === password) {
+            
+            if (!user) {
+                reject(new Error("Utilizador não encontrado. Verifique o e-mail ou registe-se."));
+            } else if (user.password === password) {
                 resolve(user);
             } else {
-                reject(new Error("Credenciais inválidas."));
+                reject(new Error("Senha incorreta."));
             }
         };
         request.onerror = () => reject(request.error);

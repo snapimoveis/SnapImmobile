@@ -243,7 +243,8 @@ function App() {
           setCurrentRoute(AppRoute.DASHBOARD);
       } catch (e) {
           console.error(e);
-          alert("Falha no login. Verifique se o e-mail e senha estão corretos.");
+          // Show specific error message from storage service
+          alert((e as Error).message || "Falha no login. Verifique as credenciais.");
       }
   };
 
