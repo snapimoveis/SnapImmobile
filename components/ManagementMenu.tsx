@@ -10,8 +10,12 @@ interface ManagementMenuProps {
 
 export const ManagementMenu: React.FC<ManagementMenuProps> = ({ onClose, onNavigate, onLogout }) => {
   
+  const openExternalLink = (url: string) => {
+    window.open(url, '_blank');
+  };
+
   const menuItemsTop = [
-    { icon: Shield, label: 'Politica de Privacidade', action: () => {} },
+    { icon: Shield, label: 'Politica de Privacidade', action: () => openExternalLink('https://snapimmobile.app/politica-privacidade') },
     { icon: RefreshCw, label: 'Sincronização', action: () => {} },
     { icon: Search, label: 'Pesquisar', action: () => {} },
     { icon: Compass, label: 'Explorar', action: () => {} },
@@ -19,8 +23,8 @@ export const ManagementMenu: React.FC<ManagementMenuProps> = ({ onClose, onNavig
   ];
 
   const menuItemsBottom = [
-    { icon: Shield, label: 'Politica de Privacidade', action: () => {} },
-    { icon: FileText, label: 'Termos e Condições', action: () => {} },
+    { icon: Shield, label: 'Politica de Privacidade', action: () => openExternalLink('https://snapimmobile.app/politica-privacidade') },
+    { icon: FileText, label: 'Termos e Condições', action: () => openExternalLink('https://snapimmobile.app/termos-de-uso') },
     { icon: Settings, label: 'Configurações', action: () => onNavigate('SETTINGS') },
     { icon: LogOut, label: 'Sair', action: onLogout },
   ];
