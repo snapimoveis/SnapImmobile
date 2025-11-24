@@ -220,11 +220,16 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
                         }`}
                     >
                         {processingPhotoId === photo.id ? (
-                            <Loader2 className="w-3 h-3 animate-spin" /> 
+                            <>
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                <span>A Melhorar...</span>
+                            </>
                         ) : (
-                            <Sparkles className={`w-3 h-3 ${photo.type === 'hdr' ? 'text-gray-500' : 'text-purple-500'}`} />
+                            <>
+                                <Sparkles className={`w-3 h-3 ${photo.type === 'hdr' ? 'text-gray-500' : 'text-purple-500'}`} />
+                                <span>{photo.type === 'hdr' ? 'Refazer AI HDR' : 'Melhorar com AI HDR'}</span>
+                            </>
                         )}
-                        {photo.type === 'hdr' ? 'Refazer AI HDR' : 'Melhorar com AI HDR'}
                     </button>
                  </div>
              </div>
