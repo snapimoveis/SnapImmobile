@@ -5,14 +5,17 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 // CONFIGURAÇÃO DO FIREBASE
-// Nota: Esta API KEY é diferente da chave do Gemini (IA).
 const firebaseConfig = {
-  apiKey: "AIzaSyB3X2VAGQuSvEZ2vRPSuNs21TQL4UlPlNE", // Chave específica do Firebase
+  // Chaves fornecidas por você:
+  apiKey: "AIzaSyB3X2VAGQuSvEZ2vRPSuNs21TQL4UlPlNE",
   authDomain: "snap-immobile.firebaseapp.com",
   projectId: "snap-immobile",
   storageBucket: "snap-immobile.firebasestorage.app",
-  messagingSenderId: "87654321000", // Exemplo (Substitua pelo real se tiver)
-  appId: "1:87654321000:web:abcdef123456" // ATENÇÃO: VOCÊ PRECISA COLOCAR O SEU APP ID AQUI (Ver Console do Firebase)
+  
+  // --- DADOS FALTANTES (VOCÊ PRECISA PREENCHER) ---
+  // Pegue estes dados no Console do Firebase > Configurações do Projeto > Geral > Seus Aplicativos
+  messagingSenderId: "87654321000", // (Opcional, mas recomendado)
+  appId: "1:87654321000:web:abcdef123456" // <--- COLE O SEU APP ID REAL AQUI
 };
 
 // Initialize Firebase
@@ -26,9 +29,9 @@ try {
     auth = getAuth(app);
     db = getFirestore(app);
     storage = getStorage(app);
-    console.log("Firebase conectado com sucesso.");
+    console.log("Firebase inicializado. Verifique se o appId está correto em services/firebaseConfig.ts");
 } catch (error) {
-    console.error("Erro ao conectar Firebase. Verifique o appId no arquivo services/firebaseConfig.ts", error);
+    console.error("ERRO CRÍTICO FIREBASE: Verifique o appId em services/firebaseConfig.ts", error);
 }
 
 export { auth, db, storage };
