@@ -10,10 +10,22 @@ const getMimeType = (data: string) => {
     return match ? match[1] : 'image/jpeg';
 }
 
+// Helper to get API Key with multiple fallbacks
+const getApiKey = (): string | null => {
+    // 1. Check Build/Env var
+    if (process.env.API_KEY) return process.env.API_KEY;
+    // 2. Check LocalStorage (User Settings)
+    const localKey = localStorage.getItem('snap_gemini_api_key');
+    if (localKey) return localKey;
+    // 3. Hardcoded Fallback (User Provided)
+    return 'AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM';
+};
+
 export const enhanceImage = async (base64Image: string): Promise<string> => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = getApiKey();
+  
   if (!apiKey) {
-      console.error("API Key missing. Please set API_KEY in your environment variables.");
+      console.error("API Key missing.");
       throw new Error("Chave de API não configurada. Contacte o suporte.");
   }
   
@@ -85,7 +97,7 @@ export const enhanceImage = async (base64Image: string): Promise<string> => {
 };
 
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
-    const apiKey = process.env.API_KEY;
+    const apiKey = getApiKey();
     if (!apiKey) throw new Error("API Key not configured");
 
     const ai = new GoogleGenAI({ apiKey });
@@ -136,7 +148,7 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
 };
 
 export const generateDescription = async (base64Image: string): Promise<string> => {
-    const apiKey = process.env.API_KEY;
+    const apiKey = getApiKey();
     if (!apiKey) return "Imóvel";
 
     const ai = new GoogleGenAI({ apiKey });
