@@ -1,5 +1,7 @@
-
 import { GoogleGenAI, Modality } from "@google/genai";
+
+// Fix: Declare process to avoid TypeScript errors if types are missing or conflicting
+declare const process: any;
 
 // Helper to strip base64 prefix if present
 const cleanBase64 = (data: string) => {
@@ -13,7 +15,7 @@ const getMimeType = (data: string) => {
 
 // Helper to get API Key with strict prioritization
 const getApiKey = (): string => {
-    // 1. Check LocalStorage (Manual Override by user)
+    // 1. Check LocalStorage (Manual Override by user via Settings)
     if (typeof window !== 'undefined') {
         const localKey = localStorage.getItem('snap_gemini_api_key');
         if (localKey) return localKey;
@@ -22,8 +24,17 @@ const getApiKey = (): string => {
     // 2. System Default Key (Hardcoded for immediate access)
     const systemKey = 'AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM';
     
-    // 3. Check Environment Variable (Vite Standard)
-    const envKey = process.env.API_KEY;
+    // 3. Check Environment Variable (Guideline Compliant)
+    // Usage of process.env.API_KEY is mandated by guidelines.
+    // The 'process' variable is shimmed in vite.config.ts
+    let envKey = '';
+    try {
+        if (process && process.env) {
+            envKey = process.env.API_KEY;
+        }
+    } catch (e) {
+        // Ignore reference errors
+    }
 
     return envKey || systemKey;
 };
