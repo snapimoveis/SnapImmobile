@@ -1,8 +1,5 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
-// Fix for "Cannot find name 'process'" error in TypeScript
-declare const process: { env: { [key: string]: string | undefined } };
-
 // Helper to strip base64 prefix if present
 const cleanBase64 = (data: string) => {
   return data.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
