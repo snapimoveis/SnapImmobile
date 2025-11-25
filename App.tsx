@@ -30,6 +30,7 @@ function App() {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [activePhoto, setActivePhoto] = useState<Photo | null>(null);
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
+  const [prefillEmail, setPrefillEmail] = useState('');
 
   useEffect(() => {
     const initApp = async () => {
@@ -80,12 +81,17 @@ function App() {
         setProjects([]);
         setCurrentRoute(AppRoute.DASHBOARD);
     } catch (e: any) {
-        console.error("Erro no registo:", e);
         // Tratamento robusto de erros do Firebase
-        if (e.code === 'auth/email-already-in-use') {
-            alert("Este e-mail já está registado. Por favor, faça login.");
+        if (e.code === 'auth/email-already-in-use' || e.message?.includes('email-already-in-use')) {
+            alert("Este e-mail já está registado. Redirecionando para o login...");
+            setPrefillEmail(data.email);
             setCurrentRoute(AppRoute.LOGIN);
-        } else if (e.code === 'auth/weak-password') {
+            return;
+        } 
+        
+        console.error("Erro no registo:", e);
+        
+        if (e.code === 'auth/weak-password') {
             alert("A senha é muito fraca. Escolha uma senha com pelo menos 6 caracteres.");
         } else if (e.code === 'auth/invalid-email') {
             alert("O formato do e-mail é inválido.");
@@ -266,7 +272,7 @@ function App() {
       case AppRoute.LANDING:
         return <LandingScreen onLogin={() => setCurrentRoute(AppRoute.LOGIN)} onFreeTrial={() => setCurrentRoute(AppRoute.WELCOME)} />;
       case AppRoute.LOGIN:
-        return <LoginScreen onLogin={handleLoginSubmit} onBack={() => setCurrentRoute(AppRoute.LANDING)} onRegisterClick={() => setCurrentRoute(AppRoute.WELCOME)} />;
+        return <LoginScreen initialEmail={prefillEmail} onLogin={handleLoginSubmit} onBack={() => setCurrentRoute(AppRoute.LANDING)} onRegisterClick={() => setCurrentRoute(AppRoute.WELCOME)} />;
       case AppRoute.WELCOME:
         return <WelcomeScreen onNext={handleRoleSelect} onBack={() => setCurrentRoute(AppRoute.LANDING)} />;
       case AppRoute.REGISTER:

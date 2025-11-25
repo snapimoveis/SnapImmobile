@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Logo } from './Logo';
 import { ArrowLeft, RefreshCw, Mail, Lock } from 'lucide-react';
 
@@ -7,11 +7,18 @@ interface LoginScreenProps {
   onLogin: (email: string, password?: string) => void;
   onBack: () => void;
   onRegisterClick: () => void;
+  initialEmail?: string;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack, onRegisterClick }) => {
-  const [email, setEmail] = useState('');
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack, onRegisterClick, initialEmail = '' }) => {
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
+
+  useEffect(() => {
+    if (initialEmail) {
+      setEmail(initialEmail);
+    }
+  }, [initialEmail]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
