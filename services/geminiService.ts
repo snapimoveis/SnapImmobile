@@ -13,32 +13,26 @@ const getMimeType = (data: string) => {
     return match ? match[1] : 'image/jpeg';
 }
 
-// Helper to get API Key
+// Helper to get API Key with strict prioritization
 const getApiKey = (): string => {
-    // 1. Check LocalStorage (Manual Override by user if they want their own)
+    // 1. Check LocalStorage (Manual Override by user)
     const localKey = localStorage.getItem('snap_gemini_api_key');
     if (localKey) return localKey;
 
-    // 2. System Default Key (Shared for all testers)
-    // This key is baked into the app so it works for everyone immediately via Vercel.
+    // 2. System Default Key (Hardcoded for immediate access)
     const systemKey = 'AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM';
+    if (systemKey) return systemKey;
     
-    // 3. Check Environment Variable (Optional override during build)
-    // We use a try-catch block or optional chaining to safely access process.env in case it's undefined in some contexts
+    // 3. Check Environment Variable (Last resort)
     try {
-        return process.env.API_KEY || systemKey;
+        return process.env.API_KEY || "";
     } catch (e) {
-        return systemKey;
+        return "";
     }
 };
 
 export const enhanceImage = async (base64Image: string): Promise<string> => {
   const apiKey = getApiKey();
-  
-  if (!apiKey) {
-      throw new Error("Chave de API não configurada.");
-  }
-  
   const ai = new GoogleGenAI({ apiKey });
   
   // SYSTEM / BUILD (ENGINE HDR) — HP-HDR
@@ -86,7 +80,7 @@ export const enhanceImage = async (base64Image: string): Promise<string> => {
       }
       return base64Image;
   } catch (error) {
-    console.error("Enhance failed:", error);
+    console.error("Snap AI Enhancement Failed:", error);
     throw error;
   }
 };
@@ -153,7 +147,7 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
           }
           throw new Error("No image generated from edit");
     } catch (error) {
-        console.error("Edit failed:", error);
+        console.error("Snap AI Editing Failed:", error);
         throw error;
     }
 };
@@ -174,6 +168,7 @@ export const generateDescription = async (base64Image: string): Promise<string> 
         });
         return response.text || "Pré-visualização da Sala";
     } catch (e) {
+        console.error("Snap AI Description Failed:", e);
         return "Pré-visualização da Sala";
     }
 }
