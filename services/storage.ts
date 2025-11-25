@@ -1,149 +1,145 @@
 
-import { Project, UserProfile } from '../types';
+import { 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    signOut, 
+    updateProfile 
+} from "firebase/auth";
+import { 
+    doc, 
+    setDoc, 
+    getDoc, 
+    updateDoc, 
+    deleteDoc, 
+    collection, 
+    query, 
+    where, 
+    getDocs,
+    Timestamp
+} from "firebase/firestore";
+import { 
+    ref, 
+    uploadString, 
+    getDownloadURL, 
+    deleteObject 
+} from "firebase/storage";
+import { auth, db, storage } from "./firebaseConfig";
+import { Project, UserProfile, Photo } from '../types';
 
-const DB_NAME = 'SnapImmobileDB';
-const DB_VERSION = 1;
-
-// --- IndexedDB Helpers ---
-
-const openDB = (): Promise<IDBDatabase> => {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result);
-
-        request.onupgradeneeded = (event) => {
-            const db = (event.target as IDBOpenDBRequest).result;
-            
-            // Store Projects
-            if (!db.objectStoreNames.contains('projects')) {
-                const store = db.createObjectStore('projects', { keyPath: 'id' });
-                store.createIndex('userId', 'userId', { unique: false });
-            }
-            
-            // Store Users
-            if (!db.objectStoreNames.contains('users')) {
-                db.createObjectStore('users', { keyPath: 'email' }); // Using email as key for simplicity
-            }
-        };
-    });
+// --- Helper: Device Fingerprint (DeviceLocker) ---
+const getUniqueDeviceId = () => {
+    let deviceId = localStorage.getItem('snap_device_id');
+    if (!deviceId) {
+        deviceId = crypto.randomUUID();
+        localStorage.setItem('snap_device_id', deviceId);
+    }
+    return deviceId;
 };
 
-// --- User Methods (Local) ---
+// --- Helper: Image Upload ---
+// Uploads Base64 image to Firebase Storage and returns the public URL
+const uploadPhotoToStorage = async (base64Data: string, path: string): Promise<string> => {
+    try {
+        const storageRef = ref(storage, path);
+        // Upload as Data URL (Base64)
+        await uploadString(storageRef, base64Data, 'data_url');
+        return await getDownloadURL(storageRef);
+    } catch (e) {
+        console.error("Upload failed", e);
+        return base64Data; // Fallback to base64 if upload fails (not recommended for production)
+    }
+};
+
+// --- User Methods (Firebase) ---
 
 export const registerUser = async (user: UserProfile, password?: string): Promise<UserProfile> => {
-    // Simulate async API
-    await new Promise(r => setTimeout(r, 500));
+    if (!password) throw new Error("Password required for Firebase registration");
+
+    const userCredential = await createUserWithEmailAndPassword(auth, user.email, password);
+    const firebaseUser = userCredential.user;
+    const deviceId = getUniqueDeviceId();
+
+    const newUser: UserProfile = {
+        ...user,
+        id: firebaseUser.uid,
+        deviceId: deviceId, // DeviceLocker Registration
+        createdAt: Date.now(),
+    };
+
+    // Save extended profile to Firestore
+    await setDoc(doc(db, "users", firebaseUser.uid), newUser);
     
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['users'], 'readwrite');
-        const store = transaction.objectStore('users');
-        
-        // Normalize email to lowercase and trim
-        const normalizedEmail = user.email.trim().toLowerCase();
-        
-        // Check if exists
-        const checkReq = store.get(normalizedEmail);
-        checkReq.onsuccess = () => {
-            if (checkReq.result) {
-                reject(new Error("Este e-mail já está registado."));
-            } else {
-                // Save user with password (unsafe for prod, ok for local demo)
-                // Ensure the stored object uses the normalized email
-                const userToSave: UserProfile = { 
-                    ...user, 
-                    email: normalizedEmail,
-                    id: crypto.randomUUID(), 
-                    password: password,
-                    preferences: {
-                        language: 'pt-PT',
-                        notifications: true,
-                        marketing: false,
-                        theme: 'light'
-                    }
-                };
-                store.add(userToSave);
-                resolve(userToSave);
-            }
-        };
-        checkReq.onerror = () => reject(checkReq.error);
-    });
+    return newUser;
 };
 
 export const loginUser = async (email: string, password?: string): Promise<UserProfile> => {
-    await new Promise(r => setTimeout(r, 500));
+    if (!password) throw new Error("Password required");
+
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const uid = userCredential.user.uid;
+
+    // Fetch profile from Firestore
+    const userDoc = await getDoc(doc(db, "users", uid));
     
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['users'], 'readonly');
-        const store = transaction.objectStore('users');
-        
-        // Normalize email to match registration
-        const normalizedEmail = email.trim().toLowerCase();
-        const request = store.get(normalizedEmail);
-        
-        request.onsuccess = () => {
-            const user = request.result as UserProfile;
-            
-            if (!user) {
-                reject(new Error("Utilizador não encontrado. Verifique o e-mail ou registe-se."));
-            } else if (user.password === password) {
-                resolve(user);
-            } else {
-                reject(new Error("Senha incorreta."));
-            }
-        };
-        request.onerror = () => reject(request.error);
-    });
+    if (!userDoc.exists()) {
+        throw new Error("Perfil de usuário não encontrado.");
+    }
+
+    const userData = userDoc.data() as UserProfile;
+    
+    // DeviceLocker Check
+    const currentDeviceId = getUniqueDeviceId();
+    if (userData.deviceId && userData.deviceId !== currentDeviceId) {
+        // Security Rule: Block login from different device
+        await signOut(auth);
+        throw new Error("DEVICE_NOT_ALLOWED: Acesso negado. Esta conta está bloqueada ao dispositivo original.");
+    }
+
+    return userData;
 };
 
 export const updateUser = async (user: UserProfile): Promise<UserProfile> => {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['users'], 'readwrite');
-        const store = transaction.objectStore('users');
-        
-        // We use email as key, so 'put' will update the existing record
-        const request = store.put(user);
-        
-        request.onsuccess = () => resolve(user);
-        request.onerror = () => reject(request.error);
-    });
+    const userRef = doc(db, "users", user.id);
+    
+    // If avatar is a new Base64 string, upload it first
+    let avatarUrl = user.avatar;
+    if (user.avatar && user.avatar.startsWith('data:image')) {
+        avatarUrl = await uploadPhotoToStorage(user.avatar, `avatars/${user.id}_${Date.now()}.jpg`);
+    }
+
+    const updatedUser = { ...user, avatar: avatarUrl };
+    await updateDoc(userRef, updatedUser);
+    
+    return updatedUser;
 };
 
 export const deleteUserAccount = async (email: string, userId: string): Promise<void> => {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['users', 'projects'], 'readwrite');
-        
-        // 1. Delete User
-        const userStore = transaction.objectStore('users');
-        userStore.delete(email);
-        
-        // 2. Delete all User Projects (Manual iteration needed since delete(index) isn't standard in simple API)
-        const projectStore = transaction.objectStore('projects');
-        const index = projectStore.index('userId');
-        const projectReq = index.getAllKeys(IDBKeyRange.only(userId));
-        
-        projectReq.onsuccess = () => {
-            const keys = projectReq.result;
-            keys.forEach(key => {
-                projectStore.delete(key);
-            });
-        };
+    // This is complex in Firebase Client SDK. 
+    // Ideally, use a Cloud Function to delete all user data (recursive delete).
+    // Here we do a simple client-side cleanup.
+    
+    // 1. Delete User Projects
+    const projects = await getUserProjects(userId);
+    for (const p of projects) {
+        await deleteProject(p.id);
+    }
 
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
-    });
+    // 2. Delete User Doc
+    await deleteDoc(doc(db, "users", userId));
+
+    // 3. Delete Auth Account
+    if (auth.currentUser) {
+        await auth.currentUser.delete();
+    }
 };
 
 export const logoutUser = async (): Promise<void> => {
+    await signOut(auth);
     localStorage.removeItem('snap_user_session');
 };
 
 export const getCurrentUser = (): UserProfile | null => {
+    // Firebase persists auth automatically, but for sync compatibility with App.tsx state:
     const session = localStorage.getItem('snap_user_session');
     return session ? JSON.parse(session) : null;
 };
@@ -152,45 +148,69 @@ export const saveUserSession = (user: UserProfile) => {
     localStorage.setItem('snap_user_session', JSON.stringify(user));
 };
 
-// --- Project Methods (IndexedDB) ---
+// --- Project Methods (Firestore + Storage) ---
 
 export const saveProject = async (project: Project): Promise<void> => {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['projects'], 'readwrite');
-        const store = transaction.objectStore('projects');
-        const request = store.put(project); // put updates or inserts
+    // Handle Photos: Upload Base64s to Storage and replace URLs
+    const photosWithStorageUrls: Photo[] = [];
+    
+    for (const photo of project.photos) {
+        let finalUrl = photo.url;
         
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
+        // Only upload if it's still a Base64 string (new photo)
+        if (photo.url.startsWith('data:image')) {
+            const path = `projects/${project.userId}/${project.id}/${photo.id}.jpg`;
+            finalUrl = await uploadPhotoToStorage(photo.url, path);
+        }
+        
+        photosWithStorageUrls.push({ ...photo, url: finalUrl });
+    }
+
+    // Handle Cover Image
+    let coverImageUrl = project.coverImage;
+    if (coverImageUrl && coverImageUrl.startsWith('data:image')) {
+         // If cover is one of the photos, try to find its new URL
+         const matchingPhoto = photosWithStorageUrls.find(p => project.photos.find(old => old.url === coverImageUrl)?.id === p.id);
+         if (matchingPhoto) {
+             coverImageUrl = matchingPhoto.url;
+         } else {
+             coverImageUrl = await uploadPhotoToStorage(coverImageUrl, `projects/${project.userId}/${project.id}/cover.jpg`);
+         }
+    }
+
+    const projectToSave = {
+        ...project,
+        photos: photosWithStorageUrls,
+        coverImage: coverImageUrl
+    };
+
+    await setDoc(doc(db, "projects", project.id), projectToSave);
 };
 
 export const deleteProject = async (projectId: string): Promise<void> => {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['projects'], 'readwrite');
-        const store = transaction.objectStore('projects');
-        const request = store.delete(projectId);
+    // 1. Get project to find photo URLs (to delete from storage)
+    const docRef = doc(db, "projects", projectId);
+    const snapshot = await getDoc(docRef);
+    
+    if (snapshot.exists()) {
+        const project = snapshot.data() as Project;
+        // Best effort delete images from storage
+        // Note: Client SDK cannot delete folders, must delete files individually
+        // This is better handled by a Cloud Function trigger in production
         
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
+        // 2. Delete Document
+        await deleteDoc(docRef);
+    }
 };
 
 export const getUserProjects = async (userId: string): Promise<Project[]> => {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['projects'], 'readonly');
-        const store = transaction.objectStore('projects');
-        const index = store.index('userId');
-        const request = index.getAll(IDBKeyRange.only(userId)); // Filter by User ID
-        
-        request.onsuccess = () => {
-            const projects = request.result as Project[];
-            // Sort by date descending
-            resolve(projects.sort((a, b) => b.createdAt - a.createdAt));
-        };
-        request.onerror = () => reject(request.error);
+    const q = query(collection(db, "projects"), where("userId", "==", userId));
+    const querySnapshot = await getDocs(q);
+    
+    const projects: Project[] = [];
+    querySnapshot.forEach((doc) => {
+        projects.push(doc.data() as Project);
     });
+    
+    return projects.sort((a, b) => b.createdAt - a.createdAt);
 };

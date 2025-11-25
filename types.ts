@@ -65,6 +65,7 @@ export interface UserProfile {
   avatar?: string; // Base64 avatar image
   preferences?: UserPreferences;
   createdAt: number;
+  deviceId?: string;
 }
 
 export interface ProcessingState {
