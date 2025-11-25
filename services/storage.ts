@@ -1,4 +1,3 @@
-
 import { 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
@@ -58,8 +57,8 @@ const uploadPhotoToStorage = async (base64Data: string, path: string): Promise<s
         const blob = base64ToBlob(base64Data);
         const storageRef = ref(storage, path);
         
-        // Upload the binary file (Supports large high-res photos)
-        await uploadBytes(storageRef, blob);
+        // Upload the binary file (Supports large high-res photos) with Metadata
+        await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
         
         // Get the public URL
         return await getDownloadURL(storageRef);

@@ -57,17 +57,46 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
       try {
           const zip = new JSZip();
           
-          project.photos.forEach((photo) => {
-               let ext = 'png';
-               if (photo.url.startsWith('data:image/jpeg')) ext = 'jpg';
-               if (photo.url.startsWith('data:image/webp')) ext = 'webp';
-               
-               // Strip base64 prefix
-               const base64Data = photo.url.replace(/^data:image\/\w+;base64,/, "");
-               // Create safe filename
+          // Array of promises to fetch all images
+          const promises = project.photos.map(async (photo) => {
                const safeName = photo.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-               zip.file(`${safeName}.${ext}`, base64Data, {base64: true});
+               let ext = 'jpg';
+               let data: Blob;
+
+               try {
+                   if (photo.url.startsWith('http')) {
+                       // Remote URL (Firebase)
+                       const response = await fetch(photo.url);
+                       if (!response.ok) throw new Error(`Failed to fetch ${photo.url}`);
+                       data = await response.blob();
+                       // Try to guess ext from content-type
+                       const type = data.type;
+                       if (type === 'image/png') ext = 'png';
+                       else if (type === 'image/webp') ext = 'webp';
+                   } else {
+                       // Base64 Data URI
+                       if (photo.url.startsWith('data:image/png')) ext = 'png';
+                       if (photo.url.startsWith('data:image/webp')) ext = 'webp';
+                       
+                       // Convert Base64 to Blob
+                       const arr = photo.url.split(',');
+                       const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+                       const bstr = atob(arr[1]);
+                       let n = bstr.length;
+                       const u8arr = new Uint8Array(n);
+                       while(n--){
+                           u8arr[n] = bstr.charCodeAt(n);
+                       }
+                       data = new Blob([u8arr], {type: mime});
+                   }
+                   
+                   zip.file(`${safeName}.${ext}`, data);
+               } catch (err) {
+                   console.error(`Skipping photo ${photo.name}:`, err);
+               }
           });
+
+          await Promise.all(promises);
 
           const content = await zip.generateAsync({type: "blob"});
           const url = window.URL.createObjectURL(content);
@@ -82,7 +111,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
           
       } catch (error) {
           console.error("Zip failed", error);
-          alert("Falha ao gerar ficheiro ZIP.");
+          alert("Falha ao gerar ficheiro ZIP. Verifique a conexão.");
       } finally {
           setIsDownloading(false);
       }
@@ -91,9 +120,10 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const handleDownloadPhoto = (photo: Photo) => {
       const link = document.createElement('a');
       link.href = photo.url;
-      let ext = 'png';
-      if (photo.url.startsWith('data:image/jpeg')) ext = 'jpg';
-      if (photo.url.startsWith('data:image/webp')) ext = 'webp';
+      link.target = "_blank"; // Important for remote URLs to behave
+      let ext = 'jpg';
+      if (photo.url.startsWith('data:image/png')) ext = 'png';
+      if (photo.url.includes('.png')) ext = 'png';
       
       link.download = `${photo.name.replace(/[^a-z0-9]/gi, '_')}.${ext}`;
       document.body.appendChild(link);
