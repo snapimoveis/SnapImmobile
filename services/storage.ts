@@ -1,3 +1,4 @@
+
 import { 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
@@ -64,7 +65,8 @@ const uploadPhotoToStorage = async (base64Data: string, path: string): Promise<s
         return await getDownloadURL(storageRef);
     } catch (e) {
         console.error("Upload failed", e);
-        throw new Error("Falha no upload da imagem. Verifique a conexão ou permissões do Storage.");
+        // Re-throw the original error so the UI can check for 'storage/unauthorized'
+        throw e;
     }
 };
 
