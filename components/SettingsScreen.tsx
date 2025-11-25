@@ -270,14 +270,4 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
         <div className="sticky bottom-6 flex justify-end">
             <button 
                 onClick={handleSave}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 transform active:scale-95 transition-all"
-            >
-                <Save className="w-5 h-5" />
-                Guardar Alterações
-            </button>
-        </div>
-
-      </div>
-    </div>
-  );
-};
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-full font-bold
