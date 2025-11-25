@@ -1,3 +1,6 @@
+// Ensure process is defined for TS even if types are missing
+declare const process: any;
+
 import { GoogleGenAI, Modality } from "@google/genai";
 
 // Helper to strip base64 prefix if present
