@@ -1,5 +1,3 @@
-// Ensure process is defined for TS even if types are missing
-declare const process: any;
 
 import { GoogleGenAI, Modality } from "@google/genai";
 
@@ -16,19 +14,18 @@ const getMimeType = (data: string) => {
 // Helper to get API Key with strict prioritization
 const getApiKey = (): string => {
     // 1. Check LocalStorage (Manual Override by user)
-    const localKey = localStorage.getItem('snap_gemini_api_key');
-    if (localKey) return localKey;
+    if (typeof window !== 'undefined') {
+        const localKey = localStorage.getItem('snap_gemini_api_key');
+        if (localKey) return localKey;
+    }
 
     // 2. System Default Key (Hardcoded for immediate access)
     const systemKey = 'AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM';
-    if (systemKey) return systemKey;
     
-    // 3. Check Environment Variable (Last resort)
-    try {
-        return process.env.API_KEY || "";
-    } catch (e) {
-        return "";
-    }
+    // 3. Check Environment Variable (Vite Standard)
+    const envKey = process.env.API_KEY;
+
+    return envKey || systemKey;
 };
 
 export const enhanceImage = async (base64Image: string): Promise<string> => {

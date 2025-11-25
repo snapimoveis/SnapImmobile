@@ -139,7 +139,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                 <div className="flex flex-col sm:flex-row gap-4 items-center">
                     <select 
                         value={role}
-                        onChange={e => setRole(e.target.value as UserProfile['role'])}
+                        onChange={e => setRole(e.target.value as any)}
                         className="bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-blue-500 focus:border-blue-500"
                     >
                         <option value="Corretor">Sou Corretor</option>
