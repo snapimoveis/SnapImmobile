@@ -22,6 +22,19 @@ export default defineConfig(({ mode }) => {
       'process.env.API_KEY': JSON.stringify(apiKey),
       // Also expose as standard Vite env var just in case
       'import.meta.env.VITE_API_KEY': JSON.stringify(apiKey)
+    },
+    build: {
+      chunkSizeWarningLimit: 1000, // Increase warning limit to 1MB
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // Split vendor code into separate chunks for better caching
+            vendor: ['react', 'react-dom', 'react-router-dom'],
+            ui: ['lucide-react'],
+            ai: ['@google/genai']
+          }
+        }
+      }
     }
   }
 })
