@@ -79,8 +79,16 @@ function App() {
         setCurrentUser(newUser);
         setProjects([]);
         setCurrentRoute(AppRoute.DASHBOARD);
-    } catch (e) {
-        alert("Erro ao registar: " + (e as Error).message);
+    } catch (e: any) {
+        // Firebase specific error handling
+        if (e.code === 'auth/email-already-in-use') {
+            alert("Este e-mail já está registado. Redirecionando para o Login...");
+            setCurrentRoute(AppRoute.LOGIN);
+        } else if (e.code === 'auth/weak-password') {
+            alert("A senha é muito fraca. Tente uma senha mais forte (mínimo 6 caracteres).");
+        } else {
+            alert("Erro ao registar: " + (e.message || e));
+        }
     }
   };
 
@@ -200,8 +208,15 @@ function App() {
           const userProjects = await getUserProjects(user.id);
           setProjects(userProjects);
           setCurrentRoute(AppRoute.DASHBOARD);
-      } catch (e) {
-          alert((e as Error).message || "Falha no login.");
+      } catch (e: any) {
+          // Firebase errors are often objects with 'code'
+          let msg = "Falha no login.";
+          if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password') {
+              msg = "E-mail ou senha incorretos.";
+          } else if (e.message) {
+              msg = e.message;
+          }
+          alert(msg);
       }
   };
 
