@@ -17,25 +17,20 @@ import { LoginScreen } from './components/LoginScreen';
 import { ManagementMenu } from './components/ManagementMenu';
 import { AppRoute, Project, Photo, ProjectDetails, UserProfile } from './types';
 import { generateDescription } from './services/geminiService';
-// Updated imports to use Local Storage methods
 import { 
     getCurrentUser, getUserProjects, saveProject, deleteProject, 
-    logoutUser, registerUser, loginUser, saveUserSession
+    logoutUser, registerUser, loginUser, saveUserSession, updateUser, deleteUserAccount
 } from './services/storage';
 
 function App() {
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(AppRoute.LANDING);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  
-  // Registration State
   const [selectedRole, setSelectedRole] = useState<string>('');
-
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [activePhoto, setActivePhoto] = useState<Photo | null>(null);
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
 
-  // Initialize App - Check for cached user or wait for Auth
   useEffect(() => {
     const initApp = async () => {
       const user = getCurrentUser();
@@ -53,7 +48,6 @@ function App() {
     initApp();
   }, []);
 
-  // Registration Flow
   const handleRoleSelect = (role: string) => {
     setSelectedRole(role);
     setCurrentRoute(AppRoute.REGISTER);
@@ -71,23 +65,25 @@ function App() {
             cpf: data.cpf,
             company: data.company,
             createdAt: Date.now(),
-            password: data.password // Saved locally for demo purposes
+            password: data.password,
+            preferences: {
+                language: 'pt-PT',
+                notifications: true,
+                marketing: false,
+                theme: 'light'
+            }
         };
 
-        // Async Local Registration
         const newUser = await registerUser(tempUser, data.password);
-        
-        saveUserSession(newUser); // Cache session
+        saveUserSession(newUser);
         setCurrentUser(newUser);
         setProjects([]);
         setCurrentRoute(AppRoute.DASHBOARD);
     } catch (e) {
-        console.error(e);
         alert("Erro ao registar: " + (e as Error).message);
     }
   };
 
-  // Create New Project
   const handleCreateProject = async (details: ProjectDetails & { title: string, address: string }) => {
     if (!currentUser) return;
 
@@ -96,13 +92,7 @@ function App() {
       userId: currentUser.id,
       title: details.title,
       address: details.address,
-      details: {
-        bedrooms: details.bedrooms,
-        bathrooms: details.bathrooms,
-        area: details.area,
-        price: details.price,
-        type: details.type
-      },
+      details: { ...details },
       status: 'In Progress',
       photos: [],
       createdAt: Date.now()
@@ -115,33 +105,26 @@ function App() {
       setCurrentRoute(AppRoute.PROJECT_DETAILS);
       setIsNewProjectModalOpen(false);
     } catch (e) {
-      console.error("Error creating project", e);
-      alert("Erro ao criar projeto. Tente novamente.");
+      alert("Erro ao criar projeto.");
     }
   };
 
-  // Delete Project
   const handleDeleteProject = async (projectId: string) => {
-    if (window.confirm("Tem a certeza que deseja eliminar este imóvel? Esta ação não pode ser desfeita.")) {
+    if (window.confirm("Tem a certeza que deseja eliminar este imóvel?")) {
       try {
         await deleteProject(projectId);
         setProjects(prev => prev.filter(p => p.id !== projectId));
-        if (activeProject && activeProject.id === projectId) {
-          setActiveProject(null);
-        }
+        if (activeProject && activeProject.id === projectId) setActiveProject(null);
       } catch (e) {
-        console.error("Error deleting project", e);
         alert("Erro ao eliminar projeto.");
       }
     }
   };
 
-  // Handle Camera Capture
   const handlePhotoCaptured = async (photo: Photo) => {
     if (!currentUser) return;
 
     try {
-      // If draft
       if (!activeProject) {
           const draft: Project = {
               id: crypto.randomUUID(),
@@ -153,10 +136,7 @@ function App() {
               createdAt: Date.now(),
               coverImage: photo.url
           };
-          
           await saveProject(draft); 
-          
-          // Update UI
           setProjects([draft, ...projects]);
           setActiveProject(draft);
           setCurrentRoute(AppRoute.EDITOR);
@@ -164,10 +144,8 @@ function App() {
           return;
       }
 
-      // Generate AI Description
       const description = await generateDescription(photo.url);
       const photoWithDesc = { ...photo, description };
-
       const updatedProject = {
           ...activeProject,
           photos: [...activeProject.photos, photoWithDesc],
@@ -175,39 +153,30 @@ function App() {
       };
 
       await saveProject(updatedProject); 
-      
-      // Update State
       const updatedProjects = projects.map(p => p.id === activeProject.id ? updatedProject : p);
       setProjects(updatedProjects);
       setActiveProject(updatedProject);
-      
       setActivePhoto(photoWithDesc);
       setCurrentRoute(AppRoute.EDITOR);
     } catch (e) {
-      console.error("Error saving capture", e);
       alert("Erro ao guardar a foto.");
     }
   };
 
-  // Handle Saving Edited Photo
   const handleSaveEditedPhoto = async (updatedPhoto: Photo) => {
       if (!activeProject) return;
-
       try {
         const updatedPhotos = activeProject.photos.map(p => p.id === updatedPhoto.id ? updatedPhoto : p);
         const updatedProject = { ...activeProject, photos: updatedPhotos, coverImage: updatedPhotos[0].url };
-        
         await saveProject(updatedProject);
         setProjects(projects.map(p => p.id === activeProject.id ? updatedProject : p));
         setActiveProject(updatedProject);
         setCurrentRoute(AppRoute.PROJECT_DETAILS);
       } catch (e) {
-        console.error("Error saving edits", e);
         alert("Erro ao guardar alterações.");
       }
   };
 
-  // Navigation Helpers
   const navigateToProject = (project: Project) => {
       setActiveProject(project);
       setCurrentRoute(AppRoute.PROJECT_DETAILS);
@@ -219,32 +188,41 @@ function App() {
         setProjects(projects.map(p => p.id === updated.id ? updated : p));
         setActiveProject(updated);
       } catch (e) {
-        console.error("Error updating project", e);
         alert("Erro ao atualizar projeto.");
       }
   };
 
-  const handleStartFreeTrial = () => {
-    setCurrentRoute(AppRoute.WELCOME);
-  };
-
-  const handleLoginNavigation = () => {
-     setCurrentRoute(AppRoute.LOGIN);
-  };
-  
   const handleLoginSubmit = async (email: string, password?: string) => {
       try {
           const user = await loginUser(email, password);
           saveUserSession(user);
           setCurrentUser(user);
-          
           const userProjects = await getUserProjects(user.id);
           setProjects(userProjects);
           setCurrentRoute(AppRoute.DASHBOARD);
       } catch (e) {
-          console.error(e);
-          // Show specific error message from storage service
-          alert((e as Error).message || "Falha no login. Verifique as credenciais.");
+          alert((e as Error).message || "Falha no login.");
+      }
+  };
+
+  const handleUpdateUser = async (updatedUser: UserProfile) => {
+      try {
+          const savedUser = await updateUser(updatedUser);
+          saveUserSession(savedUser);
+          setCurrentUser(savedUser);
+      } catch (e) {
+          alert("Erro ao atualizar perfil.");
+      }
+  };
+
+  const handleDeleteAccount = async () => {
+      if (currentUser) {
+          try {
+              await deleteUserAccount(currentUser.email, currentUser.id);
+              await handleLogout();
+          } catch(e) {
+              alert("Erro ao apagar conta.");
+          }
       }
   };
 
@@ -254,108 +232,38 @@ function App() {
       setCurrentRoute(AppRoute.LANDING);
   };
 
-  const handleMenuNavigate = (target: string) => {
-      if (target === 'SETTINGS') {
-          setCurrentRoute(AppRoute.SETTINGS);
-      } else {
-          setCurrentRoute(AppRoute.DASHBOARD);
-      }
-  }
-
-  const isAuthRoute = currentRoute === AppRoute.LANDING || currentRoute === AppRoute.WELCOME || currentRoute === AppRoute.REGISTER || currentRoute === AppRoute.LOGIN;
-  const isFullScreenTool = currentRoute === AppRoute.CAMERA || currentRoute === AppRoute.TOUR_VIEWER || currentRoute === AppRoute.EDITOR || currentRoute === AppRoute.MENU;
-  
+  const isAuthRoute = [AppRoute.LANDING, AppRoute.WELCOME, AppRoute.REGISTER, AppRoute.LOGIN].includes(currentRoute);
+  const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
   const showSidebar = !isAuthRoute && !isFullScreenTool;
-  const showHeader = !isAuthRoute && !isFullScreenTool;
 
   const renderContent = () => {
     switch (currentRoute) {
       case AppRoute.LANDING:
-        return (
-            <LandingScreen 
-                onLogin={handleLoginNavigation} 
-                onFreeTrial={handleStartFreeTrial} 
-            />
-        );
+        return <LandingScreen onLogin={() => setCurrentRoute(AppRoute.LOGIN)} onFreeTrial={() => setCurrentRoute(AppRoute.WELCOME)} />;
       case AppRoute.LOGIN:
-        return (
-            <LoginScreen 
-                onLogin={handleLoginSubmit}
-                onBack={() => setCurrentRoute(AppRoute.LANDING)}
-                onRegisterClick={() => setCurrentRoute(AppRoute.WELCOME)}
-            />
-        );
+        return <LoginScreen onLogin={handleLoginSubmit} onBack={() => setCurrentRoute(AppRoute.LANDING)} onRegisterClick={() => setCurrentRoute(AppRoute.WELCOME)} />;
       case AppRoute.WELCOME:
-        return (
-          <WelcomeScreen 
-            onNext={handleRoleSelect}
-            onBack={() => setCurrentRoute(AppRoute.LANDING)}
-          />
-        );
+        return <WelcomeScreen onNext={handleRoleSelect} onBack={() => setCurrentRoute(AppRoute.LANDING)} />;
       case AppRoute.REGISTER:
-        return (
-          <RegisterScreen 
-            role={selectedRole}
-            onSubmit={handleRegistrationSubmit}
-            onBack={() => setCurrentRoute(AppRoute.WELCOME)}
-          />
-        );
+        return <RegisterScreen role={selectedRole} onSubmit={handleRegistrationSubmit} onBack={() => setCurrentRoute(AppRoute.WELCOME)} />;
       case AppRoute.CAMERA:
-        return (
-          <CameraView 
-            onClose={() => setCurrentRoute(activeProject ? AppRoute.PROJECT_DETAILS : AppRoute.DASHBOARD)} 
-            onPhotoCaptured={handlePhotoCaptured} 
-          />
-        );
+        return <CameraView onClose={() => setCurrentRoute(activeProject ? AppRoute.PROJECT_DETAILS : AppRoute.DASHBOARD)} onPhotoCaptured={handlePhotoCaptured} />;
       case AppRoute.EDITOR:
-        return activePhoto ? (
-          <Editor 
-            photo={activePhoto} 
-            onSave={handleSaveEditedPhoto} 
-            onCancel={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} 
-          />
-        ) : <div>Erro: Nenhuma foto selecionada</div>;
+        return activePhoto ? <Editor photo={activePhoto} onSave={handleSaveEditedPhoto} onCancel={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : <div>Erro: Nenhuma foto</div>;
       case AppRoute.PROJECT_DETAILS:
-        return activeProject ? (
-          <ProjectDetail 
-            project={activeProject} 
-            onBack={() => setCurrentRoute(AppRoute.DASHBOARD)}
-            onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)}
-            onEditPhoto={(p) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }}
-            onUpdateProject={handleUpdateProject}
-            onViewTour={() => setCurrentRoute(AppRoute.TOUR_VIEWER)}
-          />
-        ) : <div>Erro: Nenhum projeto ativo</div>;
+        return activeProject ? <ProjectDetail project={activeProject} onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} onEditPhoto={(p) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }} onUpdateProject={handleUpdateProject} onViewTour={() => setCurrentRoute(AppRoute.TOUR_VIEWER)} /> : <div>Erro: Nenhum projeto</div>;
       case AppRoute.TOUR_VIEWER:
-         return activeProject ? (
-            <TourViewer project={activeProject} onClose={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} />
-         ) : null;
+         return activeProject ? <TourViewer project={activeProject} onClose={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : null;
       case AppRoute.SETTINGS:
-          return <SettingsScreen />;
+          return <SettingsScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onDeleteAccount={handleDeleteAccount} />;
       case AppRoute.MENU:
-          return (
-            <ManagementMenu 
-                onClose={() => setCurrentRoute(AppRoute.DASHBOARD)} 
-                onNavigate={handleMenuNavigate}
-                onLogout={handleLogout}
-            />
-          );
+          return <ManagementMenu onClose={() => setCurrentRoute(AppRoute.DASHBOARD)} onNavigate={(r) => r === 'SETTINGS' ? setCurrentRoute(AppRoute.SETTINGS) : setCurrentRoute(AppRoute.DASHBOARD)} onLogout={handleLogout} />;
       case AppRoute.DASHBOARD:
       default:
         return (
           <>
-            <ProjectList 
-                projects={projects} 
-                onSelectProject={navigateToProject} 
-                onCreateProject={() => setIsNewProjectModalOpen(true)} 
-                onDeleteProject={handleDeleteProject}
-            />
-            {isNewProjectModalOpen && (
-                <NewProjectModal 
-                    onClose={() => setIsNewProjectModalOpen(false)}
-                    onCreate={handleCreateProject}
-                />
-            )}
+            <ProjectList projects={projects} onSelectProject={navigateToProject} onCreateProject={() => setIsNewProjectModalOpen(true)} onDeleteProject={handleDeleteProject} />
+            {isNewProjectModalOpen && <NewProjectModal onClose={() => setIsNewProjectModalOpen(false)} onCreate={handleCreateProject} />}
           </>
         );
     }
@@ -364,30 +272,13 @@ function App() {
   return (
     <HashRouter>
       <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex">
-        {showSidebar && (
-            <div className="hidden md:block">
-                <NavigationMenu 
-                    currentRoute={currentRoute} 
-                    onNavigate={setCurrentRoute}
-                    onLogout={handleLogout}
-                />
-            </div>
-        )}
+        {showSidebar && <div className="hidden md:block"><NavigationMenu currentRoute={currentRoute} onNavigate={setCurrentRoute} onLogout={handleLogout} /></div>}
         <div className="flex-1 flex flex-col h-screen overflow-hidden">
-            {showHeader && (
-            <Header 
-                currentRoute={currentRoute} 
-                onNavigate={setCurrentRoute} 
-                title={activeProject && currentRoute === AppRoute.PROJECT_DETAILS ? activeProject.title : undefined}
-            />
-            )}
-            <main className={`flex-1 overflow-y-auto ${!isAuthRoute && !isFullScreenTool ? 'pt-0' : ''}`}>
-                {renderContent()}
-            </main>
+            {!isAuthRoute && !isFullScreenTool && <Header currentRoute={currentRoute} onNavigate={setCurrentRoute} title={activeProject && currentRoute === AppRoute.PROJECT_DETAILS ? activeProject.title : undefined} />}
+            <main className={`flex-1 overflow-y-auto ${!isAuthRoute && !isFullScreenTool ? 'pt-0' : ''}`}>{renderContent()}</main>
         </div>
       </div>
     </HashRouter>
   );
 }
-
 export default App;

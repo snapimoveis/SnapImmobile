@@ -45,16 +45,25 @@ export interface Project {
   details?: ProjectDetails;
 }
 
+export interface UserPreferences {
+  language: 'pt-PT' | 'pt-BR' | 'en-US';
+  notifications: boolean;
+  marketing: boolean;
+  theme: 'light' | 'dark';
+}
+
 export interface UserProfile {
   id: string;
   role: 'Corretor' | 'Proprietario' | 'Fotografo' | 'Imobiliária';
   firstName: string;
   lastName: string;
   email: string;
-  password?: string; // Added password field
+  password?: string;
   phone: string;
   cpf: string;
   company?: string;
+  avatar?: string; // Base64 avatar image
+  preferences?: UserPreferences;
   createdAt: number;
 }
 

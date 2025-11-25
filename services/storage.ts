@@ -52,11 +52,17 @@ export const registerUser = async (user: UserProfile, password?: string): Promis
             } else {
                 // Save user with password (unsafe for prod, ok for local demo)
                 // Ensure the stored object uses the normalized email
-                const userToSave = { 
+                const userToSave: UserProfile = { 
                     ...user, 
                     email: normalizedEmail,
                     id: crypto.randomUUID(), 
-                    password: password 
+                    password: password,
+                    preferences: {
+                        language: 'pt-PT',
+                        notifications: true,
+                        marketing: false,
+                        theme: 'light'
+                    }
                 };
                 store.add(userToSave);
                 resolve(userToSave);
@@ -90,6 +96,46 @@ export const loginUser = async (email: string, password?: string): Promise<UserP
             }
         };
         request.onerror = () => reject(request.error);
+    });
+};
+
+export const updateUser = async (user: UserProfile): Promise<UserProfile> => {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(['users'], 'readwrite');
+        const store = transaction.objectStore('users');
+        
+        // We use email as key, so 'put' will update the existing record
+        const request = store.put(user);
+        
+        request.onsuccess = () => resolve(user);
+        request.onerror = () => reject(request.error);
+    });
+};
+
+export const deleteUserAccount = async (email: string, userId: string): Promise<void> => {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(['users', 'projects'], 'readwrite');
+        
+        // 1. Delete User
+        const userStore = transaction.objectStore('users');
+        userStore.delete(email);
+        
+        // 2. Delete all User Projects (Manual iteration needed since delete(index) isn't standard in simple API)
+        const projectStore = transaction.objectStore('projects');
+        const index = projectStore.index('userId');
+        const projectReq = index.getAllKeys(IDBKeyRange.only(userId));
+        
+        projectReq.onsuccess = () => {
+            const keys = projectReq.result;
+            keys.forEach(key => {
+                projectStore.delete(key);
+            });
+        };
+
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
     });
 };
 
@@ -138,7 +184,6 @@ export const getUserProjects = async (userId: string): Promise<Project[]> => {
         const transaction = db.transaction(['projects'], 'readonly');
         const store = transaction.objectStore('projects');
         const index = store.index('userId');
-        // In a real app we filter by userId, but for local demo we can just get all or filter in JS if index is tricky
         const request = index.getAll(IDBKeyRange.only(userId)); // Filter by User ID
         
         request.onsuccess = () => {
