@@ -213,7 +213,7 @@ export const saveUserSession = (user: UserProfile) => {
 
 // --- Project Methods (Firestore + Storage) ---
 
-export const saveProject = async (project: Project): Promise<void> => {
+export const saveProject = async (project: Project): Promise<Project> => {
     // Sanitizar o projeto para remover 'undefined' que o Firestore rejeita
     const sanitizedProject = JSON.parse(JSON.stringify(project));
 
@@ -252,6 +252,9 @@ export const saveProject = async (project: Project): Promise<void> => {
     };
 
     await setDoc(doc(db, "projects", project.id), projectToSave);
+    
+    // Return the updated project with Remote URLs so the App state can clear memory
+    return projectToSave as Project;
 };
 
 export const deleteProject = async (projectId: string): Promise<void> => {

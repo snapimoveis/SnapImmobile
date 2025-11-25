@@ -1,4 +1,7 @@
+
 import { GoogleGenAI, Modality } from "@google/genai";
+
+declare const process: any;
 
 // Helper to safely get the key
 const getApiKey = () => {
@@ -6,9 +9,8 @@ const getApiKey = () => {
     const localKey = localStorage.getItem('snap_gemini_api_key');
     if (localKey) return localKey;
 
-    // 2. Fallback para process.env.API_KEY (Definido no vite.config.ts)
-    // Assume process.env.API_KEY is available as per Coding Guidelines and Vite config
-    return process.env.API_KEY || '';
+    // 2. HARDCODED KEY - Fallback garantido para testers
+    return 'AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM';
 };
 
 // Helper to strip base64 prefix
@@ -95,13 +97,22 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
     let systemInstruction = "";
     
     if (mode === 'ERASE') {
+        // More aggressive, strict technical prompt for Inpainting
         systemInstruction = `
-            TASK: MAGIC ERASE / INPAINTING
+            STRICT TASK: IMAGE INPAINTING / OBJECT REMOVAL
+            
+            INPUT ANALYSIS:
+            - Look for a semi-transparent RED MASK overlay on the original image.
+            - The RED MASK indicates the exact pixels to be erased.
+            
             INSTRUCTIONS:
-            1. Detect areas marked in RED overlay (if any) or identify the object described: "${prompt}".
-            2. Remove the object completely.
-            3. Fill the empty space seamlessly matching the background texture and lighting.
-            4. Return ONLY the processed image.
+            1. REMOVE everything covered by the RED MASK.
+            2. If no red mask is found, remove the object described as: "${prompt}".
+            3. INPAINT the removed area to match the surrounding background texture, lighting, and perspective.
+            4. The result must look natural, as if the object never existed.
+            
+            OUTPUT:
+            - Return ONLY the final processed image.
         `;
     } else {
         systemInstruction = `

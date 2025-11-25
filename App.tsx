@@ -118,13 +118,14 @@ function App() {
     };
     
     try {
-      await saveProject(newProject); 
-      setProjects([newProject, ...projects]);
-      setActiveProject(newProject);
+      const savedProject = await saveProject(newProject); 
+      setProjects([savedProject, ...projects]);
+      setActiveProject(savedProject);
       setCurrentRoute(AppRoute.PROJECT_DETAILS);
       setIsNewProjectModalOpen(false);
-    } catch (e) {
-      alert("Erro ao criar projeto.");
+    } catch (e: any) {
+      const msg = e.code === 'permission-denied' ? 'Permissão negada. Verifique as Regras no Console do Firebase.' : 'Erro ao criar projeto.';
+      alert(msg);
     }
   };
 
@@ -155,14 +156,15 @@ function App() {
               createdAt: Date.now(),
               coverImage: photo.url
           };
-          await saveProject(draft); 
-          setProjects([draft, ...projects]);
-          setActiveProject(draft);
+          const savedDraft = await saveProject(draft); 
+          setProjects([savedDraft, ...projects]);
+          setActiveProject(savedDraft);
           setCurrentRoute(AppRoute.EDITOR);
           setActivePhoto(photo);
           return;
       }
 
+      // If activeProject already exists, generate description and add photo
       const description = await generateDescription(photo.url);
       const photoWithDesc = { ...photo, description };
       const updatedProject = {
@@ -171,14 +173,21 @@ function App() {
           coverImage: activeProject.coverImage || photo.url
       };
 
-      await saveProject(updatedProject); 
-      const updatedProjects = projects.map(p => p.id === activeProject.id ? updatedProject : p);
+      // SAVE and UPDATE STATE with the returned lightweight object (Cloud URLs)
+      // This prevents the "Quota Exceeded" / "Error Saving" on 2nd photo
+      const savedProject = await saveProject(updatedProject); 
+      
+      const updatedProjects = projects.map(p => p.id === activeProject.id ? savedProject : p);
       setProjects(updatedProjects);
-      setActiveProject(updatedProject);
+      setActiveProject(savedProject); // Important: Update local state to use Cloud URL
       setActivePhoto(photoWithDesc);
       setCurrentRoute(AppRoute.EDITOR);
-    } catch (e) {
-      alert("Erro ao guardar a foto.");
+    } catch (e: any) {
+      console.error(e);
+      const msg = e.code === 'storage/unauthorized' 
+        ? 'Permissão de Upload negada. Corrija as "Storage Rules" no Firebase.' 
+        : `Erro ao guardar a foto: ${e.message}`;
+      alert(msg);
     }
   };
 
@@ -187,9 +196,11 @@ function App() {
       try {
         const updatedPhotos = activeProject.photos.map(p => p.id === updatedPhoto.id ? updatedPhoto : p);
         const updatedProject = { ...activeProject, photos: updatedPhotos, coverImage: updatedPhotos[0].url };
-        await saveProject(updatedProject);
-        setProjects(projects.map(p => p.id === activeProject.id ? updatedProject : p));
-        setActiveProject(updatedProject);
+        
+        const savedProject = await saveProject(updatedProject);
+        
+        setProjects(projects.map(p => p.id === activeProject.id ? savedProject : p));
+        setActiveProject(savedProject);
         setCurrentRoute(AppRoute.PROJECT_DETAILS);
       } catch (e) {
         alert("Erro ao guardar alterações.");
@@ -203,9 +214,9 @@ function App() {
 
   const handleUpdateProject = async (updated: Project) => {
       try {
-        await saveProject(updated);
-        setProjects(projects.map(p => p.id === updated.id ? updated : p));
-        setActiveProject(updated);
+        const savedProject = await saveProject(updated);
+        setProjects(projects.map(p => p.id === updated.id ? savedProject : p));
+        setActiveProject(savedProject);
       } catch (e) {
         alert("Erro ao atualizar projeto.");
       }
