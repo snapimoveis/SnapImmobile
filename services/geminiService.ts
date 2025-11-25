@@ -1,5 +1,7 @@
-
 import { GoogleGenAI, Modality } from "@google/genai";
+
+// Fix for "Cannot find name 'process'" error in TypeScript
+declare const process: { env: { [key: string]: string | undefined } };
 
 // Helper to strip base64 prefix if present
 const cleanBase64 = (data: string) => {
@@ -22,7 +24,12 @@ const getApiKey = (): string => {
     const systemKey = 'AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM';
     
     // 3. Check Environment Variable (Optional override during build)
-    return process.env.API_KEY || systemKey;
+    // We use a try-catch block or optional chaining to safely access process.env in case it's undefined in some contexts
+    try {
+        return process.env.API_KEY || systemKey;
+    } catch (e) {
+        return systemKey;
+    }
 };
 
 export const enhanceImage = async (base64Image: string): Promise<string> => {
