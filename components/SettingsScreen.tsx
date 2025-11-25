@@ -1,8 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Bell, Shield, Globe, Camera, Save, LogOut, Key } from 'lucide-react';
-import { UserProfile } from '../types';
-import { logoutUser } from '../services/storage';
+import { User, Bell, Shield, Globe, Camera, Save, Key } from 'lucide-react';
+import { UserProfile, UserPreferences } from '../types';
 
 interface SettingsScreenProps {
   currentUser: UserProfile | null;
@@ -17,7 +16,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
   const [role, setRole] = useState<UserProfile['role']>(currentUser?.role || 'Fotografo');
   
   // Preferences
-  const [language, setLanguage] = useState(currentUser?.preferences?.language || 'pt-PT');
+  const [language, setLanguage] = useState<UserPreferences['language']>(currentUser?.preferences?.language || 'pt-PT');
   const [notifications, setNotifications] = useState(currentUser?.preferences?.notifications ?? true);
   
   // Avatar
@@ -61,7 +60,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
           avatar,
           preferences: {
               ...currentUser.preferences,
-              language: language as any,
+              language: language,
               notifications,
               marketing: currentUser.preferences?.marketing || false,
               theme: 'light'
@@ -138,7 +137,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                 <div className="flex flex-col sm:flex-row gap-4 items-center">
                     <select 
                         value={role}
-                        onChange={e => setRole(e.target.value as any)}
+                        onChange={e => setRole(e.target.value as UserProfile['role'])}
                         className="bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-blue-500 focus:border-blue-500"
                     >
                         <option value="Corretor">Sou Corretor</option>
@@ -165,7 +164,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                         <span className="text-sm text-gray-600">Idioma da Interface</span>
                         <select 
                             value={language}
-                            onChange={(e) => setLanguage(e.target.value as any)}
+                            onChange={(e) => setLanguage(e.target.value as UserPreferences['language'])}
                             className="text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                         >
                             <option value="pt-PT">Português (Portugal)</option>
