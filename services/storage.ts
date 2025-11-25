@@ -46,7 +46,9 @@ const uploadPhotoToStorage = async (base64Data: string, path: string): Promise<s
         return await getDownloadURL(storageRef);
     } catch (e) {
         console.error("Upload failed", e);
-        return base64Data; // Fallback to base64 if upload fails (not recommended for production)
+        // CRITICAL: Do NOT return base64Data here. 
+        // Returning base64Data causes Firestore to try and save the massive string, hitting the 1MB limit and crashing.
+        throw new Error("Falha no upload da imagem. Verifique a conexão ou permissões.");
     }
 };
 
@@ -135,7 +137,12 @@ export const updateUser = async (user: UserProfile): Promise<UserProfile> => {
     // If avatar is a new Base64 string, upload it first
     let avatarUrl = user.avatar;
     if (user.avatar && user.avatar.startsWith('data:image')) {
-        avatarUrl = await uploadPhotoToStorage(user.avatar, `avatars/${user.id}_${Date.now()}.jpg`);
+        try {
+            avatarUrl = await uploadPhotoToStorage(user.avatar, `avatars/${user.id}_${Date.now()}.jpg`);
+        } catch (e) {
+            console.error("Avatar upload failed, continuing with text update");
+            // Proceed without avatar update if upload fails
+        }
     }
 
     const updatedUser = { ...user, avatar: avatarUrl };
@@ -212,7 +219,8 @@ export const saveProject = async (project: Project): Promise<void> => {
          if (matchingPhoto) {
              coverImageUrl = matchingPhoto.url;
          } else {
-             coverImageUrl = await uploadPhotoToStorage(coverImageUrl, `projects/${project.userId}/${project.id}/cover.jpg`);
+             const path = `projects/${project.userId}/${project.id}/cover_${Date.now()}.jpg`;
+             coverImageUrl = await uploadPhotoToStorage(coverImageUrl, path);
          }
     }
 

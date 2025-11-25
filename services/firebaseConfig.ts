@@ -17,7 +17,7 @@ const firebaseConfig = {
   appId: "1:345642553254:web:63e9eafc63c28a34988967"
 };
 
-// Initialize Firebase
+// Initialize Firebase with explicit 'any' types to avoid TS7034 errors
 let app: any;
 let auth: any;
 let db: any;
