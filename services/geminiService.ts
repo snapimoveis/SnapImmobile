@@ -11,23 +11,25 @@ const getMimeType = (data: string) => {
     return match ? match[1] : 'image/jpeg';
 }
 
-// Helper to get API Key with multiple fallbacks
-const getApiKey = (): string | null => {
-    // 1. Check Build/Env var
-    if (process.env.API_KEY) return process.env.API_KEY;
-    // 2. Check LocalStorage (User Settings Manual Override)
+// Helper to get API Key
+const getApiKey = (): string => {
+    // 1. Check LocalStorage (Manual Override by user if they want their own)
     const localKey = localStorage.getItem('snap_gemini_api_key');
     if (localKey) return localKey;
-    // 3. Hardcoded Fallback (As requested by user for immediate function)
-    return 'AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM';
+
+    // 2. System Default Key (Shared for all testers)
+    // This key is baked into the app so it works for everyone immediately via Vercel.
+    const systemKey = 'AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM';
+    
+    // 3. Check Environment Variable (Optional override during build)
+    return process.env.API_KEY || systemKey;
 };
 
 export const enhanceImage = async (base64Image: string): Promise<string> => {
   const apiKey = getApiKey();
   
   if (!apiKey) {
-      console.error("API Key missing.");
-      throw new Error("Chave de API não configurada. Contacte o suporte.");
+      throw new Error("Chave de API não configurada.");
   }
   
   const ai = new GoogleGenAI({ apiKey });
@@ -84,8 +86,6 @@ export const enhanceImage = async (base64Image: string): Promise<string> => {
 
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
     const apiKey = getApiKey();
-    if (!apiKey) throw new Error("API Key not configured");
-
     const ai = new GoogleGenAI({ apiKey });
     
     let systemInstruction = "";
@@ -153,8 +153,6 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
 
 export const generateDescription = async (base64Image: string): Promise<string> => {
     const apiKey = getApiKey();
-    if (!apiKey) return "Imóvel";
-
     const ai = new GoogleGenAI({ apiKey });
     
     try {

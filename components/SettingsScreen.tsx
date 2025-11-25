@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Bell, Shield, Globe, Camera, Save, Key } from 'lucide-react';
+import { User, Bell, Shield, Globe, Camera, Save, Key, CheckCircle } from 'lucide-react';
 import { UserProfile, UserPreferences } from '../types';
 
 interface SettingsScreenProps {
@@ -74,9 +74,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
   const handleSaveApiKey = () => {
       if (manualApiKey.trim()) {
           localStorage.setItem('snap_gemini_api_key', manualApiKey.trim());
-          alert("Chave API salva localmente. A IA deve funcionar agora.");
+          alert("Chave Pessoal salva! O app usará a sua chave.");
       } else {
           localStorage.removeItem('snap_gemini_api_key');
+          setManualApiKey('');
+          alert("Chave Pessoal removida. O app usará a Chave do Sistema (Padrão).");
       }
   };
 
@@ -137,7 +139,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                 <div className="flex flex-col sm:flex-row gap-4 items-center">
                     <select 
                         value={role}
-                        onChange={e => setRole(e.target.value as any)}
+                        onChange={e => setRole(e.target.value as UserProfile['role'])}
                         className="bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-blue-500 focus:border-blue-500"
                     >
                         <option value="Corretor">Sou Corretor</option>
@@ -200,39 +202,43 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                 <Shield size={18} className="text-green-600" /> Segurança e Dados
             </h3>
             
-            {/* API Key Fallback for Vercel Issues */}
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div 
-                    className="flex justify-between items-center cursor-pointer mb-2"
-                    onClick={() => setShowKeyInput(!showKeyInput)}
-                >
-                    <div className="flex items-center gap-2">
-                        <Key size={16} className="text-gray-500"/>
-                        <span className="text-sm font-medium text-gray-700">Diagnóstico IA (API Key)</span>
+            {/* API Key Status Indicator */}
+            <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <CheckCircle size={20} className="text-green-600" />
+                    <div>
+                        <span className="text-sm font-bold text-green-900">Chave IA do Sistema Ativa</span>
+                        <p className="text-xs text-green-700">A Inteligência Artificial está pronta a usar para todos.</p>
                     </div>
-                    <span className="text-xs text-blue-600">{showKeyInput ? 'Ocultar' : 'Mostrar'}</span>
                 </div>
-                
-                {showKeyInput && (
-                    <div className="animate-in fade-in slide-in-from-top-2">
-                        <p className="text-xs text-gray-500 mb-2">
-                            Se a IA não estiver a funcionar (falha no Vercel), cole a sua chave Google Gemini aqui.
-                        </p>
-                        <div className="flex gap-2">
-                            <input 
-                                type="password" 
-                                value={manualApiKey}
-                                onChange={(e) => setManualApiKey(e.target.value)}
-                                placeholder="AIzaSy..."
-                                className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm"
-                            />
-                            <button onClick={handleSaveApiKey} className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">
-                                Salvar Localmente
-                            </button>
-                        </div>
-                    </div>
-                )}
+                <button 
+                    onClick={() => setShowKeyInput(!showKeyInput)}
+                    className="text-xs text-green-800 underline hover:text-green-900"
+                >
+                    {showKeyInput ? 'Ocultar Avançado' : 'Avançado'}
+                </button>
             </div>
+            
+            {showKeyInput && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 animate-in fade-in">
+                    <p className="text-xs text-gray-500 mb-2 font-medium">
+                        Substituir Chave do Sistema (Opcional):
+                    </p>
+                    <div className="flex gap-2">
+                        <input 
+                            type="password" 
+                            value={manualApiKey}
+                            onChange={(e) => setManualApiKey(e.target.value)}
+                            placeholder="Cole a sua própria chave AIzaSy..."
+                            className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm"
+                        />
+                        <button onClick={handleSaveApiKey} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 font-medium">
+                            Usar Minha
+                        </button>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">Deixe em branco para usar a chave padrão do Snap Immobile.</p>
+                </div>
+            )}
 
             <div className="flex items-center justify-between border-t border-gray-100 pt-4 mb-4">
                 <div>
