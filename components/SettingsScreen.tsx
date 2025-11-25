@@ -14,7 +14,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
   // Local state for form fields
   const [firstName, setFirstName] = useState(currentUser?.firstName || '');
   const [lastName, setLastName] = useState(currentUser?.lastName || '');
-  const [role, setRole] = useState(currentUser?.role || 'Fotografo');
+  const [role, setRole] = useState<UserProfile['role']>(currentUser?.role || 'Fotografo');
   
   // Preferences
   const [language, setLanguage] = useState(currentUser?.preferences?.language || 'pt-PT');
@@ -57,7 +57,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
           ...currentUser,
           firstName,
           lastName,
-          role: role as any,
+          role: role,
           avatar,
           preferences: {
               ...currentUser.preferences,
@@ -138,7 +138,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                 <div className="flex flex-col sm:flex-row gap-4 items-center">
                     <select 
                         value={role}
-                        onChange={e => setRole(e.target.value)}
+                        onChange={e => setRole(e.target.value as any)}
                         className="bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-blue-500 focus:border-blue-500"
                     >
                         <option value="Corretor">Sou Corretor</option>
@@ -165,7 +165,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                         <span className="text-sm text-gray-600">Idioma da Interface</span>
                         <select 
                             value={language}
-                            onChange={(e) => setLanguage(e.target.value)}
+                            onChange={(e) => setLanguage(e.target.value as any)}
                             className="text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                         >
                             <option value="pt-PT">Português (Portugal)</option>
