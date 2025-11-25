@@ -19,7 +19,7 @@ import {
 } from "firebase/firestore";
 import { 
     ref, 
-    uploadString, 
+    uploadBytes, 
     getDownloadURL, 
     deleteObject 
 } from "firebase/storage";
@@ -36,19 +36,36 @@ const getUniqueDeviceId = () => {
     return deviceId;
 };
 
+// --- Helper: Convert Base64 to Blob ---
+const base64ToBlob = (base64: string): Blob => {
+    const arr = base64.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+};
+
 // --- Helper: Image Upload ---
-// Uploads Base64 image to Firebase Storage and returns the public URL
+// Uploads Base64 image to Firebase Storage as a BLOB (Binary) for stability with large files
 const uploadPhotoToStorage = async (base64Data: string, path: string): Promise<string> => {
     try {
+        // Convert massive Base64 string to efficient Binary Blob
+        const blob = base64ToBlob(base64Data);
         const storageRef = ref(storage, path);
-        // Upload as Data URL (Base64)
-        await uploadString(storageRef, base64Data, 'data_url');
+        
+        // Upload the binary file (Supports large high-res photos)
+        await uploadBytes(storageRef, blob);
+        
+        // Get the public URL
         return await getDownloadURL(storageRef);
     } catch (e) {
         console.error("Upload failed", e);
-        // CRITICAL: Do NOT return base64Data here. 
-        // Returning base64Data causes Firestore to try and save the massive string, hitting the 1MB limit and crashing.
-        throw new Error("Falha no upload da imagem. Verifique a conexão ou permissões.");
+        throw new Error("Falha no upload da imagem. Verifique a conexão ou permissões do Storage.");
     }
 };
 
@@ -196,6 +213,9 @@ export const saveUserSession = (user: UserProfile) => {
 // --- Project Methods (Firestore + Storage) ---
 
 export const saveProject = async (project: Project): Promise<void> => {
+    // Sanitizar o projeto para remover 'undefined' que o Firestore rejeita
+    const sanitizedProject = JSON.parse(JSON.stringify(project));
+
     // Handle Photos: Upload Base64s to Storage and replace URLs
     const photosWithStorageUrls: Photo[] = [];
     
@@ -212,7 +232,7 @@ export const saveProject = async (project: Project): Promise<void> => {
     }
 
     // Handle Cover Image
-    let coverImageUrl = project.coverImage;
+    let coverImageUrl = sanitizedProject.coverImage;
     if (coverImageUrl && coverImageUrl.startsWith('data:image')) {
          // If cover is one of the photos, try to find its new URL
          const matchingPhoto = photosWithStorageUrls.find(p => project.photos.find(old => old.url === coverImageUrl)?.id === p.id);
@@ -225,9 +245,9 @@ export const saveProject = async (project: Project): Promise<void> => {
     }
 
     const projectToSave = {
-        ...project,
+        ...sanitizedProject,
         photos: photosWithStorageUrls,
-        coverImage: coverImageUrl
+        coverImage: coverImageUrl || null // Ensure not undefined
     };
 
     await setDoc(doc(db, "projects", project.id), projectToSave);
