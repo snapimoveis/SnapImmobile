@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Bell, Shield, Globe, Camera, Save, CheckCircle } from 'lucide-react';
+import { User, Bell, Shield, Globe, Camera, Save, CheckCircle, Smartphone } from 'lucide-react';
 import { UserProfile, UserPreferences } from '../types';
 
 interface SettingsScreenProps {
@@ -202,6 +202,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                 <Shield size={18} className="text-green-600" /> Segurança e Dados
             </h3>
             
+            {/* Device ID Display */}
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-3">
+                <Smartphone className="text-blue-500 w-5 h-5" />
+                <div className="flex-1">
+                    <p className="text-xs text-blue-600 font-bold mb-1">ID do Dispositivo Vinculado</p>
+                    <code className="text-[10px] text-blue-800 break-all font-mono block">
+                        {currentUser.deviceId || 'Não registado'}
+                    </code>
+                </div>
+            </div>
+
             {/* API Key Status Indicator */}
             <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200 flex items-center justify-between">
                 <div className="flex items-center gap-2">
