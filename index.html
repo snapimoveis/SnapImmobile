@@ -18,7 +18,6 @@
     
     <!-- iOS Icons & Splash -->
     <link rel="apple-touch-icon" href="/icon-192.png">
-    <!-- Usamos o ícone como splash placeholder para evitar ecrã branco -->
     <link rel="apple-touch-startup-image" href="/icon-192.png">
     
     <title>Snap Immobile</title>
@@ -101,12 +100,14 @@
       // Service Worker Registration for PWA/TWA Support
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
+          // Use relative path to support various hosting environments/previews
+          navigator.serviceWorker.register('./sw.js')
             .then(registration => {
-              console.log('SW registered: ', registration);
+              console.log('SW registered with scope:', registration.scope);
             })
             .catch(registrationError => {
-              console.log('SW registration failed: ', registrationError);
+              // Warn instead of Error to not alarm user in dev/preview environments where origins might differ
+              console.warn('SW registration failed (likely due to preview environment):', registrationError);
             });
         });
       }

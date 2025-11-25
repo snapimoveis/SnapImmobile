@@ -1,4 +1,3 @@
-
 const CACHE_NAME = 'snap-immobile-v1';
 const urlsToCache = [
   '/',
