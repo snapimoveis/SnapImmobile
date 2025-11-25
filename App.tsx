@@ -80,14 +80,19 @@ function App() {
         setProjects([]);
         setCurrentRoute(AppRoute.DASHBOARD);
     } catch (e: any) {
-        // Firebase specific error handling
+        console.error("Erro no registo:", e);
+        // Tratamento robusto de erros do Firebase
         if (e.code === 'auth/email-already-in-use') {
-            alert("Este e-mail já está registado. Redirecionando para o Login...");
+            alert("Este e-mail já está registado. Por favor, faça login.");
             setCurrentRoute(AppRoute.LOGIN);
         } else if (e.code === 'auth/weak-password') {
-            alert("A senha é muito fraca. Tente uma senha mais forte (mínimo 6 caracteres).");
+            alert("A senha é muito fraca. Escolha uma senha com pelo menos 6 caracteres.");
+        } else if (e.code === 'auth/invalid-email') {
+            alert("O formato do e-mail é inválido.");
+        } else if (e.code === 'auth/network-request-failed') {
+            alert("Falha na conexão. Verifique a sua internet.");
         } else {
-            alert("Erro ao registar: " + (e.message || e));
+            alert("Erro ao criar conta: " + (e.message || "Tente novamente."));
         }
     }
   };
@@ -209,10 +214,15 @@ function App() {
           setProjects(userProjects);
           setCurrentRoute(AppRoute.DASHBOARD);
       } catch (e: any) {
-          // Firebase errors are often objects with 'code'
+          console.error("Erro no login:", e);
           let msg = "Falha no login.";
+          
           if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password') {
               msg = "E-mail ou senha incorretos.";
+          } else if (e.code === 'auth/too-many-requests') {
+              msg = "Muitas tentativas falhadas. Tente novamente mais tarde.";
+          } else if (e.message && e.message.includes('DEVICE_NOT_ALLOWED')) {
+              msg = "Acesso bloqueado: Esta conta está vinculada a outro dispositivo por segurança.";
           } else if (e.message) {
               msg = e.message;
           }
