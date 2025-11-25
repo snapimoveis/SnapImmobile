@@ -1,35 +1,49 @@
-
 import { GoogleGenAI, Modality } from "@google/genai";
 
-declare const process: any;
+// Helper to safely get the key
+const getApiKey = () => {
+    // 1. Tenta localStorage (se o usuário definiu uma chave própria nas configs)
+    const localKey = localStorage.getItem('snap_gemini_api_key');
+    if (localKey) return localKey;
 
-// Helper to strip base64 prefix if present
+    // 2. Fallback para process.env.API_KEY (Definido no vite.config.ts)
+    // Assume process.env.API_KEY is available as per Coding Guidelines and Vite config
+    return process.env.API_KEY || '';
+};
+
+// Helper to strip base64 prefix
 const cleanBase64 = (data: string) => {
-  return data.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+  if (!data) return '';
+  // Remove tudo antes da vírgula (data:image/xyz;base64,)
+  return data.split(',')[1] || data;
 };
 
 const getMimeType = (data: string) => {
+    if (!data) return 'image/jpeg';
     const match = data.match(/^data:(image\/\w+);base64,/);
     return match ? match[1] : 'image/jpeg';
 }
 
 export const enhanceImage = async (base64Image: string): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = getApiKey();
+  if (!apiKey) {
+      throw new Error("API Key não encontrada. Configure nas Definições.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
   
-  // SYSTEM / BUILD (ENGINE HDR) — HP-HDR
   const prompt = `
     Tu és o motor HP-HDR (Highlight Priority High Dynamic Range) do Snap Immobile.
-    O teu objetivo é preservar 100% dos highlights, mantendo textura, nitidez e contraste natural, sem estourar o branco em nenhum ponto da cena.
+    Melhora esta fotografia imobiliária.
     
-    Entrada: Uma imagem base representativa de uma pilha de exposições (bracketing).
+    Objetivos:
+    1. Recuperar sombras sem criar ruído.
+    2. Reduzir o brilho excessivo (estouro) nas janelas e luzes.
+    3. Corrigir linhas verticais (perspetiva).
+    4. Aumentar a nitidez e clareza.
+    5. Manter as cores naturais e vibrantes.
     
-    Segue estritamente este pipeline de fusão com IA:
-    1. Highlight Mapping Inteligente: Comprime highlights mantendo textura. Elimina zonas queimadas.
-    2. Shadow Recovery Natural: Recupera sombras (2–2.5 stops) sem ruído.
-    3. Nitidez Real (Texture-Aware): Sem halos.
-    4. Correções Automáticas: Perspetiva (linhas verticais), aberração cromática.
-    
-    Saída: Uma fotografia HDR imobiliária premium.
+    Retorna APENAS a imagem melhorada.
   `;
 
   try {
@@ -59,42 +73,43 @@ export const enhanceImage = async (base64Image: string): Promise<string> => {
               return `data:image/png;base64,${part.inlineData.data}`;
           }
       }
+      
+      // Se não gerou imagem, retorna a original
+      console.warn("AI did not return an image part, returning original.");
       return base64Image;
-  } catch (error) {
+
+  } catch (error: any) {
     console.error("Snap AI Enhancement Failed:", error);
+    // Mensagens de erro mais claras para o usuário
+    if (error.message?.includes('400')) throw new Error("Erro na imagem (Formato inválido).");
+    if (error.message?.includes('403') || error.message?.includes('API key')) throw new Error("Chave de API inválida ou expirada.");
+    if (error.message?.includes('429')) throw new Error("Muitos pedidos. Tente novamente em instantes.");
     throw error;
   }
 };
 
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = getApiKey();
+    const ai = new GoogleGenAI({ apiKey });
     
     let systemInstruction = "";
     
     if (mode === 'ERASE') {
-        // IMPROVED MAGIC ERASE PROMPT
         systemInstruction = `
-            TASK: SEMANTIC INPAINTING & OBJECT REMOVAL
-            INPUT: Image containing a TRANSLUCENT RED MASK overlay.
-            
+            TASK: MAGIC ERASE / INPAINTING
             INSTRUCTIONS:
-            1. IDENTIFY the exact pixels covered by the RED overlay.
-            2. REMOVE the object(s) completely beneath the red mask.
-            3. INPAINT the void using context from the surrounding background (floor patterns, wall textures, baseboards).
-            4. BLEND seamlessy.
-            5. OUTPUT the clean image WITHOUT any red color remaining.
-            
-            User request: ${prompt}
+            1. Detect areas marked in RED overlay (if any) or identify the object described: "${prompt}".
+            2. Remove the object completely.
+            3. Fill the empty space seamlessly matching the background texture and lighting.
+            4. Return ONLY the processed image.
         `;
     } else {
-        // Virtual Staging
         systemInstruction = `
-            TASK: VIRTUAL HOME STAGING
+            TASK: VIRTUAL STAGING
             INSTRUCTIONS:
-            1. Analyze room perspective, vanishing points, and light sources.
-            2. Insert photorealistic furniture as described.
-            3. Ensure correct scale and contact shadows.
-            User request: ${prompt}
+            1. Add furniture: "${prompt}".
+            2. Match room perspective and lighting.
+            3. Return ONLY the processed image.
         `;
     }
 
@@ -125,15 +140,17 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
                   return `data:image/png;base64,${part.inlineData.data}`;
               }
           }
-          throw new Error("No image generated from edit");
-    } catch (error) {
+          throw new Error("A IA não gerou a imagem editada.");
+    } catch (error: any) {
         console.error("Snap AI Editing Failed:", error);
-        throw error;
+        if (error.message?.includes('429')) throw new Error("Servidor ocupado (Quota). Tente já.");
+        throw new Error("Falha na edição IA: " + error.message);
     }
 };
 
 export const generateDescription = async (base64Image: string): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = getApiKey();
+    const ai = new GoogleGenAI({ apiKey });
     
     try {
         const response = await ai.models.generateContent({
@@ -141,13 +158,13 @@ export const generateDescription = async (base64Image: string): Promise<string> 
             contents: {
                 parts: [
                     { inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } },
-                    { text: "Descreva esta divisão imobiliária numa frase curta e comercial em Português de Portugal." }
+                    { text: "Descreva esta divisão imobiliária numa frase curta, apelativa e comercial em Português de Portugal. Foque nos pontos fortes." }
                 ]
             }
         });
-        return response.text || "Pré-visualização da Sala";
+        return response.text || "Imóvel de luxo";
     } catch (e) {
         console.error("Snap AI Description Failed:", e);
-        return "Pré-visualização da Sala";
+        return "Imóvel Snap";
     }
 }
