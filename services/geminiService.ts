@@ -1,6 +1,6 @@
+
 import { GoogleGenAI, Modality } from "@google/genai";
 
-// Fix: Declare process to avoid TypeScript errors if types are missing or conflicting
 declare const process: any;
 
 // Helper to strip base64 prefix if present
@@ -13,35 +13,8 @@ const getMimeType = (data: string) => {
     return match ? match[1] : 'image/jpeg';
 }
 
-// Helper to get API Key with strict prioritization
-const getApiKey = (): string => {
-    // 1. Check LocalStorage (Manual Override by user via Settings)
-    if (typeof window !== 'undefined') {
-        const localKey = localStorage.getItem('snap_gemini_api_key');
-        if (localKey) return localKey;
-    }
-
-    // 2. System Default Key (Hardcoded for immediate access)
-    const systemKey = 'AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM';
-    
-    // 3. Check Environment Variable (Guideline Compliant)
-    // Usage of process.env.API_KEY is mandated by guidelines.
-    // The 'process' variable is shimmed in vite.config.ts
-    let envKey = '';
-    try {
-        if (process && process.env) {
-            envKey = process.env.API_KEY;
-        }
-    } catch (e) {
-        // Ignore reference errors
-    }
-
-    return envKey || systemKey;
-};
-
 export const enhanceImage = async (base64Image: string): Promise<string> => {
-  const apiKey = getApiKey();
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   // SYSTEM / BUILD (ENGINE HDR) — HP-HDR
   const prompt = `
@@ -94,8 +67,7 @@ export const enhanceImage = async (base64Image: string): Promise<string> => {
 };
 
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
-    const apiKey = getApiKey();
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     let systemInstruction = "";
     
@@ -161,8 +133,7 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
 };
 
 export const generateDescription = async (base64Image: string): Promise<string> => {
-    const apiKey = getApiKey();
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
         const response = await ai.models.generateContent({
