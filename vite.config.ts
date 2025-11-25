@@ -7,16 +7,19 @@ export default defineConfig(({ mode }) => {
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, '.', '');
   
+  // Prioritize VITE_API_KEY, then API_KEY, then check process.env
+  const apiKey = env.VITE_API_KEY || env.API_KEY || process.env.VITE_API_KEY || process.env.API_KEY || '';
+
   return {
     plugins: [react()],
     server: {
-      host: true // Expose to network for iPhone testing
+      host: true
     },
     define: {
-      // This ensures process.env.API_KEY is available in the code
-      'process.env.API_KEY': JSON.stringify(env.API_KEY),
-      // Fallback for other process.env accesses if necessary (though rarely needed in Vite)
-      'process.env': process.env
+      // Expose the API Key securely to the client-side code
+      'process.env.API_KEY': JSON.stringify(apiKey),
+      // Also expose as standard Vite env var just in case
+      'import.meta.env.VITE_API_KEY': JSON.stringify(apiKey)
     }
   }
 })

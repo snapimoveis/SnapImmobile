@@ -11,9 +11,13 @@ const getMimeType = (data: string) => {
 }
 
 export const enhanceImage = async (base64Image: string): Promise<string> => {
-  if (!process.env.API_KEY) throw new Error("API Key not found");
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+      console.error("API Key missing. Please set API_KEY in your environment variables.");
+      throw new Error("Chave de API não configurada. Contacte o suporte.");
+  }
   
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   
   // SYSTEM / BUILD (ENGINE HDR) — HP-HDR (Highlight Priority High Dynamic Range)
   const prompt = `
@@ -81,9 +85,10 @@ export const enhanceImage = async (base64Image: string): Promise<string> => {
 };
 
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
-    if (!process.env.API_KEY) throw new Error("API Key not found");
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) throw new Error("API Key not configured");
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey });
     
     // Architecture Implementation for Advanced Editing
     let systemInstruction = "";
@@ -131,9 +136,10 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
 };
 
 export const generateDescription = async (base64Image: string): Promise<string> => {
-    if (!process.env.API_KEY) return "Imóvel";
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) return "Imóvel";
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey });
     
     try {
         const response = await ai.models.generateContent({
