@@ -12,10 +12,9 @@ const firebaseConfig = {
   projectId: "snap-immobile",
   storageBucket: "snap-immobile.firebasestorage.app",
   
-  // --- DADOS FALTANTES (VOCÊ PRECISA PREENCHER) ---
-  // Pegue estes dados no Console do Firebase > Configurações do Projeto > Geral > Seus Aplicativos
-  messagingSenderId: "87654321000", // (Opcional, mas recomendado)
-  appId: "1:87654321000:web:abcdef123456" // <--- COLE O SEU APP ID REAL AQUI
+  // Dados Atualizados:
+  messagingSenderId: "345642553254", 
+  appId: "1:345642553254:web:63e9eafc63c28a34988967"
 };
 
 // Initialize Firebase
@@ -29,9 +28,9 @@ try {
     auth = getAuth(app);
     db = getFirestore(app);
     storage = getStorage(app);
-    console.log("Firebase inicializado. Verifique se o appId está correto em services/firebaseConfig.ts");
+    console.log("Firebase inicializado com sucesso.");
 } catch (error) {
-    console.error("ERRO CRÍTICO FIREBASE: Verifique o appId em services/firebaseConfig.ts", error);
+    console.error("ERRO CRÍTICO FIREBASE:", error);
 }
 
 export { auth, db, storage };
