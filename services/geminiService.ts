@@ -6,7 +6,7 @@ const getApiKey = () => {
     const localKey = localStorage.getItem('snap_gemini_api_key');
     if (localKey) return localKey;
     // Fallback to hardcoded key if process.env fails
-    return process.env.API_KEY || 'AIzaSyAuQJmnHcJLkTJNRGfAhYMCZYN1FQ4PSN4';
+    return process.env.API_KEY || 'AIzaSyDrfl26AjdJxdwxH2Eli_fme0uE9Qx5Kmk';
 };
 
 const cleanBase64 = (data: string) => {
@@ -34,72 +34,72 @@ export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interio
   }
 
   const prompt = `
-    SYSTEM / BUILD (ENGINE HDR NODALVIEW-STYLE)
+    SYSTEM / BUILD (ENGINE HDR PRO)
     Tu és o motor de processamento de imagem do Snap Immobile.
     ${contextInstruction}
 
-    Este modelo deve processar imagens do app Snap Immobile utilizando bracketing de 9 exposições e manter 100% da geometria e aparência real do ambiente.
-    A imagem final deve ser sempre retornada no formato original do ficheiro (normalmente 4:3 no iPhone), sem recorte, sem esticar e sem converter para 16:9.
+    Recebes 9 imagens da mesma cena capturadas em bracketing, sempre na seguinte ordem:
+    EV -4, EV -3, EV -2, EV -1, EV 0, EV +1, EV +2, EV +3, EV +4.
 
-    1. Formato e FOV (ESSENCIAL)
-    • Manter exatamente a proporção original da captura (4:3).
-    • Nunca cortar, esticar ou converter para 16:9.
-    • Preservar todos os metadados EXIF.
-    • Nunca alterar o campo de visão, distância focal, nem perspectiva.
-    • Respeitar a geometria original da sala.
+    O objectivo é gerar uma única imagem final com HDR profissional e profundidade natural, semelhante ao resultado da plataforma Nodalview.
 
-    2. HDR PROFISSIONAL com 9 exposições
-    As exposições esperadas/simuladas são: –4 EV, –3 EV, –2 EV, –1 EV, 0 EV, +1 EV, +2 EV, +3 EV, +4 EV
-    O sistema deve:
-    • Combinar as 9 exposições preservando dynamic range real.
-    • Usar exposições negativas para recuperar highlights (janelas).
-    • Usar exposições positivas para iluminar sombras.
-    • Zero halos, zero brilho artificial.
-    • Preservar cor e balanço de branco naturais.
-    • Reduzir ruído nas exposições mais altas (+3 e +4 EV) sem borrar textura.
+    1. Formato e Geometria (ESSENCIAL)
+    • Mantém exactamente a proporção original da captura (normalmente 4:3).
+    • Nunca converter para 16:9, nunca cortar ou esticar.
+    • Mantém a geometria da sala 100% fiel.
+    • Não alterar perspectiva, distância focal, FOV ou ângulos.
+    • Não aplicar qualquer tipo de distorção de lente.
 
-    3. PROFUNDIDADE REAL (estilo Nodalview)
-    A profundidade deve ser aumentada de forma sutil e natural, usando apenas:
-    • microcontraste no piso e superfícies texturizadas
+    2. Fusão HDR a partir das 9 exposições
+
+    Utiliza a sequência de EV para reconstruir um HDR real:
+    • As exposições negativas (EV -4 a EV -1) devem recuperar detalhes das áreas muito claras, como lâmpadas e janelas.
+    • A exposição EV 0 define a cor base, o equilíbrio geral e a geometria.
+    • As exposições positivas (+1 a +4) devem iluminar as áreas escuras mantendo aspecto natural.
+    • Não criar halos nem brilho artificial.
+    • Preserva 100% dos detalhes, tanto nas sombras como nos highlights.
+    • Reduz o ruído das exposições positivas sem destruir textura.
+
+    3. Profundidade Estilo Nodalview
+
+    Aumenta a sensação de profundidade de forma subtil, apenas através de:
+    • microcontraste local
     • separação tonal suave entre planos próximos e distantes
-    • sombras naturais um pouco mais definidas nos objetos distantes
-    • nitidez seletiva apenas onde há textura real
-    • reforço leve de textura no piso para criar sensação de espaço
+    • sombras naturais ligeiramente mais definidas
+    • nitidez seletiva apenas em superfícies com textura (como o piso)
+    • nenhuma alteração de geometria ou FOV
 
-    Nunca alterar:
-    • perspectiva
-    • ângulo de captura
-    • distâncias entre objetos
-    • proporções da sala
-    • distorção de lente original
-    A profundidade deve ser igual ou superior à do Nodalview, porém natural.
+    Nunca exagerar — o efeito deve ser natural, realista e profissional.
 
-    4. ILUMINAÇÃO
-    • Iluminar suavemente áreas escuras sem clarear demais.
-    • Preservar brilho natural das luzes internas.
-    • Nunca saturar ou criar “glow” artificial.
-    • Manter cor real do ambiente.
+    4. Brilho e Iluminação
 
-    5. QUALIDADE FINAL
+    O brilho deve seguir o estilo profissional:
+    • Elevar suavemente os tons médios (midtone lift) para melhorar luminosidade global.
+    • Abrir as sombras profundas de forma inteligente sem achatar a imagem.
+    • Preservar highlights das luzes internas sem estourar.
+    • Manter cores reais, sem filtros artificiais.
+    • Garantir um aspecto limpo, brilhante, nítido e natural.
+
+    5. Qualidade Final
+
     A imagem final deve ser:
-    • limpa, sem ruído
-    • com textura realista
-    • com profundidade visível
-    • com HDR equilibrado
-    • fiel ao ambiente
-    • pronta para uso imobiliário profissional
+    • brilhante, com boa visibilidade mesmo em zonas pouco iluminadas
+    • profunda, com sensação espacial real
+    • sem ruído, sem granulação
+    • com texturas naturais preservadas
+    • pronta para fotografia imobiliária profissional
+    • fiel ao ambiente real visto pela câmera
 
-    6. O QUE NUNCA FAZER
-    • Não alterar formato da imagem.
-    • Não converter para widescreen.
-    • Não mudar cores.
-    • Não modificar sombras reais.
-    • Não remover elementos do ambiente.
-    • Não distorcer a lente.
-    • Não aplicar filtros estilísticos.
+    Nunca fazer
+    • não esticar, cortar ou mudar proporções
+    • não alterar cores originais
+    • não exagerar no contraste
+    • não aplicar filtros cinematográficos
+    • não suavizar demais (evitar “look IA”)
+    • não distorcer paredes ou linhas retas
 
-    7. OBJETIVO FINAL
-    Gerar automaticamente uma imagem HDR imobiliária de alta qualidade, no formato original da captura, com profundidade semelhante ao Nodalview, textura realista e geometria 100% preservada.
+    OBJETIVO FINAL
+    Gerar uma imagem HDR 4:3, luminosa, limpa, natural e com profundidade subtil, com qualidade semelhante ou superior a uma imagem produzida pelo sistema Nodalview.
   `;
 
   try {
