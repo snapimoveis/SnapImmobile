@@ -62,8 +62,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
               { id: 'general', label: 'Informações gerais' },
               { id: 'properties', label: 'Imóvel' },
               { id: 'users', label: 'Utilizadores' },
-              { id: 'teams', label: 'Equipas' }, // Placeholder
-              { id: 'integrations', label: 'Integrações' }, // Placeholder
               { id: 'devices', label: 'Dispositivos' },
               { id: 'billing', label: 'Faturação e Subscrição' }
           ].map(tab => (
