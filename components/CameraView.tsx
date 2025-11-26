@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { enhanceImage } from '../services/geminiService';
@@ -25,7 +26,10 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const [timerValue, setTimerValue] = useState<number | null>(null);
 
   const [tilt, setTilt] = useState({ beta: 0, gamma: 0 });
+  // Used for the live preview strip of the burst
   const [capturedPreviews, setCapturedPreviews] = useState<{ url: string; ev: string }[]>([]);
+  // Used for the permanent thumbnail of the last successfully saved photo
+  const [lastSavedPhoto, setLastSavedPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     const checkOrientation = () => {
@@ -96,7 +100,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   const playShutterSound = () => {
     try {
-      // Valid, short WAV Base64 shutter sound to prevent SyntaxError
+      // Valid, short WAV Base64 shutter sound
       const audio = new Audio('data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
       audio.play().catch(() => {});
     } catch (e) {
@@ -241,6 +245,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     setProcessingStep('Finalizando...');
     setProcessingProgress(100);
 
+    // Update the last saved photo thumbnail
+    setLastSavedPhoto(bestBase64);
+
     onPhotoCaptured({
       id: crypto.randomUUID(),
       url: bestBase64,
@@ -250,6 +257,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       type: 'hdr'
     });
 
+    // Reset processing to allow next shot immediately
     setIsProcessing(false);
     setProcessingProgress(0);
     setCapturedPreviews([]);
@@ -292,7 +300,14 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           </div>
         </div>
 
-        {/* PREVIEWS */}
+        {/* LAST PHOTO THUMBNAIL (Visual Feedback) */}
+        {lastSavedPhoto && !isProcessing && (
+            <div className={`absolute z-40 ${isLandscape ? 'right-8 bottom-8' : 'left-8 bottom-8'} w-14 h-14 rounded-lg border-2 border-white overflow-hidden shadow-lg bg-black animate-in zoom-in`}>
+                <img src={lastSavedPhoto} className="w-full h-full object-cover opacity-80" alt="Last shot" />
+            </div>
+        )}
+
+        {/* BURST PREVIEWS (During Capture) */}
         {capturedPreviews.length > 0 && (
           <div className={`absolute z-40 flex gap-1 px-4 overflow-x-auto ${isLandscape ? 'right-32 top-0 bottom-0 flex-col w-16 py-6' : 'bottom-56 left-0 right-0 flex-row h-16'}`}>
             {capturedPreviews.map((p, i) => (

@@ -81,7 +81,6 @@ function App() {
         setProjects([]);
         setCurrentRoute(AppRoute.DASHBOARD);
     } catch (e: any) {
-        // Tratamento robusto de erros do Firebase
         if (e.code === 'auth/email-already-in-use' || e.message?.includes('email-already-in-use')) {
             alert("Este e-mail já está registado. Redirecionando para o login...");
             setPrefillEmail(data.email);
@@ -145,6 +144,7 @@ function App() {
     if (!currentUser) return;
 
     try {
+      // Scenario 1: Creating a new Draft Project from Camera
       if (!activeProject) {
           const draft: Project = {
               id: crypto.randomUUID(),
@@ -156,36 +156,49 @@ function App() {
               createdAt: Date.now(),
               coverImage: photo.url
           };
+          // Save asynchronously
           const savedDraft = await saveProject(draft); 
           setProjects([savedDraft, ...projects]);
           setActiveProject(savedDraft);
-          setCurrentRoute(AppRoute.PROJECT_DETAILS); // Changed from EDITOR to PROJECT_DETAILS
+          // Do NOT navigate away. Keep Camera open.
           return;
       }
 
-      // If activeProject already exists, generate description and add photo
-      const description = await generateDescription(photo.url);
-      const photoWithDesc = { ...photo, description };
+      // Scenario 2: Adding to existing Active Project
+      // Generate description in background (optional/async)
+      generateDescription(photo.url).then(desc => {
+          // We could update the description later if needed
+      });
+
+      // Optimistically update UI state if needed, but here we just construct the object
       const updatedProject = {
           ...activeProject,
-          photos: [...activeProject.photos, photoWithDesc],
+          photos: [...activeProject.photos, photo], // Add new photo
           coverImage: activeProject.coverImage || photo.url
       };
 
-      // SAVE and UPDATE STATE with the returned lightweight object (Cloud URLs)
-      // This prevents the "Quota Exceeded" / "Error Saving" on 2nd photo
-      const savedProject = await saveProject(updatedProject); 
+      // Update local state immediately so CameraView knows we have a project
+      setActiveProject(updatedProject);
+
+      // Save to Backend in Background
+      // We use the returned project to ensure we have the Cloud URLs
+      saveProject(updatedProject).then((savedProject) => {
+          const updatedProjects = projects.map(p => p.id === activeProject.id ? savedProject : p);
+          setProjects(updatedProjects);
+          setActiveProject(savedProject); // Sync with Cloud URL version
+      }).catch(e => {
+          console.error("Background Save Error:", e);
+          const msg = e.code === 'storage/unauthorized' 
+            ? 'Permissão de Upload negada. Corrija as "Storage Rules" no Firebase.' 
+            : `Erro ao guardar a foto: ${e.message}`;
+          alert(msg);
+      });
+
+      // DO NOT CHANGE ROUTE. Continuous shooting enabled.
       
-      const updatedProjects = projects.map(p => p.id === activeProject.id ? savedProject : p);
-      setProjects(updatedProjects);
-      setActiveProject(savedProject); // Important: Update local state to use Cloud URL
-      setCurrentRoute(AppRoute.PROJECT_DETAILS); // Changed from EDITOR to PROJECT_DETAILS
     } catch (e: any) {
       console.error(e);
-      const msg = e.code === 'storage/unauthorized' 
-        ? 'Permissão de Upload negada. Corrija as "Storage Rules" no Firebase.' 
-        : `Erro ao guardar a foto: ${e.message}`;
-      alert(msg);
+      alert(`Erro crítico: ${e.message}`);
     }
   };
 
@@ -287,7 +300,14 @@ function App() {
       case AppRoute.REGISTER:
         return <RegisterScreen role={selectedRole} onSubmit={handleRegistrationSubmit} onBack={() => setCurrentRoute(AppRoute.WELCOME)} />;
       case AppRoute.CAMERA:
-        return <CameraView onClose={() => setCurrentRoute(activeProject ? AppRoute.PROJECT_DETAILS : AppRoute.DASHBOARD)} onPhotoCaptured={handlePhotoCaptured} />;
+        // Pass activeProject photos count or last photo to camera if desired, 
+        // but for now we just keep it open. The App updates state in background.
+        return (
+            <CameraView 
+                onClose={() => setCurrentRoute(activeProject ? AppRoute.PROJECT_DETAILS : AppRoute.DASHBOARD)} 
+                onPhotoCaptured={handlePhotoCaptured} 
+            />
+        );
       case AppRoute.EDITOR:
         return activePhoto ? <Editor photo={activePhoto} onSave={handleSaveEditedPhoto} onCancel={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : <div>Erro: Nenhuma foto</div>;
       case AppRoute.PROJECT_DETAILS:
