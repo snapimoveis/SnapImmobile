@@ -159,8 +159,7 @@ function App() {
           const savedDraft = await saveProject(draft); 
           setProjects([savedDraft, ...projects]);
           setActiveProject(savedDraft);
-          setCurrentRoute(AppRoute.EDITOR);
-          setActivePhoto(photo);
+          setCurrentRoute(AppRoute.PROJECT_DETAILS); // Changed from EDITOR to PROJECT_DETAILS
           return;
       }
 
@@ -180,8 +179,7 @@ function App() {
       const updatedProjects = projects.map(p => p.id === activeProject.id ? savedProject : p);
       setProjects(updatedProjects);
       setActiveProject(savedProject); // Important: Update local state to use Cloud URL
-      setActivePhoto(photoWithDesc);
-      setCurrentRoute(AppRoute.EDITOR);
+      setCurrentRoute(AppRoute.PROJECT_DETAILS); // Changed from EDITOR to PROJECT_DETAILS
     } catch (e: any) {
       console.error(e);
       const msg = e.code === 'storage/unauthorized' 
