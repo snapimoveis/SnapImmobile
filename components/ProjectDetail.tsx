@@ -1,8 +1,8 @@
+
 import React, { useState } from 'react';
 import { Project, Photo } from '../types';
-import { ArrowLeft, MoreHorizontal, Camera, Download, Share2, Trash2, Edit2, Image, Video, Box } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Camera, Video, Image, Box, List } from 'lucide-react';
 import JSZip from 'jszip';
-import { enhanceImage } from '../services/geminiService';
 
 interface ProjectDetailProps {
   project: Project;
@@ -17,16 +17,11 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
   project, 
   onBack, 
   onEditPhoto, 
-  onAddPhoto,
-  onUpdateProject,
-  onViewTour
+  onAddPhoto
 }) => {
-  const [isDownloading, setIsDownloading] = useState(false);
   const [activeTab, setActiveTab] = useState<'360' | 'photo' | 'video' | 'planta'>('photo');
 
   const handleDownloadBatch = async () => {
-      // ... existing logic ...
-      setIsDownloading(true);
       try {
           const zip = new JSZip();
           const promises = project.photos.map(async (photo) => {
@@ -66,55 +61,52 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
           document.body.removeChild(link);
           window.URL.revokeObjectURL(url);
       } catch (error) {
-          console.error("Zip failed", error);
-          alert("Falha ao gerar ficheiro ZIP. Verifique a conexão.");
-      } finally {
-          setIsDownloading(false);
+          alert("Falha ao gerar ficheiro ZIP.");
       }
   };
 
   return (
     <div className="min-h-screen bg-[#121212] text-white font-sans">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-[#121212] px-4 py-4 flex justify-between items-center border-b border-white/10">
+      <div className="sticky top-0 z-20 bg-[#121212] px-4 py-4 flex justify-between items-center border-b border-white/5">
         <div className="flex items-center gap-4">
             <button onClick={onBack} className="text-white hover:text-gray-300">
                 <ArrowLeft className="w-6 h-6" />
             </button>
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center text-white font-bold border border-white/10">
+                <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-white font-bold border border-white/5 text-sm">
                     {project.title.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                    <h1 className="font-bold text-base leading-tight">{project.title}</h1>
-                    <p className="text-xs text-gray-400">
+                    <h1 className="font-bold text-base leading-tight text-white">{project.title}</h1>
+                    <p className="text-xs text-gray-400 mt-0.5">
                         {new Date(project.createdAt).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </p>
                 </div>
             </div>
         </div>
-        <button className="text-white">
-            <MoreHorizontal className="w-6 h-6" />
+        <button className="text-white" onClick={handleDownloadBatch}>
+            <List className="w-6 h-6" />
         </button>
       </div>
 
       {/* Action Tabs */}
-      <div className="flex items-center gap-2 px-4 py-4 overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-3 px-4 py-5 overflow-x-auto no-scrollbar">
           <button 
             onClick={() => setActiveTab('360')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === '360' ? 'bg-[#333] text-white' : 'bg-[#1e1e1e] text-gray-400'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === '360' ? 'bg-[#333] text-white' : 'bg-[#1e1e1e] text-gray-400'}`}
           >
               <Box className="w-4 h-4" /> 360
           </button>
           <button 
             onClick={() => setActiveTab('photo')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'photo' ? 'bg-[#623aa2] text-white' : 'bg-[#1e1e1e] text-gray-400'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'photo' ? 'bg-[#623aa2] text-white' : 'bg-[#1e1e1e] text-gray-400'}`}
           >
               <Image className="w-4 h-4" /> {project.photos.length}
           </button>
           <button 
             onClick={() => setActiveTab('video')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'video' ? 'bg-[#333] text-white' : 'bg-[#1e1e1e] text-gray-400'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'video' ? 'bg-[#333] text-white' : 'bg-[#1e1e1e] text-gray-400'}`}
           >
               <Video className="w-4 h-4" /> 0
           </button>
@@ -131,10 +123,8 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
                         onClick={() => onEditPhoto(photo)}
                       >
                           <img src={photo.url} className="w-full h-full object-cover" alt={photo.name} />
-                          
-                          {/* Only show type badge, hide buttons to keep grid clean like screenshot */}
                           {photo.type === 'hdr' && (
-                              <div className="absolute top-1 right-1 w-2 h-2 bg-[#623aa2] rounded-full"></div>
+                              <div className="absolute top-1 right-1 w-2 h-2 bg-[#623aa2] rounded-full shadow-sm"></div>
                           )}
                       </div>
                   ))}
@@ -152,7 +142,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
       <div className="fixed bottom-8 left-0 right-0 flex justify-center z-30 pointer-events-none">
           <button 
             onClick={onAddPhoto}
-            className="pointer-events-auto bg-[#333333] text-white px-8 py-3.5 rounded-full flex items-center gap-3 shadow-2xl border border-white/10 hover:bg-[#444444] transition-transform active:scale-95"
+            className="pointer-events-auto bg-[#2a2a2a] text-white px-8 py-3.5 rounded-full flex items-center gap-3 shadow-2xl border border-white/10 hover:bg-[#333] transition-transform active:scale-95"
           >
               <Camera className="w-5 h-5" />
               <span className="font-medium text-sm">Iniciar captura</span>

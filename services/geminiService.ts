@@ -6,7 +6,7 @@ const getApiKey = () => {
     const localKey = localStorage.getItem('snap_gemini_api_key');
     if (localKey) return localKey;
     // Fallback to hardcoded key if process.env fails
-    return process.env.API_KEY || 'AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM';
+    return process.env.API_KEY || 'AIzaSyAuQJmnHcJLkTJNRGfAhYMCZYN1FQ4PSN4';
 };
 
 const cleanBase64 = (data: string) => {
