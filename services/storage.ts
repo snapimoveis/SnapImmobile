@@ -1,3 +1,4 @@
+
 import { 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
@@ -82,10 +83,27 @@ export const loginUser = async (email: string, password?: string): Promise<UserP
 
 export const updateUser = async (user: UserProfile): Promise<UserProfile> => {
     let avatarUrl = user.avatar;
+    let watermarkUrl = user.watermarkUrl;
+
+    // Upload Avatar if Base64
     if (user.avatar && user.avatar.startsWith('data:image')) {
         try { avatarUrl = await uploadPhotoToStorage(user.avatar, `avatars/${user.id}_${Date.now()}.jpg`); } catch (e) {}
     }
-    const updatedUser = { ...user, avatar: avatarUrl };
+
+    // Upload Watermark if Base64
+    if (user.watermarkUrl && user.watermarkUrl.startsWith('data:image')) {
+        try { 
+            // We use png specifically for watermarks to preserve transparency
+            const blob = base64ToBlob(user.watermarkUrl);
+            const storageRef = ref(storage, `watermarks/${user.id}_wm.png`);
+            await uploadBytes(storageRef, blob, { contentType: 'image/png' });
+            watermarkUrl = await getDownloadURL(storageRef);
+        } catch (e) {
+            console.error("Watermark upload failed", e);
+        }
+    }
+
+    const updatedUser = { ...user, avatar: avatarUrl, watermarkUrl: watermarkUrl };
     try { await updateDoc(doc(db, "users", user.id), updatedUser); } catch (e) {}
     return updatedUser;
 };

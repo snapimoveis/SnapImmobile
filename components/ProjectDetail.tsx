@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import { Project, Photo } from '../types';
 import { ArrowLeft, MoreHorizontal, Camera, Video, Image, Box, List } from 'lucide-react';
 import JSZip from 'jszip';
+import { WatermarkModal } from './WatermarkModal';
+import { getCurrentUser } from '../services/storage';
 
 interface ProjectDetailProps {
   project: Project;
@@ -20,25 +22,43 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
   onAddPhoto
 }) => {
   const [activeTab, setActiveTab] = useState<'360' | 'photo' | 'video' | 'planta'>('photo');
+  const [isDownloading, setIsDownloading] = useState(false);
+  
+  // Watermark State
+  const [pendingDownloadPhotos, setPendingDownloadPhotos] = useState<Photo[] | null>(null);
+  const [currentWatermarkPhotoIndex, setCurrentWatermarkPhotoIndex] = useState(0);
+  const [processedPhotos, setProcessedPhotos] = useState<{name: string, data: Blob}[]>([]);
+  const [showWatermarkModal, setShowWatermarkModal] = useState(false);
+  const [userWatermark, setUserWatermark] = useState<string | null>(null);
 
-  const handleDownloadBatch = async () => {
+  const handleDownloadBatchStart = () => {
+      const user = getCurrentUser();
+      if (user && user.watermarkUrl) {
+          setUserWatermark(user.watermarkUrl);
+          setPendingDownloadPhotos(project.photos);
+          setCurrentWatermarkPhotoIndex(0);
+          setProcessedPhotos([]);
+          setShowWatermarkModal(true);
+      } else {
+          // No watermark set, proceed to normal download
+          downloadDirectly(project.photos);
+      }
+  };
+
+  const downloadDirectly = async (photos: Photo[]) => {
+      setIsDownloading(true);
       try {
           const zip = new JSZip();
-          const promises = project.photos.map(async (photo) => {
+          const promises = photos.map(async (photo) => {
                const safeName = photo.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
                let ext = 'jpg';
                let data: Blob;
                try {
                    if (photo.url.startsWith('http')) {
                        const response = await fetch(photo.url);
-                       if (!response.ok) throw new Error(`Failed to fetch ${photo.url}`);
                        data = await response.blob();
-                       const type = data.type;
-                       if (type === 'image/png') ext = 'png';
-                       else if (type === 'image/webp') ext = 'webp';
                    } else {
-                       if (photo.url.startsWith('data:image/png')) ext = 'png';
-                       if (photo.url.startsWith('data:image/webp')) ext = 'webp';
+                       // Base64
                        const arr = photo.url.split(',');
                        const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
                        const bstr = atob(arr[1]);
@@ -48,7 +68,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
                        data = new Blob([u8arr], {type: mime});
                    }
                    zip.file(`${safeName}.${ext}`, data);
-               } catch (err) { console.error(`Skipping photo ${photo.name}:`, err); }
+               } catch (err) { console.error(err); }
           });
           await Promise.all(promises);
           const content = await zip.generateAsync({type: "blob"});
@@ -60,13 +80,62 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
           link.click();
           document.body.removeChild(link);
           window.URL.revokeObjectURL(url);
-      } catch (error) {
-          alert("Falha ao gerar ficheiro ZIP.");
+      } catch (e) { alert("Erro no download."); }
+      setIsDownloading(false);
+  };
+
+  const handleWatermarkProcessed = async (finalUrl: string) => {
+      if (!pendingDownloadPhotos) return;
+
+      // Convert finalUrl (DataURL) to Blob
+      const arr = finalUrl.split(',');
+      const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while(n--){ u8arr[n] = bstr.charCodeAt(n); }
+      const blob = new Blob([u8arr], {type: mime});
+
+      const currentPhoto = pendingDownloadPhotos[currentWatermarkPhotoIndex];
+      const newProcessed = [...processedPhotos, { name: currentPhoto.name, data: blob }];
+      setProcessedPhotos(newProcessed);
+
+      if (currentWatermarkPhotoIndex < pendingDownloadPhotos.length - 1) {
+          // Move to next photo
+          setCurrentWatermarkPhotoIndex(prev => prev + 1);
+      } else {
+          // All done, generate ZIP
+          setShowWatermarkModal(false);
+          setIsDownloading(true);
+          const zip = new JSZip();
+          newProcessed.forEach(p => {
+              zip.file(`${p.name}.jpg`, p.data);
+          });
+          const content = await zip.generateAsync({type: "blob"});
+          const url = window.URL.createObjectURL(content);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${project.title}_WM.zip`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setIsDownloading(false);
+          setPendingDownloadPhotos(null);
       }
   };
 
   return (
     <div className="min-h-screen bg-[#121212] text-white font-sans">
+      {/* Watermark Modal Flow */}
+      {showWatermarkModal && pendingDownloadPhotos && userWatermark && (
+          <WatermarkModal 
+            photoUrl={pendingDownloadPhotos[currentWatermarkPhotoIndex].url}
+            watermarkUrl={userWatermark}
+            onClose={() => setShowWatermarkModal(false)}
+            onDownload={handleWatermarkProcessed}
+          />
+      )}
+
       {/* Header */}
       <div className="sticky top-0 z-20 bg-[#121212] px-4 py-4 flex justify-between items-center border-b border-white/5">
         <div className="flex items-center gap-4">
@@ -85,8 +154,8 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
                 </div>
             </div>
         </div>
-        <button className="text-white" onClick={handleDownloadBatch}>
-            <List className="w-6 h-6" />
+        <button className="text-white flex items-center gap-2" onClick={handleDownloadBatchStart} disabled={isDownloading}>
+            {isDownloading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <List className="w-6 h-6" />}
         </button>
       </div>
 

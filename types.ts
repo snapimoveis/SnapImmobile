@@ -63,6 +63,7 @@ export interface UserProfile {
   cpf: string;
   company?: string;
   avatar?: string; // Base64 avatar image
+  watermarkUrl?: string; // URL for the user's watermark PNG
   preferences?: UserPreferences;
   createdAt: number;
   deviceId?: string;
