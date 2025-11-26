@@ -21,11 +21,12 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
   onUpdateProject,
   onViewTour
 }) => {
+
   const [isDownloading, setIsDownloading] = useState(false);
   const [processingPhotoId, setProcessingPhotoId] = useState<string | null>(null);
 
+  // Ligação de fotos entre si para tour virtual
   const handleLinkPhoto = (sourceId: string, targetId: string) => {
-    // Logic to update the photo's 'linkedTo' property
     const updatedPhotos = project.photos.map(p => {
         if (p.id === sourceId) return { ...p, linkedTo: targetId };
         return p;
@@ -33,102 +34,108 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
     onUpdateProject({ ...project, photos: updatedPhotos });
   };
 
+  // ⭐ Corrigido: melhora a foto usando o mesmo modo salvo na captura
   const handleEnhancePhoto = async (photo: Photo) => {
     if (processingPhotoId) return;
     setProcessingPhotoId(photo.id);
+
     try {
-        const enhancedUrl = await enhanceImage(photo.url);
+        const enhancedUrl = await enhanceImage(photo.url, photo.mode);
+
         const updatedPhotos = project.photos.map(p => 
             p.id === photo.id 
-            ? { ...p, url: enhancedUrl, name: p.name.includes('AI') ? p.name : `${p.name} (AI)`, type: 'hdr' as const } 
+            ? { 
+                ...p, 
+                url: enhancedUrl, 
+                name: p.name.includes("AI") ? p.name : `${p.name} (AI)`,
+                type: 'hdr'
+            }
             : p
         );
+
         onUpdateProject({ ...project, photos: updatedPhotos });
-    } catch (error) {
-        console.error("Enhancement failed", error);
+
+    } catch (err) {
+        console.error("Enhancement failed:", err);
         alert("Falha ao melhorar a foto. Verifique a API Key ou a conexão.");
-    } finally {
-        setProcessingPhotoId(null);
     }
+
+    setProcessingPhotoId(null);
   };
-  
+
+  // Download em lote (ZIP)
   const handleDownloadBatch = async () => {
       setIsDownloading(true);
       try {
           const zip = new JSZip();
           
-          // Array of promises to fetch all images
           const promises = project.photos.map(async (photo) => {
-               const safeName = photo.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-               let ext = 'jpg';
-               let data: Blob;
+              const safeName = photo.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+              let ext = 'jpg';
+              let data: Blob;
 
-               try {
-                   if (photo.url.startsWith('http')) {
-                       // Remote URL (Firebase)
-                       const response = await fetch(photo.url);
-                       if (!response.ok) throw new Error(`Failed to fetch ${photo.url}`);
-                       data = await response.blob();
-                       // Try to guess ext from content-type
-                       const type = data.type;
-                       if (type === 'image/png') ext = 'png';
-                       else if (type === 'image/webp') ext = 'webp';
-                   } else {
-                       // Base64 Data URI
-                       if (photo.url.startsWith('data:image/png')) ext = 'png';
-                       if (photo.url.startsWith('data:image/webp')) ext = 'webp';
-                       
-                       // Convert Base64 to Blob
-                       const arr = photo.url.split(',');
-                       const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-                       const bstr = atob(arr[1]);
-                       let n = bstr.length;
-                       const u8arr = new Uint8Array(n);
-                       while(n--){
-                           u8arr[n] = bstr.charCodeAt(n);
-                       }
-                       data = new Blob([u8arr], {type: mime});
-                   }
-                   
-                   zip.file(`${safeName}.${ext}`, data);
-               } catch (err) {
-                   console.error(`Skipping photo ${photo.name}:`, err);
-               }
+              try {
+                  if (photo.url.startsWith('http')) {
+                      const response = await fetch(photo.url);
+                      if (!response.ok) throw new Error(`Failed to fetch ${photo.url}`);
+                      data = await response.blob();
+
+                      const type = data.type;
+                      if (type === 'image/png') ext = 'png';
+                      if (type === 'image/webp') ext = 'webp';
+                  } else {
+                      if (photo.url.startsWith('data:image/png')) ext = 'png';
+                      if (photo.url.startsWith('data:image/webp')) ext = 'webp';
+
+                      const arr = photo.url.split(',');
+                      const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+                      const bstr = atob(arr[1]);
+                      let n = bstr.length;
+                      const u8arr = new Uint8Array(n);
+                      while (n--) u8arr[n] = bstr.charCodeAt(n);
+                      data = new Blob([u8arr], { type: mime });
+                  }
+
+                  zip.file(`${safeName}.${ext}`, data);
+              } catch (err) {
+                  console.error(`Skipping photo: ${photo.name}`, err);
+              }
           });
 
           await Promise.all(promises);
 
-          const content = await zip.generateAsync({type: "blob"});
+          const content = await zip.generateAsync({ type: "blob" });
           const url = window.URL.createObjectURL(content);
-          
+
           const link = document.createElement('a');
           link.href = url;
           link.download = `${project.title.replace(/[^a-z0-9]/gi, '_')}_Export.zip`;
           document.body.appendChild(link);
           link.click();
-          document.body.removeChild(link);
+          link.remove();
           window.URL.revokeObjectURL(url);
-          
-      } catch (error) {
-          console.error("Zip failed", error);
-          alert("Falha ao gerar ficheiro ZIP. Verifique a conexão.");
-      } finally {
-          setIsDownloading(false);
+
+      } catch (err) {
+          console.error("ZIP failed:", err);
+          alert("Erro ao gerar ZIP.");
       }
+
+      setIsDownloading(false);
   };
 
   const handleDownloadPhoto = (photo: Photo) => {
       const link = document.createElement('a');
       link.href = photo.url;
-      link.target = "_blank"; // Important for remote URLs to behave
+      link.target = "_blank";
+
       let ext = 'jpg';
       if (photo.url.startsWith('data:image/png')) ext = 'png';
       if (photo.url.includes('.png')) ext = 'png';
-      
+
       link.download = `${photo.name.replace(/[^a-z0-9]/gi, '_')}.${ext}`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove();
   };
 
   const handleDeletePhoto = (photoId: string) => {
@@ -140,7 +147,8 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto p-6">
-      {/* Header */}
+
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{project.title}</h1>
@@ -151,7 +159,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
             {project.address}
           </p>
         </div>
-        
+
         <div className="flex flex-wrap gap-2">
           <button 
             onClick={onViewTour}
@@ -159,12 +167,14 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
           >
             <Eye className="w-4 h-4" /> Visita Virtual
           </button>
+
           <button 
             onClick={() => navigator.clipboard.writeText(window.location.href)}
             className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 flex items-center gap-2"
           >
             <Share2 className="w-4 h-4" /> Partilhar
           </button>
+
           <button 
             onClick={handleDownloadBatch}
             disabled={isDownloading}
@@ -173,7 +183,8 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
             {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             {isDownloading ? 'A Comprimir...' : 'Exportar Tudo'}
           </button>
-           <button 
+
+          <button 
             onClick={onAddPhoto}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 flex items-center gap-2 shadow-md"
           >
@@ -182,90 +193,118 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
         </div>
       </div>
 
-      {/* Grid */}
+      {/* GRID DE FOTOS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {project.photos.map((photo) => (
           <div key={photo.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden group relative flex flex-col">
-             <div className="aspect-[4/3] bg-gray-100 relative overflow-hidden">
-                <img src={photo.url} alt={photo.name} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 gap-2 z-10">
-                    <button 
-                        onClick={() => onEditPhoto(photo)}
-                        className="p-2 bg-white rounded-full hover:bg-blue-50 text-blue-600 shadow-lg transform hover:scale-110 transition-all"
-                        title="Editor IA (Apagar/Staging)"
-                    >
-                        <Edit2 className="w-5 h-5" />
-                    </button>
-                    <button 
-                        onClick={() => handleDownloadPhoto(photo)}
-                        className="p-2 bg-white rounded-full hover:bg-green-50 text-green-600 shadow-lg transform hover:scale-110 transition-all"
-                        title="Download Alta Resolução"
-                    >
-                        <Download className="w-5 h-5" />
-                    </button>
-                    <button 
-                        onClick={() => handleDeletePhoto(photo.id)}
-                        className="p-2 bg-white rounded-full hover:bg-red-50 text-red-600 shadow-lg transform hover:scale-110 transition-all"
-                        title="Eliminar"
-                    >
-                        <Trash2 className="w-5 h-5" />
-                    </button>
-                </div>
-                {photo.type === 'hdr' && (
-                    <span className="absolute top-2 left-2 bg-yellow-400 text-black text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-1 z-20">
-                        <Sparkles className="w-2 h-2" /> HDR
-                    </span>
-                )}
-                {photo.linkedTo && (
-                    <span className="absolute bottom-2 right-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-1 z-20">
-                        <LinkIcon className="w-3 h-3" /> Ligada
-                    </span>
-                )}
-             </div>
-             <div className="p-3 bg-white flex-1 flex flex-col">
-                 <h4 className="text-sm font-medium text-gray-900 truncate">{photo.name}</h4>
-                 <p className="text-xs text-gray-500 mt-1 truncate">{photo.description || "Sem descrição"}</p>
-                 
-                 {/* Link Selector Simple Implementation */}
-                 <div className="mt-3 pt-2 border-t border-gray-100">
-                     <label className="text-xs text-gray-400 block mb-1">Link Visita Virtual:</label>
-                     <select 
-                        className="w-full text-xs border-gray-300 rounded bg-gray-50 mb-3"
-                        value={photo.linkedTo || ""}
-                        onChange={(e) => handleLinkPhoto(photo.id, e.target.value)}
-                     >
-                         <option value="">Sem Link (Fim)</option>
-                         {project.photos.filter(p => p.id !== photo.id).map(p => (
-                             <option key={p.id} value={p.id}>{p.name}</option>
-                         ))}
-                     </select>
 
-                     <button 
-                        onClick={() => handleEnhancePhoto(photo)}
-                        disabled={processingPhotoId === photo.id}
-                        className={`w-full py-2 px-3 rounded text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                            photo.type === 'hdr' 
-                            ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' 
-                            : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-100'
-                        }`}
-                    >
-                        {processingPhotoId === photo.id ? (
-                            <>
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                                <span>A Melhorar...</span>
-                            </>
-                        ) : (
-                            <>
-                                <Sparkles className={`w-3 h-3 ${photo.type === 'hdr' ? 'text-gray-500' : 'text-purple-500'}`} />
-                                <span>{photo.type === 'hdr' ? 'Refazer AI HDR' : 'Melhorar com AI HDR'}</span>
-                            </>
-                        )}
-                    </button>
-                 </div>
-             </div>
+            {/* FOTO */}
+            <div className="aspect-[4/3] bg-gray-100 relative overflow-hidden">
+              <img src={photo.url} alt={photo.name} className="w-full h-full object-cover" />
+
+              {/* HOVER ACTIONS */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 gap-2 z-10">
+                
+                <button 
+                  onClick={() => onEditPhoto(photo)}
+                  className="p-2 bg-white rounded-full hover:bg-blue-50 text-blue-600 shadow-lg transform hover:scale-110 transition-all"
+                  title="Editor IA"
+                >
+                  <Edit2 className="w-5 h-5" />
+                </button>
+
+                <button 
+                  onClick={() => handleDownloadPhoto(photo)}
+                  className="p-2 bg-white rounded-full hover:bg-green-50 text-green-600 shadow-lg transform hover:scale-110 transition-all"
+                  title="Download"
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+
+                <button 
+                  onClick={() => handleDeletePhoto(photo.id)}
+                  className="p-2 bg-white rounded-full hover:bg-red-50 text-red-600 shadow-lg transform hover:scale-110 transition-all"
+                  title="Eliminar"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+
+              </div>
+
+              {/* HDR BADGE */}
+              {photo.type === 'hdr' && (
+                <span className="absolute top-2 left-2 bg-yellow-400 text-black text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-1 z-20">
+                  <Sparkles className="w-2 h-2" /> HDR
+                </span>
+              )}
+
+              {/* LINKED BADGE */}
+              {photo.linkedTo && (
+                <span className="absolute bottom-2 right-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-1 z-20">
+                  <LinkIcon className="w-3 h-3" /> Ligada
+                </span>
+              )}
+
+            </div>
+
+            {/* INFO */}
+            <div className="p-3 flex-1 flex flex-col">
+              
+              <h4 className="text-sm font-medium text-gray-900 truncate">{photo.name}</h4>
+              <p className="text-xs text-gray-500 mt-1 truncate">
+                {photo.description || "Sem descrição"}
+              </p>
+
+              <div className="mt-3 pt-2 border-t border-gray-100">
+
+                <label className="text-xs text-gray-400 block mb-1">Link Visita Virtual:</label>
+
+                <select
+                  className="w-full text-xs border-gray-300 rounded bg-gray-50 mb-3"
+                  value={photo.linkedTo || ""}
+                  onChange={(e) => handleLinkPhoto(photo.id, e.target.value)}
+                >
+                  <option value="">Sem Link</option>
+                  {project.photos
+                    .filter((p) => p.id !== photo.id)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                </select>
+
+                {/* ⭐ Botão de melhorar foto via IA HDR */}
+                <button
+                  onClick={() => handleEnhancePhoto(photo)}
+                  disabled={processingPhotoId === photo.id}
+                  className={`w-full py-2 px-3 rounded text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                    photo.type === "hdr"
+                      ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      : "bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-100"
+                  }`}
+                >
+                  {processingPhotoId === photo.id ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>A Melhorar...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className={`w-3 h-3 ${photo.type === "hdr" ? "text-gray-500" : "text-purple-500"}`} />
+                      <span>{photo.type === "hdr" ? "Refazer AI HDR" : "Melhorar com AI HDR"}</span>
+                    </>
+                  )}
+                </button>
+
+              </div>
+
+            </div>
+
           </div>
         ))}
       </div>
+
     </div>
   );
 };
