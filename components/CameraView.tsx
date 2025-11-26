@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Zap, ZapOff, RefreshCw } from 'lucide-react';
 import { enhanceImage } from '../services/geminiService';
 import { Photo } from '../types';
 
@@ -18,6 +18,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const [processingProgress, setProcessingProgress] = useState(0);
 
   const [hdrProfile, setHdrProfile] = useState<'interior' | 'exterior'>('interior');
+  const [hdrMode, setHdrMode] = useState(true);
 
   const [flashVisual, setFlashVisual] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -279,21 +280,27 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
     if (!bestBase64) bestBase64 = canvas.toDataURL('image/jpeg', 0.95);
 
-    const steps = [
-      { msg: 'Highlight Mapping...', prog: 50 },
-      { msg: 'Shadow Recovery...', prog: 65 },
-      { msg: 'Nitidez...', prog: 75 },
-      { msg: 'Correção de Perspetiva...', prog: 85 },
-      { msg: 'Fusão Final...', prog: 90 }
-    ];
+    if (hdrMode) {
+        const steps = [
+        { msg: 'Highlight Mapping...', prog: 50 },
+        { msg: 'Shadow Recovery...', prog: 65 },
+        { msg: 'Nitidez...', prog: 75 },
+        { msg: 'Correção de Perspetiva...', prog: 85 },
+        { msg: 'Fusão Final...', prog: 90 }
+        ];
 
-    for (const st of steps) {
-      setProcessingStep(st.msg);
-      setProcessingProgress(st.prog);
-      await new Promise((r) => setTimeout(r, 550));
+        for (const st of steps) {
+        setProcessingStep(st.msg);
+        setProcessingProgress(st.prog);
+        await new Promise((r) => setTimeout(r, 550));
+        }
+
+        try {
+            bestBase64 = await enhanceImage(bestBase64, effectiveProfile);
+        } catch (e) {
+            console.error("AI Enhancment failed, using base image", e);
+        }
     }
-
-    bestBase64 = await enhanceImage(bestBase64, effectiveProfile);
 
     setProcessingStep('Finalizando...');
     setProcessingProgress(100);
@@ -304,7 +311,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       originalUrl: bestBase64,
       name: `HPHDR_${Date.now()}`,
       timestamp: Date.now(),
-      type: 'hdr'
+      type: hdrMode ? 'hdr' : 'standard'
     };
 
     onPhotoCaptured(finalPhoto);
@@ -474,18 +481,43 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       </div>
 
       {/* TOP CLOSE */}
-      <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-40">
-        <button onClick={onClose} className="text-white/80 hover:text-white">
+      <div className={`absolute p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-40
+        ${isLandscape 
+            ? 'left-0 top-0 bottom-0 w-24 flex-col border-r border-white/5 bg-gradient-to-r' 
+            : 'top-0 left-0 right-0 flex-row'
+        }`}>
+        <button onClick={onClose} className={`text-white/80 hover:text-white ${isLandscape ? '-rotate-90' : ''}`}>
           <X className="w-8 h-8" strokeWidth={1.5} />
         </button>
+
+        <div className="flex items-center gap-4">
+            <button 
+                onClick={() => { setHdrMode(!hdrMode); triggerHaptic(); }}
+                className={`flex items-center justify-center w-10 h-10 rounded-full transition-all border ${
+                    hdrMode 
+                    ? 'bg-yellow-500 text-black border-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.4)]' 
+                    : 'bg-black/30 border-white/20 text-white'
+                } ${isLandscape ? '-rotate-90' : ''}`}
+            >
+                {hdrMode ? <Zap className="w-5 h-5 fill-black" /> : <ZapOff className="w-5 h-5" />}
+            </button>
+        </div>
       </div>
 
       {/* SHUTTER */}
       <div
         className={`absolute z-40 flex justify-center items-center bg-black/60 backdrop-blur-md ${
-          isLandscape ? 'right-0 top-0 bottom-0 w-32' : 'bottom-0 left-0 right-0 h-32 pb-6'
+          isLandscape ? 'right-0 top-0 bottom-0 w-32 flex-col' : 'bottom-0 left-0 right-0 h-32 pb-6 flex-row'
         }`}
       >
+        
+        <div className={`w-12 h-12 absolute flex items-center justify-center rounded-full bg-gray-800/80 text-white border border-white/10 hover:bg-gray-700/80 transition-all cursor-pointer shadow-lg active:rotate-180 duration-500
+            ${isLandscape ? 'bottom-10' : 'left-10'}`}
+            onClick={() => { startCamera(); triggerHaptic(); }}
+        >
+            <RefreshCw className={`w-5 h-5 ${isLandscape ? '-rotate-90' : ''}`} />
+        </div>
+
         <button
           onClick={initiateCapture}
           disabled={isProcessing}

@@ -1,234 +1,191 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI, Modality } from "@google/genai";
 
-// ------------------------------------------
-// API KEY MANAGER
-// ------------------------------------------
+declare const process: any;
+
+// Helper to safely get the key
 const getApiKey = () => {
-  const localKey = localStorage.getItem("snap_gemini_api_key");
-  if (localKey) return localKey;
-  return "AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM";
+    // 1. Tenta localStorage (se o usuário definiu uma chave própria nas configs)
+    const localKey = localStorage.getItem('snap_gemini_api_key');
+    if (localKey) return localKey;
+
+    // 2. HARDCODED KEY - Fallback garantido para testers
+    return 'AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM';
 };
 
-// ------------------------------------------
-// HELPERS
-// ------------------------------------------
+// Helper to strip base64 prefix
 const cleanBase64 = (data: string) => {
-  if (!data) return "";
-  return data.split(",")[1] || data;
+  if (!data) return '';
+  // Remove tudo antes da vírgula (data:image/xyz;base64,)
+  return data.split(',')[1] || data;
 };
 
-const getMimeType = (base64: string) => {
-  if (!base64) return "image/jpeg";
-  const match = base64.match(/^data:(image\/\w+);base64,/);
-  return match ? match[1] : "image/jpeg";
-};
+const getMimeType = (data: string) => {
+    if (!data) return 'image/jpeg';
+    const match = data.match(/^data:(image\/\w+);base64,/);
+    return match ? match[1] : 'image/jpeg';
+}
 
-// ------------------------------------------
-// HDR PROFILES
-// ------------------------------------------
-export const HDR_PROFILES: Record<string, string> = {
-  hp_hdr_interior: `
-Modo: INTERIOR HP-HDR
-
-- Sombras limpas, sem ruído.
-- Brancos suaves sem estourar.
-- Tom imobiliário premium.
-- Realce de textura natural.
-`,
-
-  hp_hdr_exterior: `
-Modo: EXTERIOR HP-HDR
-
-- Céu equilibrado.
-- Controla brilho especular.
-- Paredes brancas sem estourar.
-- Textura de pavimentos mais definida.
-`,
-
-  hp_hdr_window: `
-Modo AUTOMÁTICO: JANELA FORTE HP-HDR
-
-- Recuperação extrema de highlights.
-- Correção de janela virada ao sol.
-- WB dual (interior + exterior).
-- Zero halos e zero washout.
-`
-};
-
-// ------------------------------------------
-// MAIN HDR ENHANCER
-// ------------------------------------------
-export const enhanceImage = async (
-  base64Image: string,
-  mode: "hp_hdr_interior" | "hp_hdr_exterior" | "hp_hdr_window"
-): Promise<string> => {
+export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interior' | 'hp_hdr_exterior' | 'hp_hdr_window' = 'hp_hdr_interior'): Promise<string> => {
   const apiKey = getApiKey();
-  const genAI = new GoogleGenerativeAI(apiKey);
+  if (!apiKey) {
+      throw new Error("API Key não encontrada. Configure nas Definições.");
+  }
 
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-image"
-  });
+  const ai = new GoogleGenAI({ apiKey });
+  
+  let contextInstruction = "";
+  if (profile === 'hp_hdr_interior') {
+      contextInstruction = "Contexto: Interior de Imóvel. Maximizar iluminação natural, suavizar sombras fortes de mobília.";
+  } else if (profile === 'hp_hdr_exterior') {
+      contextInstruction = "Contexto: Exterior/Fachada. Recuperar céu azul (não estourado), detalhe na sombra da fachada.";
+  } else if (profile === 'hp_hdr_window') {
+      contextInstruction = "Contexto: Interior com Janela Forte. Balancear luz interior com vista exterior. NÃO estourar a janela.";
+  }
 
-  const profileText = HDR_PROFILES[mode];
+  const prompt = `
+    SYSTEM / BUILD (ENGINE HDR)
+    Tu és o motor HP-HDR (Highlight Priority High Dynamic Range) do Snap Immobile.
+    ${contextInstruction}
+    O teu objetivo é preservar 100% dos highlights, mantendo textura, nitidez e contraste natural, sem estourar o branco em nenhum ponto da cena.
 
-  const systemPrompt = `
-SNAP IMMOBILE — MOTOR HP-HDR
+    Pipeline de Fusão HP-HDR:
+    1. **Highlight Mapping Inteligente**: Comprime highlights mantendo textura, elimina zonas queimadas, preserva detalhes em brancos fortes.
+    2. **Shadow Recovery Natural**: Recupera sombras até 2 stops sem ruído ou "cinza sujo".
+    3. **Nitidez Real (Texture-Aware)**: Nitidez calculada com base em microtexturas, sem halos ou oversharpening.
+    4. **Correções Automáticas**: Perspetiva (linhas verticais), aberração cromática, balanço de brancos e microcontraste.
 
-Objetivo:
-- Preservar textura.
-- Eliminar brilho estourado.
-- Recuperar sombras até 3EV.
-- Corrigir perspectiva vertical.
-- Manter estética imobiliária premium.
-
-Perfil selecionado:
-${profileText}
-
-Output:
-- Imagem limpa, natural, sem halos.
+    Saída:
+    Gera uma imagem HP-HDR Final com zero branco estourado, textura preservada, nitidez impecável e estética de fotografia imobiliária premium.
   `;
 
   try {
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
           parts: [
             {
               inlineData: {
                 data: cleanBase64(base64Image),
                 mimeType: getMimeType(base64Image),
-              }
+              },
             },
-            { text: systemPrompt }
-          ]
-        }
-      ],
-      generationConfig: { temperature: 0.2 }
-    });
+            {
+              text: prompt,
+            },
+          ],
+        },
+        config: {
+            responseModalities: [Modality.IMAGE],
+        },
+      });
+      
+      const parts = response.candidates?.[0]?.content?.parts || [];
+      for (const part of parts) {
+          if (part.inlineData && part.inlineData.data) {
+              return `data:image/png;base64,${part.inlineData.data}`;
+          }
+      }
+      
+      // Se não gerou imagem, retorna a original
+      console.warn("AI did not return an image part, returning original.");
+      return base64Image;
 
-    const part = result?.response?.candidates?.[0]?.content?.parts?.find(
-      (p: any) => p.inlineData
-    );
-
-    if (part?.inlineData?.data) {
-      return `data:image/png;base64,${part.inlineData.data}`;
-    }
-
-    return base64Image;
-  } catch (err) {
-    console.error("HDR Enhance Error:", err);
-    return base64Image;
+  } catch (error: any) {
+    console.error("Snap AI Enhancement Failed:", error);
+    // Mensagens de erro mais claras para o usuário
+    if (error.message?.includes('400')) throw new Error("Erro na imagem (Formato inválido).");
+    if (error.message?.includes('403') || error.message?.includes('API key')) throw new Error("Chave de API inválida ou expirada.");
+    if (error.message?.includes('429')) throw new Error("Muitos pedidos. Tente novamente em instantes.");
+    throw error;
   }
 };
 
-// ------------------------------------------
-// MAGIC ERASE & VIRTUAL STAGING
-// ------------------------------------------
-export const editImageWithPrompt = async (
-  base64Image: string,
-  userPrompt: string,
-  mode: "ERASE" | "STAGE"
-): Promise<string> => {
-  const apiKey = getApiKey();
-  const genAI = new GoogleGenerativeAI(apiKey);
-
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-image"
-  });
-
-  const instruction =
-    mode === "ERASE"
-      ? `
-Remoção de objeto — INPAINTING
-
-- Remover pixels marcados em vermelho.
-- Reconstruir fundo com textura correta.
-- Zero borrões, zero artefactos.
-`
-      : `
-HOME STAGING VIRTUAL
-
-Adicionar: ${userPrompt}
-- Respeitar perspectiva.
-- Sombras de contacto reais.
-- Estética moderna imobiliária.
-`;
-
-  try {
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              inlineData: {
-                data: cleanBase64(base64Image),
-                mimeType: getMimeType(base64Image),
-              }
-            },
-            { text: instruction }
-          ]
-        }
-      ],
-      generationConfig: { temperature: 0.2 }
-    });
-
-    const part = result?.response?.candidates?.[0]?.content?.parts?.find(
-      (p: any) => p.inlineData
-    );
-
-    if (part?.inlineData?.data) {
-      return `data:image/png;base64,${part.inlineData.data}`;
+export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
+    const apiKey = getApiKey();
+    const ai = new GoogleGenAI({ apiKey });
+    
+    let systemInstruction = "";
+    
+    if (mode === 'ERASE') {
+        // More aggressive, strict technical prompt for Inpainting
+        systemInstruction = `
+            STRICT TASK: IMAGE INPAINTING / OBJECT REMOVAL
+            
+            INPUT ANALYSIS:
+            - Look for a semi-transparent RED MASK overlay on the original image.
+            - The RED MASK indicates the exact pixels to be erased.
+            
+            INSTRUCTIONS:
+            1. REMOVE everything covered by the RED MASK.
+            2. If no red mask is found, remove the object described as: "${prompt}".
+            3. INPAINT the removed area to match the surrounding background texture, lighting, and perspective.
+            4. The result must look natural, as if the object never existed.
+            
+            OUTPUT:
+            - Return ONLY the final processed image.
+        `;
+    } else {
+        systemInstruction = `
+            TASK: VIRTUAL STAGING
+            INSTRUCTIONS:
+            1. Add furniture: "${prompt}".
+            2. Match room perspective and lighting.
+            3. Return ONLY the processed image.
+        `;
     }
 
-    throw new Error("Sem imagem processada.");
-  } catch (e) {
-    console.error("Edit Error:", e);
-    throw new Error("Falha ao processar IA.");
-  }
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+              parts: [
+                {
+                  inlineData: {
+                    data: cleanBase64(base64Image),
+                    mimeType: getMimeType(base64Image),
+                  },
+                },
+                {
+                  text: systemInstruction,
+                },
+              ],
+            },
+            config: {
+                responseModalities: [Modality.IMAGE],
+            },
+          });
+          
+          const parts = response.candidates?.[0]?.content?.parts || [];
+          for (const part of parts) {
+              if (part.inlineData && part.inlineData.data) {
+                  return `data:image/png;base64,${part.inlineData.data}`;
+              }
+          }
+          throw new Error("A IA não gerou a imagem editada.");
+    } catch (error: any) {
+        console.error("Snap AI Editing Failed:", error);
+        if (error.message?.includes('429')) throw new Error("Servidor ocupado (Quota). Tente já.");
+        throw new Error("Falha na edição IA: " + error.message);
+    }
 };
 
-// ------------------------------------------
-// DESCRIPTION GENERATOR
-// ------------------------------------------
-export const generateDescription = async (
-  base64Image: string
-): Promise<string> => {
-  const apiKey = getApiKey();
-  const genAI = new GoogleGenerativeAI(apiKey);
-
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash"
-  });
-
-  try {
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              inlineData: {
-                data: cleanBase64(base64Image),
-                mimeType: getMimeType(base64Image),
-              }
-            },
-            {
-              text: `
-Descreve esta divisão imobiliária numa frase curta, apelativa e comercial,
-usando Português de Portugal, realçando os pontos fortes do imóvel.
-`
+export const generateDescription = async (base64Image: string): Promise<string> => {
+    const apiKey = getApiKey();
+    const ai = new GoogleGenAI({ apiKey });
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: {
+                parts: [
+                    { inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } },
+                    { text: "Descreva esta divisão imobiliária numa frase curta, apelativa e comercial em Português de Portugal. Foque nos pontos fortes." }
+                ]
             }
-          ]
-        }
-      ],
-      generationConfig: { temperature: 0.3 }
-    });
-
-    return result?.response?.text() || "Imóvel Snap";
-  } catch (e) {
-    console.error("Description error:", e);
-    return "Imóvel Snap";
-  }
-};
+        });
+        return response.text || "Imóvel de luxo";
+    } catch (e) {
+        console.error("Snap AI Description Failed:", e);
+        return "Imóvel Snap";
+    }
+}

@@ -1,4 +1,3 @@
-
 import { 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
@@ -222,14 +221,26 @@ export const saveProject = async (project: Project): Promise<Project> => {
     
     for (const photo of project.photos) {
         let finalUrl = photo.url;
+        let finalOriginalUrl = photo.originalUrl;
         
-        // Only upload if it's still a Base64 string (new photo)
+        // 1. Upload Main Image if Base64
         if (photo.url.startsWith('data:image')) {
             const path = `projects/${project.userId}/${project.id}/${photo.id}.jpg`;
             finalUrl = await uploadPhotoToStorage(photo.url, path);
         }
+
+        // 2. Upload Original Image if Base64 (Critical for 1MB Limit)
+        if (photo.originalUrl && photo.originalUrl.startsWith('data:image')) {
+            // Optimization: If original is exactly the same as the main url (unedited), reuse the link
+            if (photo.originalUrl === photo.url && finalUrl.startsWith('http')) {
+                finalOriginalUrl = finalUrl;
+            } else {
+                const pathOrig = `projects/${project.userId}/${project.id}/${photo.id}_orig.jpg`;
+                finalOriginalUrl = await uploadPhotoToStorage(photo.originalUrl, pathOrig);
+            }
+        }
         
-        photosWithStorageUrls.push({ ...photo, url: finalUrl });
+        photosWithStorageUrls.push({ ...photo, url: finalUrl, originalUrl: finalOriginalUrl });
     }
 
     // Handle Cover Image

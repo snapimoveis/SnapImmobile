@@ -1,3 +1,4 @@
+
 export enum AppRoute {
   LANDING = 'LANDING',
   LOGIN = 'LOGIN',
@@ -7,44 +8,39 @@ export enum AppRoute {
   CAMERA = 'CAMERA',
   EDITOR = 'EDITOR',
   PROJECT_DETAILS = 'PROJECT_DETAILS',
-  TOUR_VIEWER = 'TUR_VIEWER',
+  TOUR_VIEWER = 'TOUR_VIEWER',
   SETTINGS = 'SETTINGS',
   MENU = 'MENU'
 }
 
 export interface Photo {
   id: string;
-  url: string;
-  originalUrl?: string;
+  url: string; // Base64 or Blob URL
+  originalUrl?: string; // Keep original for revert
   thumbnail?: string;
   name: string;
   type: 'hdr' | 'standard';
   timestamp: number;
   description?: string;
-  linkedTo?: string;
-
-  // ⭐ OBRIGATÓRIO
-  mode: 'hp_hdr_interior' | 'hp_hdr_exterior' | 'hp_hdr_window';
+  linkedTo?: string; // ID of the next photo for tour
 }
 
 export interface ProjectDetails {
     bedrooms?: number;
     bathrooms?: number;
-    area?: number;
+    area?: number; // sqm or sqft
     price?: number;
     type?: 'Apartment' | 'House' | 'Commercial' | 'Land';
 }
 
 export interface Project {
   id: string;
-  userId: string;
+  userId: string; // Link project to user
   title: string;
   address: string;
   coverImage?: string;
   status: 'In Progress' | 'Completed';
-
   photos: Photo[];
-
   createdAt: number;
   details?: ProjectDetails;
 }
@@ -66,7 +62,7 @@ export interface UserProfile {
   phone: string;
   cpf: string;
   company?: string;
-  avatar?: string;
+  avatar?: string; // Base64 avatar image
   preferences?: UserPreferences;
   createdAt: number;
   deviceId?: string;
