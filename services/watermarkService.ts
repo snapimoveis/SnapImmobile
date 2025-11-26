@@ -8,14 +8,38 @@ interface WatermarkOptions {
     margin: number; // Margin in pixels
 }
 
-const loadImage = (src: string): Promise<HTMLImageElement> => {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = "anonymous"; // Critical for Firebase Storage images
-        img.onload = () => resolve(img);
-        img.onerror = (e) => reject(e);
-        img.src = src;
-    });
+// Improved image loader using Fetch + Blob to bypass strict CORS Canvas Tainting
+const loadImage = async (src: string): Promise<HTMLImageElement> => {
+    try {
+        // Fetch the image as a blob first
+        const response = await fetch(src, { mode: 'cors' });
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                // Clean up memory
+                // We don't revoke immediately because we need to draw it, 
+                // but in a larger app we would track this.
+                resolve(img);
+            };
+            img.onerror = (e) => {
+                URL.revokeObjectURL(objectUrl);
+                reject(e);
+            };
+            img.src = objectUrl;
+        });
+    } catch (e) {
+        // Fallback for data URIs or if fetch fails (e.g. local files)
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => resolve(img);
+            img.onerror = (e) => reject(e);
+            img.src = src;
+        });
+    }
 };
 
 export const applyWatermarkToImage = async (
@@ -42,8 +66,6 @@ export const applyWatermarkToImage = async (
         ctx.drawImage(baseImg, 0, 0);
 
         // Calculate Watermark Dimensions
-        // We want the watermark to be a percentage of the base image width
-        // Typically 20-30% width looks good
         const wmAspectRatio = wmImg.naturalWidth / wmImg.naturalHeight;
         const wmWidth = canvas.width * options.scale;
         const wmHeight = wmWidth / wmAspectRatio;
@@ -82,7 +104,7 @@ export const applyWatermarkToImage = async (
         // Draw Watermark
         ctx.drawImage(wmImg, x, y, wmWidth, wmHeight);
 
-        // Reset Opacity for good measure
+        // Reset Opacity
         ctx.globalAlpha = 1.0;
 
         // Export
