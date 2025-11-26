@@ -231,15 +231,13 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   for (let i = 0; i < 9; i++) {
     // ---- APPLY EXPOSURE REAL ----
-    if (supportsExposure && exposureIndexes[i] !== null) {
-  try {
     await track.applyConstraints({
-      advanced: [
-        {
-          exposureCompensation: exposureIndexes[i]
-        }
-      ] as any
-    } as any);
+  advanced: [
+    {
+      exposureCompensation: exposureIndexes[i]
+    }
+  ] as any
+} as any);
 
     await new Promise((r) => setTimeout(r, 120)); 
   } catch (e) {
