@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#5b21b6" />
+    <meta name="theme-color" content="#623aa2" />
     
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/icon-192.png" />
@@ -34,10 +34,11 @@
               sans: ['Inter', 'sans-serif'],
             },
             colors: {
-              primary: '#2563eb',
+              primary: '#623aa2',
               secondary: '#475569',
-              accent: '#f59e0b',
+              accent: '#f97316',
               dark: '#0f172a',
+              brand: '#623aa2'
             },
             animation: {
               'spin-slow': 'spin 3s linear infinite',
@@ -112,8 +113,24 @@
         });
       }
     </script>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.9.6",
+    "jszip": "https://aistudiocdn.com/jszip@^3.10.1",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "vite": "https://aistudiocdn.com/vite@^7.2.4"
+  }
+}
+</script>
 </head>
-  <body class="bg-gray-50 text-gray-900 select-none overscroll-none">
+  <body class="bg-gray-900 text-white select-none overscroll-none">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
