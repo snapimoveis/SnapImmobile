@@ -61,7 +61,8 @@ export interface UserProfile {
   password?: string;
   phone: string;
   cpf: string;
-  company?: string;
+  company?: string; // Name of company
+  companyId?: string; // ID linking to CompanySettings
   avatar?: string; // Base64 avatar image
   watermarkUrl?: string; // URL for the user's watermark PNG
   preferences?: UserPreferences;
@@ -73,6 +74,8 @@ export interface UserProfile {
 
 export interface Device {
   id: string;
+  userId: string;
+  userName: string;
   name: string; // e.g., "iPhone 14 Pro"
   type: 'Mobile' | 'Desktop' | 'Tablet';
   lastAccess: number;
@@ -87,9 +90,11 @@ export interface Invoice {
   amount: number;
   status: 'Paid' | 'Pending' | 'Overdue';
   downloadUrl?: string;
+  companyId: string;
 }
 
 export interface CompanySettings {
+  id: string;
   name: string;
   website: string;
   logoUrl?: string;
@@ -97,6 +102,7 @@ export interface CompanySettings {
   backgroundColor: string;
   allowUserWatermark: boolean;
   watermarkUrl?: string;
+  ownerId: string;
 }
 
 export interface ProcessingState {

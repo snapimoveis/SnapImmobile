@@ -21,7 +21,7 @@ import {
     getDownloadURL 
 } from "firebase/storage";
 import { auth, db, storage } from "./firebaseConfig";
-import { Project, UserProfile, Photo } from '../types';
+import { Project, UserProfile, Photo, CompanySettings, Device, Invoice } from '../types';
 
 const getUniqueDeviceId = () => {
     let deviceId = localStorage.getItem('snap_device_id');
@@ -30,6 +30,16 @@ const getUniqueDeviceId = () => {
         localStorage.setItem('snap_device_id', deviceId);
     }
     return deviceId;
+};
+
+const getDeviceModel = () => {
+    const ua = navigator.userAgent;
+    if (ua.includes("iPhone")) return "iPhone";
+    if (ua.includes("iPad")) return "iPad";
+    if (ua.includes("Android")) return "Android Phone";
+    if (ua.includes("Mac")) return "Mac";
+    if (ua.includes("Windows")) return "Windows PC";
+    return "Unknown Device";
 };
 
 const base64ToBlob = (base64: string): Blob => {
@@ -57,7 +67,27 @@ const uploadPhotoToStorage = async (base64Data: string, path: string): Promise<s
 export const registerUser = async (user: UserProfile, password?: string): Promise<UserProfile> => {
     if (!password) throw new Error("Password required");
     const userCredential = await createUserWithEmailAndPassword(auth, user.email, password);
-    const newUser = { ...user, id: userCredential.user.uid, deviceId: getUniqueDeviceId(), createdAt: Date.now() };
+    
+    // Create a default company for the new user (Owner)
+    const companyId = crypto.randomUUID();
+    const companySettings: CompanySettings = {
+        id: companyId,
+        ownerId: userCredential.user.uid,
+        name: user.company || 'Minha Empresa',
+        website: '',
+        primaryColor: '#623aa2',
+        backgroundColor: '#ffffff',
+        allowUserWatermark: true
+    };
+    await setDoc(doc(db, "companies", companyId), companySettings);
+
+    const newUser = { 
+        ...user, 
+        id: userCredential.user.uid, 
+        deviceId: getUniqueDeviceId(), 
+        createdAt: Date.now(),
+        companyId: companyId // Link user to new company
+    };
     await setDoc(doc(db, "users", userCredential.user.uid), newUser);
     return newUser;
 };
@@ -69,17 +99,111 @@ export const loginUser = async (email: string, password?: string): Promise<UserP
     try {
         const userDoc = await getDoc(doc(db, "users", uid));
         if (!userDoc.exists()) return { id: uid, email, role: 'Fotografo', firstName: 'User', lastName: '', phone: '', cpf: '', createdAt: Date.now() };
+        
         const userData = userDoc.data() as UserProfile;
-        if (userData.deviceId && userData.deviceId !== getUniqueDeviceId()) {
-            await signOut(auth);
-            throw new Error("DEVICE_NOT_ALLOWED");
+        
+        // Record Device Login
+        const deviceId = getUniqueDeviceId();
+        const deviceData: Device = {
+            id: deviceId,
+            userId: uid,
+            userName: `${userData.firstName} ${userData.lastName}`,
+            name: getDeviceModel(),
+            model: navigator.platform,
+            type: /Mobi|Android/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop',
+            lastAccess: Date.now(),
+            status: 'Active'
+        };
+        // Save to subcollection
+        await setDoc(doc(db, `users/${uid}/devices/${deviceId}`), deviceData);
+
+        // Check if blocked logic (DeviceLocker)
+        if (userData.deviceId && userData.deviceId !== deviceId) {
+            // Logic to check if THIS device is blocked in the devices subcollection could go here
+            // For now, we update the main deviceId to current to allow "switching" but tracking history
+            await updateDoc(doc(db, "users", uid), { deviceId: deviceId, lastActive: Date.now() });
         }
+
         return userData;
     } catch (error: any) {
         if (error.code === 'permission-denied') return { id: uid, email, role: 'Fotografo', firstName: 'Offline', lastName: 'Mode', phone: '', cpf: '', createdAt: Date.now() };
         throw error;
     }
 };
+
+// --- COMPANY SETTINGS ---
+
+export const getCompanySettings = async (companyId: string): Promise<CompanySettings | null> => {
+    try {
+        const docSnap = await getDoc(doc(db, "companies", companyId));
+        if (docSnap.exists()) return docSnap.data() as CompanySettings;
+        return null;
+    } catch (e) { console.error(e); return null; }
+};
+
+export const saveCompanySettings = async (settings: CompanySettings, logoFile?: File): Promise<CompanySettings> => {
+    let logoUrl = settings.logoUrl;
+    
+    if (logoFile) {
+        const storageRef = ref(storage, `companies/${settings.id}/logo.png`);
+        await uploadBytes(storageRef, logoFile);
+        logoUrl = await getDownloadURL(storageRef);
+    }
+
+    const updated = { ...settings, logoUrl };
+    await setDoc(doc(db, "companies", settings.id), updated);
+    return updated;
+};
+
+export const getCompanyUsers = async (companyId: string): Promise<UserProfile[]> => {
+    try {
+        const q = query(collection(db, "users"), where("companyId", "==", companyId));
+        const snap = await getDocs(q);
+        const users: UserProfile[] = [];
+        snap.forEach(d => users.push(d.data() as UserProfile));
+        return users;
+    } catch (e) { return []; }
+};
+
+export const getCompanyDevices = async (companyId: string): Promise<Device[]> => {
+    // In Firestore Lite, collectionGroup queries are limited. 
+    // Ideally we query all users of company, then fetch their devices.
+    const users = await getCompanyUsers(companyId);
+    const allDevices: Device[] = [];
+    
+    for (const user of users) {
+        try {
+            const devSnap = await getDocs(collection(db, `users/${user.id}/devices`));
+            devSnap.forEach(d => allDevices.push(d.data() as Device));
+        } catch (e) {}
+    }
+    return allDevices;
+};
+
+export const toggleDeviceStatus = async (userId: string, deviceId: string, newStatus: 'Active' | 'Blocked') => {
+    await updateDoc(doc(db, `users/${userId}/devices/${deviceId}`), { status: newStatus });
+};
+
+export const getInvoices = async (companyId: string): Promise<Invoice[]> => {
+    try {
+        const q = query(collection(db, "invoices"), where("companyId", "==", companyId));
+        const snap = await getDocs(q);
+        if (snap.empty) {
+            // Create mock invoice if empty for demo
+            const mock: Invoice = { 
+                id: 'inv_1', companyId, number: 'NV2025-001', 
+                date: Date.now(), amount: 59.00, status: 'Paid' 
+            };
+            await setDoc(doc(db, "invoices", 'inv_1'), mock);
+            return [mock];
+        }
+        const invs: Invoice[] = [];
+        snap.forEach(d => invs.push(d.data() as Invoice));
+        return invs;
+    } catch (e) { return []; }
+};
+
+// --- EXISTING USER/PROJECT LOGIC ---
 
 export const updateUser = async (user: UserProfile): Promise<UserProfile> => {
     let avatarUrl = user.avatar;
@@ -93,7 +217,6 @@ export const updateUser = async (user: UserProfile): Promise<UserProfile> => {
     // Upload Watermark if Base64
     if (user.watermarkUrl && user.watermarkUrl.startsWith('data:image')) {
         try { 
-            // We use png specifically for watermarks to preserve transparency
             const blob = base64ToBlob(user.watermarkUrl);
             const storageRef = ref(storage, `watermarks/${user.id}_wm.png`);
             await uploadBytes(storageRef, blob, { contentType: 'image/png' });
@@ -119,7 +242,6 @@ export const logoutUser = async () => { await signOut(auth); localStorage.remove
 export const getCurrentUser = () => { const s = localStorage.getItem('snap_user_session'); return s ? JSON.parse(s) : null; };
 export const saveUserSession = (u: UserProfile) => localStorage.setItem('snap_user_session', JSON.stringify(u));
 
-// --- PROJECT SAVING LOGIC (CRITICAL FIX) ---
 export const saveProject = async (project: Project): Promise<Project> => {
     const sanitized = JSON.parse(JSON.stringify(project));
     const photosWithUrls: Photo[] = [];

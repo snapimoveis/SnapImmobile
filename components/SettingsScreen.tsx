@@ -1,11 +1,15 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     User, Building2, Smartphone, CreditCard, LayoutGrid, Users, 
     Search, Filter, MoreHorizontal, Download, Plus, CheckCircle, 
     AlertCircle, Lock, Globe, Palette, Upload, Cloud
 } from 'lucide-react';
-import { UserProfile, Device, Invoice, CompanySettings } from '../types';
+import { UserProfile, Device, Invoice, CompanySettings, Project } from '../types';
+import { 
+    getCompanySettings, saveCompanySettings, getCompanyUsers, 
+    getCompanyDevices, getInvoices, toggleDeviceStatus, getUserProjects 
+} from '../services/storage';
 
 interface SettingsScreenProps {
   currentUser: UserProfile | null;
@@ -17,43 +21,101 @@ type Tab = 'general' | 'properties' | 'users' | 'devices' | 'billing';
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onUpdateUser, onDeleteAccount }) => {
   const [activeTab, setActiveTab] = useState<Tab>('general');
+  const [isLoading, setIsLoading] = useState(false);
   
-  // Mock Data for UI demonstration (matching screenshots)
-  const [company, setCompany] = useState<CompanySettings>({
-      name: 'ENSAIOCORAGEM UNIPESSOAL LDA',
-      website: 'https://www.grupoinrio.pt',
-      primaryColor: '#008080',
-      backgroundColor: '#FFFFFF',
-      allowUserWatermark: true,
-      logoUrl: currentUser?.avatar // Reuse avatar as logo for demo
-  });
-
-  const devices: Device[] = [
-      { id: '1', name: 'iPhone de Tania', model: 'iPhone 14 Pro Max', type: 'Mobile', lastAccess: Date.now() - 86400000, status: 'Blocked' },
-      { id: '2', name: 'iPhone', model: 'iPhone 16 Pro', type: 'Mobile', lastAccess: Date.now() - 100000, status: 'Active' },
-      { id: '3', name: 'Desktop Office', model: 'Mac Studio', type: 'Desktop', lastAccess: Date.now(), status: 'Active' },
-  ];
-
-  const invoices: Invoice[] = [
-      { id: '1', number: 'NV20252643586', date: Date.now() - 86400000 * 2, amount: 59.00, status: 'Paid' },
-      { id: '2', number: 'NV20252638954', date: Date.now() - 86400000 * 32, amount: 59.00, status: 'Paid' },
-      { id: '3', number: 'NV20252634499', date: Date.now() - 86400000 * 62, amount: 59.00, status: 'Paid' },
-  ];
-
-  const users: UserProfile[] = [
-      { id: '1', firstName: 'Grupo', lastName: 'Inrio', email: 'inrio@grupoinrio.pt', role: 'Administrador', status: 'Active', phone: '', cpf: '', createdAt: Date.now() } as any,
-      { id: '2', firstName: 'Marketing', lastName: 'Team', email: 'marketing@grupoinrio.pt', role: 'Corretor', status: 'Active', phone: '', cpf: '', createdAt: Date.now() } as any,
-  ];
+  // Data States
+  const [company, setCompany] = useState<CompanySettings | null>(null);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-          const reader = new FileReader();
-          reader.onloadend = () => setCompany({ ...company, logoUrl: reader.result as string });
-          reader.readAsDataURL(file);
+  // Fetch Data on Mount / Tab Change
+  useEffect(() => {
+      if (!currentUser?.companyId) return;
+
+      const loadData = async () => {
+          setIsLoading(true);
+          try {
+              // Load Company Settings
+              const settings = await getCompanySettings(currentUser.companyId!);
+              if (settings) setCompany(settings);
+              else {
+                  // Initialize default if missing
+                  const def: CompanySettings = {
+                      id: currentUser.companyId!,
+                      name: currentUser.company || 'Minha Empresa',
+                      website: '',
+                      primaryColor: '#623aa2',
+                      backgroundColor: '#ffffff',
+                      allowUserWatermark: true,
+                      ownerId: currentUser.id
+                  };
+                  setCompany(def);
+              }
+
+              // Load Tab Specific Data
+              if (activeTab === 'users') {
+                  const u = await getCompanyUsers(currentUser.companyId!);
+                  setUsers(u);
+              }
+              if (activeTab === 'devices') {
+                  const d = await getCompanyDevices(currentUser.companyId!);
+                  setDevices(d);
+              }
+              if (activeTab === 'billing') {
+                  const i = await getInvoices(currentUser.companyId!);
+                  setInvoices(i);
+              }
+              if (activeTab === 'properties') {
+                  // For demo, loading current user projects. In real app, load all company projects if admin
+                  const p = await getUserProjects(currentUser.id);
+                  setProjects(p);
+              }
+
+          } catch (e) {
+              console.error(e);
+          } finally {
+              setIsLoading(false);
+          }
+      };
+      loadData();
+  }, [currentUser, activeTab]);
+
+  const handleSaveGeneral = async () => {
+      if (!company) return;
+      setIsLoading(true);
+      try {
+          await saveCompanySettings(company);
+          alert("Configurações guardadas com sucesso!");
+      } catch (e) {
+          alert("Erro ao guardar.");
+      } finally {
+          setIsLoading(false);
       }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file && company) {
+          setIsLoading(true);
+          try {
+              const updated = await saveCompanySettings(company, file);
+              setCompany(updated);
+          } catch (e) {
+              alert("Erro no upload.");
+          } finally {
+              setIsLoading(false);
+          }
+      }
+  };
+
+  const handleBlockDevice = async (device: Device) => {
+      const newStatus = device.status === 'Active' ? 'Blocked' : 'Active';
+      await toggleDeviceStatus(device.userId, device.id, newStatus);
+      setDevices(prev => prev.map(d => d.id === device.id ? {...d, status: newStatus} : d));
   };
 
   const Tabs = () => (
@@ -83,8 +145,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
       </div>
   );
 
-  const GeneralTab = () => (
-      <div className="max-w-4xl space-y-8 py-8">
+  const GeneralTab = () => {
+      if (!company) return <div>Carregando...</div>;
+      return (
+      <div className="max-w-4xl space-y-8 py-8 animate-in fade-in">
           {/* Profile Section */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div>
@@ -117,7 +181,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                       </p>
                   </div>
                   <div className="flex justify-end">
-                      <button className="bg-blue-400/20 text-blue-600 font-medium px-4 py-2 rounded-lg text-sm">Guardar</button>
+                      <button onClick={handleSaveGeneral} className="bg-blue-400/20 text-blue-600 font-medium px-4 py-2 rounded-lg text-sm hover:bg-blue-400/30 transition-colors">
+                          {isLoading ? 'A guardar...' : 'Guardar'}
+                      </button>
                   </div>
               </div>
           </div>
@@ -189,16 +255,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                           <span className="text-sm text-gray-700">Permitir que os utilizadores adicionem a sua própria marca de água.</span>
                       </div>
                       <div className="mt-6 flex justify-end">
-                          <button className="bg-blue-400 text-white font-medium px-6 py-2 rounded-lg text-sm shadow-sm hover:bg-blue-500">Guardar</button>
+                          <button onClick={handleSaveGeneral} className="bg-blue-400 text-white font-medium px-6 py-2 rounded-lg text-sm shadow-sm hover:bg-blue-500">Guardar</button>
                       </div>
                   </div>
               </div>
           </div>
       </div>
-  );
+      );
+  };
 
   const PropertiesTab = () => (
-      <div className="py-8">
+      <div className="py-8 animate-in fade-in">
           <div className="flex justify-between items-center mb-6">
               <div className="flex gap-2">
                   <div className="relative">
@@ -206,8 +273,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                       <input type="text" placeholder="Pesquisar..." className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm w-64 focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
                   <div className="flex border border-gray-300 rounded-lg overflow-hidden">
-                      <span className="px-3 py-2 bg-blue-600 text-white text-sm font-medium">Activo 9</span>
-                      <span className="px-3 py-2 bg-white text-gray-600 text-sm font-medium hover:bg-gray-50 cursor-pointer border-l">Arquivado 208</span>
+                      <span className="px-3 py-2 bg-blue-600 text-white text-sm font-medium">Activo {projects.length}</span>
+                      <span className="px-3 py-2 bg-white text-gray-600 text-sm font-medium hover:bg-gray-50 cursor-pointer border-l">Arquivado 0</span>
                   </div>
               </div>
           </div>
@@ -227,16 +294,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                       </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                      {[1, 2, 3, 4, 5].map((i) => (
-                          <tr key={i} className="hover:bg-gray-50 transition-colors">
+                      {projects.length === 0 ? (
+                          <tr><td colSpan={7} className="text-center py-10 text-gray-500">Nenhum imóvel encontrado.</td></tr>
+                      ) : projects.map((p) => (
+                          <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                               <td className="px-6 py-4"><input type="checkbox" className="rounded" /></td>
-                              <td className="px-6 py-4 font-medium text-gray-900">Casa Modelo {i}</td>
+                              <td className="px-6 py-4 font-medium text-gray-900">{p.title}</td>
                               <td className="px-6 py-4 text-gray-500 flex items-center gap-2">
-                                  <Upload className="w-3 h-3" /> inrio@grupoinrio.pt
+                                  <Upload className="w-3 h-3" /> {currentUser?.email}
                               </td>
                               <td className="px-6 py-4 text-center">0</td>
-                              <td className="px-6 py-4 text-center">{10 + i * 5}</td>
-                              <td className="px-6 py-4 text-right text-gray-500">2{i}/03/2025</td>
+                              <td className="px-6 py-4 text-center">{p.photos.length}</td>
+                              <td className="px-6 py-4 text-right text-gray-500">{new Date(p.createdAt).toLocaleDateString()}</td>
                               <td className="px-6 py-4 text-right">
                                   <button className="p-1 hover:bg-gray-200 rounded"><MoreHorizontal className="w-4 h-4 text-gray-400" /></button>
                               </td>
@@ -244,25 +313,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                       ))}
                   </tbody>
               </table>
-              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center text-sm text-gray-500">
-                  <span>Exibindo 10 artigos</span>
-                  <div className="flex gap-1">
-                      <button className="w-8 h-8 flex items-center justify-center bg-blue-600 text-white rounded-full font-bold">1</button>
-                  </div>
-              </div>
           </div>
       </div>
   );
 
   const UsersTab = () => (
-      <div className="py-8">
+      <div className="py-8 animate-in fade-in">
           <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Users</h2>
               <div className="flex gap-4 items-center">
                   <div className="text-sm text-gray-500">
-                      Assentos utilizados <span className="font-bold text-gray-900">2/5</span>
+                      Assentos utilizados <span className="font-bold text-gray-900">{users.length}/5</span>
                       <div className="w-24 h-1 bg-gray-200 rounded-full mt-1 overflow-hidden">
-                          <div className="w-2/5 h-full bg-blue-600"></div>
+                          <div className="w-full h-full bg-blue-600" style={{width: `${(users.length/5)*100}%`}}></div>
                       </div>
                   </div>
                   <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-blue-700 shadow-sm">
@@ -273,7 +336,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
 
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
               <div className="px-6 py-4 border-b border-gray-200 flex gap-3">
-                  <button className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded">Membros 2</button>
+                  <button className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded">Membros {users.length}</button>
                   <button className="px-3 py-1 bg-white text-gray-400 text-xs font-bold rounded hover:bg-gray-50">Convites 0</button>
               </div>
               <table className="w-full text-sm text-left">
@@ -287,12 +350,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                       </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                      {users.map(user => (
+                      {users.length === 0 ? (
+                          <tr><td colSpan={5} className="text-center py-8 text-gray-500">Nenhum utilizador.</td></tr>
+                      ) : users.map(user => (
                           <tr key={user.id} className="hover:bg-gray-50">
                               <td className="px-6 py-4">
                                   <div className="flex items-center gap-3">
                                       <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">
-                                          {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                                          {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
                                       </div>
                                       <div>
                                           <p className="font-medium text-gray-900">{user.firstName} {user.lastName}</p>
@@ -304,7 +369,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                               <td className="px-6 py-4">
                                   <span className="px-2 py-1 bg-green-100 text-green-600 rounded text-xs font-bold uppercase">Activo</span>
                               </td>
-                              <td className="px-6 py-4 text-right text-gray-500">26/11/2025, 21:36</td>
+                              <td className="px-6 py-4 text-right text-gray-500">{new Date(user.createdAt).toLocaleDateString()}</td>
                               <td className="px-6 py-4 text-right">
                                   <button><MoreHorizontal className="w-4 h-4 text-gray-400" /></button>
                               </td>
@@ -317,7 +382,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
   );
 
   const DevicesTab = () => (
-      <div className="py-8">
+      <div className="py-8 animate-in fade-in">
           <div className="flex justify-between items-center mb-6">
               <div className="relative w-full max-w-md">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -325,7 +390,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
               </div>
               <div className="flex gap-2">
                   <span className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded">Todos {devices.length}</span>
-                  <span className="px-3 py-1 bg-white border text-gray-600 text-xs font-medium rounded">Bloqueado 1</span>
+                  <span className="px-3 py-1 bg-white border text-gray-600 text-xs font-medium rounded">Bloqueado {devices.filter(d=>d.status==='Blocked').length}</span>
               </div>
           </div>
 
@@ -343,19 +408,23 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                       </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                      {devices.map(device => (
+                      {devices.length === 0 ? (
+                          <tr><td colSpan={7} className="text-center py-8 text-gray-500">Nenhum dispositivo registado.</td></tr>
+                      ) : devices.map(device => (
                           <tr key={device.id} className="hover:bg-gray-50">
                               <td className="px-6 py-4"><input type="checkbox" className="rounded" /></td>
                               <td className="px-6 py-4 font-medium text-gray-900">{device.type}</td>
-                              <td className="px-6 py-4 text-gray-600">{device.name}</td>
-                              <td className="px-6 py-4 text-gray-500">{device.model}</td>
+                              <td className="px-6 py-4 text-gray-600">{device.userName}</td>
+                              <td className="px-6 py-4 text-gray-500">{device.name} ({device.model})</td>
                               <td className="px-6 py-4 text-gray-500">{new Date(device.lastAccess).toLocaleDateString()}</td>
                               <td className="px-6 py-4">
-                                  <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
+                                  <button 
+                                    onClick={() => handleBlockDevice(device)}
+                                    className={`px-2 py-1 rounded text-xs font-bold uppercase hover:opacity-80 transition-opacity ${
                                       device.status === 'Active' ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'
                                   }`}>
                                       {device.status === 'Active' ? 'Acesso completo' : 'Bloqueado'}
-                                  </span>
+                                  </button>
                               </td>
                               <td className="px-6 py-4 text-right">
                                   <button><MoreHorizontal className="w-4 h-4 text-gray-400" /></button>
@@ -369,7 +438,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
   );
 
   const BillingTab = () => (
-      <div className="py-8 space-y-8">
+      <div className="py-8 space-y-8 animate-in fade-in">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Plan Card */}
               <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm col-span-2">
@@ -406,12 +475,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
               <div className="space-y-6">
                   <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                       <div className="flex justify-between items-center mb-4">
-                          <h4 className="font-bold text-gray-900">Usuários ( 2 )</h4>
+                          <h4 className="font-bold text-gray-900">Usuários ( {users.length} )</h4>
                           <button className="text-xs text-blue-600 font-medium hover:underline">Adicionar</button>
                       </div>
                       <div className="flex -space-x-2">
-                          <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs border-2 border-white">GR</div>
-                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs border-2 border-white text-gray-600">+1</div>
+                          {users.slice(0, 3).map(u => (
+                              <div key={u.id} className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs border-2 border-white uppercase">
+                                  {u.firstName?.charAt(0)}
+                              </div>
+                          ))}
                       </div>
                   </div>
 
@@ -443,7 +515,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onU
                           </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                          {invoices.map(inv => (
+                          {invoices.length === 0 ? (
+                              <tr><td colSpan={5} className="text-center py-8 text-gray-500">Sem faturas recentes.</td></tr>
+                          ) : invoices.map(inv => (
                               <tr key={inv.id} className="hover:bg-gray-50">
                                   <td className="px-6 py-4 font-medium text-gray-600">{inv.number}</td>
                                   <td className="px-6 py-4">
