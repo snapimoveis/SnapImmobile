@@ -35,17 +35,18 @@ export const enhanceImage = async (base64Image: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `
+    SYSTEM / BUILD (ENGINE HDR)
     Tu és o motor HP-HDR (Highlight Priority High Dynamic Range) do Snap Immobile.
-    Melhora esta fotografia imobiliária.
-    
-    Objetivos:
-    1. Recuperar sombras sem criar ruído.
-    2. Reduzir o brilho excessivo (estouro) nas janelas e luzes.
-    3. Corrigir linhas verticais (perspetiva).
-    4. Aumentar a nitidez e clareza.
-    5. Manter as cores naturais e vibrantes.
-    
-    Retorna APENAS a imagem melhorada.
+    O teu objetivo é preservar 100% dos highlights, mantendo textura, nitidez e contraste natural, sem estourar o branco em nenhum ponto da cena.
+
+    Pipeline de Fusão HP-HDR:
+    1. **Highlight Mapping Inteligente**: Comprime highlights mantendo textura, elimina zonas queimadas, preserva detalhes em brancos fortes.
+    2. **Shadow Recovery Natural**: Recupera sombras até 2 stops sem ruído ou "cinza sujo".
+    3. **Nitidez Real (Texture-Aware)**: Nitidez calculada com base em microtexturas, sem halos ou oversharpening.
+    4. **Correções Automáticas**: Perspetiva (linhas verticais), aberração cromática, balanço de brancos e microcontraste.
+
+    Saída:
+    Gera uma imagem HP-HDR Final com zero branco estourado, textura preservada, nitidez impecável e estética de fotografia imobiliária premium.
   `;
 
   try {
