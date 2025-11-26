@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Project } from '../types';
-import { Search, Settings, Camera, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Search, Plus, MoreHorizontal, Image as ImageIcon, Video, Box, Grid, List, CheckSquare, ArrowUpDown } from 'lucide-react';
 
 interface ProjectListProps {
   projects: Project[];
@@ -11,103 +11,137 @@ interface ProjectListProps {
 }
 
 export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProject, onCreateProject, onDeleteProject }) => {
+  const [viewTab, setViewTab] = useState<'active' | 'archived'>('active');
+  
   return (
-    <div className="bg-gray-900 min-h-screen pb-24 relative font-sans text-white">
-      {/* Clean Header */}
-      <div className="sticky top-0 z-20 bg-gray-900 px-4 py-4 flex justify-between items-center border-b border-white/5">
-         <div className="flex items-center gap-3">
-             <Search className="w-6 h-6 text-white/80" />
-         </div>
-         <div className="flex items-center justify-center">
-             <div className="flex items-center gap-1">
-                 <span className="font-bold text-xl tracking-tight text-white">snap</span>
-                 <span className="font-medium text-xl text-[#623aa2]">immobile</span>
-             </div>
-         </div>
-         <Settings className="w-6 h-6 text-white/80" />
-      </div>
+    <div className="bg-white min-h-screen font-sans text-gray-900 flex flex-col">
+      
+      {/* Dashboard Header */}
+      <div className="px-8 pt-8 pb-4">
+          <div className="flex justify-between items-center mb-6">
+              <h1 className="text-2xl font-bold text-gray-900">Imóveis</h1>
+              <button 
+                onClick={onCreateProject}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
+              >
+                  <Plus className="w-4 h-4" />
+                  Novo imóvel
+              </button>
+          </div>
 
-      <div className="px-4 py-6">
-          <h2 className="text-lg font-medium mb-4 text-white/90">Actividade recente</h2>
-          
-          <div className="grid gap-6">
-            {projects.length === 0 ? (
-              <div className="text-center py-20 opacity-40">
-                  <div className="bg-gray-800 p-6 rounded-full inline-flex mb-4">
-                      <ImageIcon className="w-10 h-10 text-gray-400" />
-                  </div>
-                  <h3 className="text-lg font-medium text-white">Sem imóveis</h3>
-                  <p className="text-gray-400 mt-2">Crie um novo imóvel para começar.</p>
-              </div>
-            ) : (
-              projects.map((project) => (
-                <div 
-                  key={project.id} 
-                  onClick={() => onSelectProject(project)}
-                  className="cursor-pointer group bg-gray-900 rounded-2xl overflow-hidden"
-                >
-                  {/* Title & Date Header Area */}
-                  <div className="mb-3 px-1">
-                      <h3 className="text-white text-lg font-bold leading-tight truncate">
-                          {project.title}
-                      </h3>
-                      <p className="text-gray-400 text-xs mt-1">
-                          {new Date(project.createdAt).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' })}
-                      </p>
-                  </div>
-                  
-                  {/* Card Image */}
-                  <div className="aspect-video w-full bg-gray-800 rounded-2xl overflow-hidden relative border border-gray-800 shadow-lg">
-                    {project.coverImage ? (
-                      <img 
-                        src={project.coverImage} 
-                        alt={project.title} 
-                        className="w-full h-full object-cover opacity-95 group-hover:opacity-100 transition-opacity"
+          {/* Tabs */}
+          <div className="flex gap-4 border-b border-gray-200 mb-6">
+              <button 
+                onClick={() => setViewTab('active')}
+                className={`pb-3 px-1 text-sm font-medium transition-colors relative ${
+                    viewTab === 'active' ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                  Ativo <span className="ml-1 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs">{projects.length}</span>
+              </button>
+              <button 
+                onClick={() => setViewTab('archived')}
+                className={`pb-3 px-1 text-sm font-medium transition-colors relative ${
+                    viewTab === 'archived' ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                  Arquivado <span className="ml-1 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs">208</span>
+              </button>
+          </div>
+
+          <h2 className="text-lg font-medium text-blue-900 mb-4">{projects.length} propriedades ativas</h2>
+
+          {/* Toolbar */}
+          <div className="flex flex-wrap gap-3 items-center justify-between mb-6">
+              <div className="flex gap-3 flex-1 min-w-[300px]">
+                  <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input 
+                        type="text" 
+                        placeholder="Pesquisar..." 
+                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-600">
-                        <ImageIcon className="w-12 h-12" />
-                      </div>
-                    )}
-                    
-                    {/* Delete Button (Top Left) */}
-                    <button 
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteProject(project.id);
-                        }}
-                        className="absolute top-3 left-3 w-8 h-8 rounded-lg flex items-center justify-center bg-black/40 text-white/70 hover:text-white hover:bg-red-600/90 backdrop-blur-md transition-all z-10"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                    </button>
-                    
-                    {/* Photo Count Badge (Bottom Left) */}
-                    <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5">
-                        <Camera className="w-3.5 h-3.5" />
-                        <span>{project.photos.length}</span>
-                    </div>
-
-                    {/* Status Indicator (Top Right) */}
-                    <div className={`absolute top-3 right-3 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs bg-gray-900/60 backdrop-blur-md text-white border border-white/10`}>
-                        {project.title.charAt(0).toUpperCase()}
-                    </div>
                   </div>
-                </div>
-              ))
-            )}
+                  <button className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-md text-sm text-gray-600 hover:bg-gray-50">
+                      <ArrowUpDown className="w-4 h-4" />
+                      Ordenar por
+                  </button>
+              </div>
+
+              <div className="flex gap-2">
+                  <button className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-md text-sm text-gray-600 hover:bg-gray-50">
+                      <CheckSquare className="w-4 h-4" />
+                      Selecionar todos
+                  </button>
+                  <div className="flex border border-gray-200 rounded-md overflow-hidden">
+                      <button className="p-2 bg-gray-100 text-gray-900"><Grid className="w-4 h-4" /></button>
+                      <button className="p-2 bg-white text-gray-500 hover:bg-gray-50"><List className="w-4 h-4" /></button>
+                  </div>
+              </div>
           </div>
       </div>
 
-      {/* Floating "Novo imóvel" Button */}
-      <div className="fixed bottom-8 left-0 right-0 flex justify-center z-30 pointer-events-none">
-          <button 
-            onClick={onCreateProject}
-            className="pointer-events-auto bg-[#1f1f1f] text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl border border-white/10 hover:bg-[#2a2a2a] transition-colors"
-          >
-              <span className="text-2xl font-light leading-none mb-1">+</span>
-              <span className="font-medium text-sm">Novo imóvel</span>
-          </button>
+      {/* Card Grid */}
+      <div className="px-8 pb-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {projects.map((project) => (
+            <div 
+                key={project.id}
+                onClick={() => onSelectProject(project)}
+                className="bg-white border border-gray-200 rounded-lg overflow-hidden cursor-pointer hover:shadow-md transition-shadow group"
+            >
+                {/* Image Area */}
+                <div className="aspect-[16/9] relative bg-gray-100">
+                    {project.coverImage ? (
+                        <img src={project.coverImage} className="w-full h-full object-cover" alt={project.title} />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400"><ImageIcon className="w-10 h-10" /></div>
+                    )}
+                    
+                    {/* Overlay Top */}
+                    <div className="absolute top-3 left-3">
+                        <div className="w-5 h-5 border-2 border-white/80 rounded bg-black/20 hover:bg-blue-500/80 transition-colors"></div>
+                    </div>
+                    <div className="absolute top-3 right-3">
+                        <button className="p-1 rounded-full bg-white/90 hover:bg-white text-gray-700">
+                            <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    {/* Overlay Status */}
+                    <div className="absolute bottom-10 right-3">
+                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
+                            <div className="w-7 h-7 rounded-full border-2 border-orange-400 flex items-center justify-center">
+                                <span className="text-[10px] font-bold text-gray-700">{project.title.charAt(0).toUpperCase()}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Stats Overlay Bar */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/40 backdrop-blur-[2px] flex items-center gap-4 px-3 py-1.5 text-white/90 text-[10px] font-medium">
+                        <div className="flex items-center gap-1"><ImageIcon className="w-3 h-3" /> {project.photos.length}</div>
+                        <div className="flex items-center gap-1"><Box className="w-3 h-3" /> 0</div>
+                        <div className="flex items-center gap-1"><Video className="w-3 h-3" /> 0</div>
+                    </div>
+                </div>
+
+                {/* Content Area */}
+                <div className="p-3">
+                    <h3 className="text-sm font-bold text-blue-900 truncate mb-1">{project.title}</h3>
+                    <p className="text-xs text-gray-500">
+                        {new Date(project.createdAt).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' })}, 
+                        {new Date(project.createdAt).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                </div>
+            </div>
+        ))}
+        
+        {projects.length === 0 && (
+            <div className="col-span-full text-center py-20 text-gray-400">
+                Nenhum imóvel encontrado.
+            </div>
+        )}
       </div>
+
     </div>
   );
 };

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { LayoutDashboard, FolderOpen, Settings, ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
+
+import React from 'react';
+import { LayoutDashboard, Briefcase, PieChart, HelpCircle, Mail, ChevronRight, User } from 'lucide-react';
 import { AppRoute } from '../types';
 import { Logo } from './Logo';
 
@@ -10,86 +11,75 @@ interface NavigationMenuProps {
 }
 
 export const NavigationMenu: React.FC<NavigationMenuProps> = ({ currentRoute, onNavigate, onLogout }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  const mainNavItems = [
+    { label: 'Imóveis', route: AppRoute.DASHBOARD, icon: LayoutDashboard },
+    { label: 'Empresa', route: AppRoute.SETTINGS, icon: Briefcase },
+    { label: 'Consumo', route: AppRoute.SETTINGS, icon: PieChart },
+  ];
 
-  const navItems = [
-    { 
-      label: 'Dashboard', 
-      route: AppRoute.DASHBOARD, 
-      icon: LayoutDashboard 
-    },
-    { 
-      label: 'Projetos', 
-      route: AppRoute.DASHBOARD, // Projects are on dashboard in this app structure
-      icon: FolderOpen 
-    },
-    { 
-      label: 'Configurações', 
-      route: AppRoute.SETTINGS, 
-      icon: Settings 
-    },
+  const bottomNavItems = [
+    { label: 'Centro de ajuda', action: () => {}, icon: HelpCircle },
+    { label: 'Contacto', action: () => {}, icon: Mail },
   ];
 
   return (
-    <aside 
-      className={`bg-white border-r border-gray-200 h-screen sticky top-0 flex flex-col transition-all duration-300 ease-in-out z-40 ${
-        isCollapsed ? 'w-20' : 'w-64'
-      }`}
-    >
-      {/* Header / Logo */}
-      <div className="h-16 flex items-center justify-center border-b border-gray-100 relative">
-        <div className="transform scale-50 origin-center">
-            <Logo className={isCollapsed ? "w-16 h-16" : "w-32 h-32"} />
+    <aside className="bg-[#2e0a4d] h-screen sticky top-0 flex flex-col w-64 text-white font-sans z-50">
+      {/* Logo Area */}
+      <div className="p-6 mb-6">
+        <div className="transform scale-75 origin-top-left">
+            <Logo variant="white" />
         </div>
-        
-        <button 
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="absolute -right-3 top-6 bg-white border border-gray-200 rounded-full p-1 shadow-sm hover:bg-gray-50 text-gray-500"
-        >
-          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-        </button>
       </div>
 
-      {/* Nav Links */}
-      <nav className="flex-1 py-6 px-3 space-y-2">
-        {navItems.map((item) => {
-          // Special check for Projects since it shares Dashboard route in this simplified logic, 
-          // but usually would be separate. For now, if route matches, it's active.
-          const isActive = currentRoute === item.route && (item.label !== 'Projetos' || currentRoute === AppRoute.DASHBOARD);
-          
+      {/* Main Navigation */}
+      <nav className="flex-1 px-4 space-y-1">
+        {mainNavItems.map((item) => {
+          const isActive = currentRoute === item.route && item.label === 'Imóveis'; // Simplified active state logic
           return (
             <button
               key={item.label}
               onClick={() => onNavigate(item.route)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
                 isActive 
-                  ? 'bg-blue-50 text-blue-600 font-medium shadow-sm' 
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-white/10 text-white font-medium' 
+                  : 'text-white/70 hover:bg-white/5 hover:text-white'
               }`}
-              title={isCollapsed ? item.label : ''}
             >
-              <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-blue-600' : 'text-gray-500 group-hover:text-gray-700'} />
-              
-              {!isCollapsed && (
-                <span className="text-sm tracking-wide whitespace-nowrap overflow-hidden opacity-100 transition-opacity">
-                  {item.label}
-                </span>
-              )}
+              <item.icon size={20} strokeWidth={2} />
+              <span className="text-sm tracking-wide">{item.label}</span>
             </button>
           );
         })}
       </nav>
 
-      {/* Footer / Logout */}
-      <div className="p-4 border-t border-gray-100">
+      {/* Bottom Navigation */}
+      <div className="p-4 space-y-1 border-t border-white/10">
+        {bottomNavItems.map((item) => (
+            <button
+              key={item.label}
+              onClick={item.action}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-all"
+            >
+              <item.icon size={20} />
+              <span className="text-sm">{item.label}</span>
+            </button>
+        ))}
+      </div>
+
+      {/* User Profile / Group */}
+      <div className="p-4 mt-2 border-t border-white/10">
         <button 
             onClick={onLogout}
-            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-red-600 hover:bg-red-50 transition-colors ${
-                isCollapsed ? 'justify-center' : ''
-            }`}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-white/5 transition-colors group"
         >
-            <LogOut size={20} />
-            {!isCollapsed && <span className="text-sm font-medium">Sair</span>}
+            <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/50">
+                    <div className="text-green-400 font-bold text-xs">IR</div>
+                </div>
+                <span className="text-sm font-medium group-hover:text-white text-white/90">Grupo</span>
+            </div>
+            <ChevronRight size={16} className="text-white/50" />
         </button>
       </div>
     </aside>
