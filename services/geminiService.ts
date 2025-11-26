@@ -225,5 +225,24 @@ export const generateDescription = async (
               },
             },
             {
-              text:
-                "Descreva esta divisão imobiliária em Portu
+              text: `
+                Descreve esta divisão imobiliária numa frase curta, apelativa
+                e comercial, usando Português de Portugal. A descrição deve 
+                valorizar os pontos fortes do espaço.
+              `,
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.3,
+      }
+    });
+
+    return res?.response?.text() || "Imóvel Snap";
+
+  } catch (e) {
+    console.error("Description error:", e);
+    return "Imóvel Snap";
+  }
+};
