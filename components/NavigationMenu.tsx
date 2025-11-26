@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Briefcase, PieChart, HelpCircle, Mail, ChevronRight, User } from 'lucide-react';
+import { LayoutDashboard, Building2, PieChart, HelpCircle, Mail, ChevronRight } from 'lucide-react';
 import { AppRoute } from '../types';
 import { Logo } from './Logo';
 
@@ -14,7 +14,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({ currentRoute, on
   
   const mainNavItems = [
     { label: 'Imóveis', route: AppRoute.DASHBOARD, icon: LayoutDashboard },
-    { label: 'Empresa', route: AppRoute.SETTINGS, icon: Briefcase },
+    { label: 'Empresa', route: AppRoute.SETTINGS, icon: Building2 },
     { label: 'Consumo', route: AppRoute.SETTINGS, icon: PieChart },
   ];
 
@@ -35,7 +35,10 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({ currentRoute, on
       {/* Main Navigation */}
       <nav className="flex-1 px-4 space-y-1">
         {mainNavItems.map((item) => {
-          const isActive = currentRoute === item.route && item.label === 'Imóveis'; // Simplified active state logic
+          // Active state logic: Dashboard is default active if route matches, OR if route is SETTINGS and label is Empresa
+          const isActive = (currentRoute === item.route) && 
+                           (item.route !== AppRoute.SETTINGS || (item.label === 'Empresa' && currentRoute === AppRoute.SETTINGS));
+          
           return (
             <button
               key={item.label}

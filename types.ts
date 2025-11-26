@@ -54,7 +54,7 @@ export interface UserPreferences {
 
 export interface UserProfile {
   id: string;
-  role: 'Corretor' | 'Proprietario' | 'Fotografo' | 'Imobiliária';
+  role: 'Corretor' | 'Proprietario' | 'Fotografo' | 'Imobiliária' | 'Administrador';
   firstName: string;
   lastName: string;
   email: string;
@@ -67,6 +67,36 @@ export interface UserProfile {
   preferences?: UserPreferences;
   createdAt: number;
   deviceId?: string;
+  status?: 'Active' | 'Blocked' | 'Pending';
+  lastActive?: number;
+}
+
+export interface Device {
+  id: string;
+  name: string; // e.g., "iPhone 14 Pro"
+  type: 'Mobile' | 'Desktop' | 'Tablet';
+  lastAccess: number;
+  status: 'Active' | 'Blocked';
+  model: string;
+}
+
+export interface Invoice {
+  id: string;
+  number: string;
+  date: number;
+  amount: number;
+  status: 'Paid' | 'Pending' | 'Overdue';
+  downloadUrl?: string;
+}
+
+export interface CompanySettings {
+  name: string;
+  website: string;
+  logoUrl?: string;
+  primaryColor: string;
+  backgroundColor: string;
+  allowUserWatermark: boolean;
+  watermarkUrl?: string;
 }
 
 export interface ProcessingState {
