@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { enhanceImage } from '../services/geminiService';
@@ -26,9 +25,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const [timerValue, setTimerValue] = useState<number | null>(null);
 
   const [tilt, setTilt] = useState({ beta: 0, gamma: 0 });
-  // Used for the live preview strip of the burst
   const [capturedPreviews, setCapturedPreviews] = useState<{ url: string; ev: string }[]>([]);
-  // Used for the permanent thumbnail of the last successfully saved photo
   const [lastSavedPhoto, setLastSavedPhoto] = useState<string | null>(null);
 
   useEffect(() => {
@@ -67,11 +64,12 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   const startCamera = async () => {
     try {
+      // Explicitly requesting 4:3 Aspect Ratio (1.333...) for professional photo format
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          aspectRatio: { ideal: 1.333333 }, 
+          width: { ideal: 2048 }, // High resolution preferred
           zoom: true
         } as any
       });
@@ -100,7 +98,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   const playShutterSound = () => {
     try {
-      // Valid, short WAV Base64 shutter sound
       const audio = new Audio('data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
       audio.play().catch(() => {});
     } catch (e) {
@@ -144,6 +141,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
+    
+    // Ensure canvas captures at full video resolution
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
@@ -159,7 +158,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       typeof caps.exposureCompensation.min === 'number' &&
       typeof caps.exposureCompensation.max === 'number';
 
-    // HP-HDR Exposure Values
     const interiorEV = [1, 0.5, 0, -0.7, -1.3, -2, -2.7, -3.3, -4];
     const exteriorEV = [2, 1.3, 0.7, 0, -0.3, -1, -1.7, -2.3, -3];
     const janelaEV = [0.3, 0, -0.7, -1.5, -2.5, -3.5, -4.3, -5, -6];
@@ -167,7 +165,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     let effectiveProfile: 'hp_hdr_interior' | 'hp_hdr_exterior' | 'hp_hdr_window' =
       hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
 
-    // Simple Window Detection Logic
     if (hdrProfile === 'interior') {
       try {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -194,7 +191,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const fallbackBrightness = [3.2, 2.1, 1.4, 1, 0.8, 0.55, 0.32, 0.18, 0.08];
     let bestBase64 = '';
 
-    setProcessingStep('A Capturar HP-HDR...');
+    setProcessingStep('A Capturar HP-HDR (9 Exp)...');
     setProcessingProgress(5);
 
     for (let i = 0; i < 9; i++) {
@@ -225,8 +222,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const steps = [
       { msg: 'Highlight Mapping...', prog: 50 },
       { msg: 'Shadow Recovery...', prog: 65 },
-      { msg: 'Nitidez...', prog: 75 },
-      { msg: 'Correção de Perspetiva...', prog: 85 },
+      { msg: 'Nitidez (Nodal Style)...', prog: 75 },
+      { msg: 'Geometria 4:3...', prog: 85 },
       { msg: 'Fusão Final...', prog: 90 }
     ];
 
@@ -245,28 +242,30 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     setProcessingStep('Finalizando...');
     setProcessingProgress(100);
 
-    // Update the last saved photo thumbnail
     setLastSavedPhoto(bestBase64);
 
     onPhotoCaptured({
       id: crypto.randomUUID(),
       url: bestBase64,
       originalUrl: bestBase64,
-      name: `HPHDR_${Date.now()}`,
+      name: `HPHDR_NODAL_${Date.now()}`,
       timestamp: Date.now(),
       type: 'hdr'
     });
 
-    // Reset processing to allow next shot immediately
     setIsProcessing(false);
     setProcessingProgress(0);
     setCapturedPreviews([]);
   };
 
   return (
-    <div className="fixed inset-0 bg-black z-50 font-sans overflow-hidden select-none">
-      <div className="absolute inset-0 overflow-hidden bg-black flex items-center justify-center">
-        <video ref={videoRef} autoPlay playsInline className="absolute min-w-full min-h-full object-cover" />
+    <div className="fixed inset-0 bg-black z-50 font-sans overflow-hidden select-none flex flex-col">
+      
+      {/* Viewfinder Container - Manages the 4:3 aspect ratio centering */}
+      <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
+        {/* Video constrained to object-contain to respect aspect ratio without stretching */}
+        <video ref={videoRef} autoPlay playsInline className="max-w-full max-h-full aspect-[4/3] object-cover shadow-2xl" />
+        
         <canvas ref={canvasRef} className="hidden" />
 
         <div className={`absolute inset-0 bg-white transition-opacity duration-75 z-50 pointer-events-none ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
@@ -277,15 +276,18 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           </div>
         )}
 
-        {/* GRID + LEVEL */}
-        <div className="absolute inset-0 opacity-30 pointer-events-none">
-          <div className="grid grid-cols-3 grid-rows-3 w-full h-full">
-            <div className="border-r border-white/40"></div><div className="border-r border-white/40"></div><div></div>
-            <div className="border-t border-r border-white/40"></div><div className="border-t border-r border-white/40"></div><div className="border-t border-white/40"></div>
-            <div className="border-t border-r border-white/40"></div><div className="border-t border-r border-white/40"></div><div className="border-t border-white/40"></div>
-          </div>
-          <div className={`absolute top-1/2 left-1/2 transition-all -translate-x-1/2 -translate-y-1/2 shadow ${isLevel ? 'bg-brand' : 'bg-white'}`}
-            style={{ width: isLandscape ? '1px' : '70px', height: isLandscape ? '70px' : '1px', transform: `translate(-50%, -50%) rotate(${currentTilt}deg)` }} />
+        {/* GRID + LEVEL - Centered on the Camera Viewport, not full screen */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            {/* 4:3 Aspect Ratio Grid Container */}
+            <div className="w-full h-full max-h-full aspect-[4/3] relative border border-white/10">
+                <div className="grid grid-cols-3 grid-rows-3 w-full h-full opacity-40">
+                    <div className="border-r border-white/40"></div><div className="border-r border-white/40"></div><div></div>
+                    <div className="border-t border-r border-white/40"></div><div className="border-t border-r border-white/40"></div><div className="border-t border-white/40"></div>
+                    <div className="border-t border-r border-white/40"></div><div className="border-t border-r border-white/40"></div><div className="border-t border-white/40"></div>
+                </div>
+                <div className={`absolute top-1/2 left-1/2 transition-all -translate-x-1/2 -translate-y-1/2 shadow ${isLevel ? 'bg-[#623aa2]' : 'bg-white'}`}
+                    style={{ width: isLandscape ? '1px' : '70px', height: isLandscape ? '70px' : '1px', transform: `translate(-50%, -50%) rotate(${currentTilt}deg)` }} />
+            </div>
         </div>
 
         {/* ZOOM CONTROLS */}
@@ -300,18 +302,18 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           </div>
         </div>
 
-        {/* LAST PHOTO THUMBNAIL (Visual Feedback) */}
+        {/* LAST PHOTO THUMBNAIL */}
         {lastSavedPhoto && !isProcessing && (
             <div className={`absolute z-40 ${isLandscape ? 'right-8 bottom-8' : 'left-8 bottom-8'} w-14 h-14 rounded-lg border-2 border-white overflow-hidden shadow-lg bg-black animate-in zoom-in`}>
                 <img src={lastSavedPhoto} className="w-full h-full object-cover opacity-80" alt="Last shot" />
             </div>
         )}
 
-        {/* BURST PREVIEWS (During Capture) */}
+        {/* BURST PREVIEWS */}
         {capturedPreviews.length > 0 && (
           <div className={`absolute z-40 flex gap-1 px-4 overflow-x-auto ${isLandscape ? 'right-32 top-0 bottom-0 flex-col w-16 py-6' : 'bottom-56 left-0 right-0 flex-row h-16'}`}>
             {capturedPreviews.map((p, i) => (
-              <div key={i} className="aspect-[3/4] border border-white/40 rounded-sm overflow-hidden w-full h-full">
+              <div key={i} className="aspect-[4/3] border border-white/40 rounded-sm overflow-hidden w-full h-full">
                 <img src={p.url} className="object-cover w-full h-full" />
               </div>
             ))}
@@ -332,20 +334,20 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           </div>
         )}
 
-        {/* INTERIOR/EXTERIOR TOGGLE - Centered Bottom in Landscape too */}
+        {/* INTERIOR/EXTERIOR TOGGLE */}
         <div className={`absolute z-40 flex gap-4 ${isLandscape ? 'bottom-8 left-1/2 -translate-x-1/2' : 'bottom-28 left-1/2 -translate-x-1/2'}`}>
           <button onClick={() => setHdrProfile('interior')} className={`px-5 py-2 rounded-full text-xs font-semibold border ${hdrProfile === 'interior' ? 'bg-white text-black border-white' : 'bg-transparent text-white border-white/60'}`}>INTERIOR</button>
           <button onClick={() => setHdrProfile('exterior')} className={`px-5 py-2 rounded-full text-xs font-semibold border ${hdrProfile === 'exterior' ? 'bg-white text-black border-white' : 'bg-transparent text-white border-white/60'}`}>EXTERIOR</button>
         </div>
       </div>
 
-      {/* TOP CONTROLS (Close only) */}
-      <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-40">
-        <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-8 h-8" strokeWidth={1.5} /></button>
+      {/* TOP CONTROLS */}
+      <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-40 pointer-events-none">
+        <button onClick={onClose} className="text-white/80 hover:text-white pointer-events-auto"><X className="w-8 h-8" strokeWidth={1.5} /></button>
       </div>
 
-      {/* SHUTTER BUTTON */}
-      <div className={`absolute z-40 flex justify-center items-center ${isLandscape ? 'right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-black/80' : 'bottom-0 left-0 right-0 h-32 pb-6 bg-gradient-to-t from-black/80'}`}>
+      {/* SHUTTER BUTTON AREA (Black Bar) */}
+      <div className={`absolute z-40 flex justify-center items-center ${isLandscape ? 'right-0 top-0 bottom-0 w-32 bg-black' : 'bottom-0 left-0 right-0 h-32 pb-6 bg-black'}`}>
         <button onClick={initiateCapture} disabled={isProcessing} className={`relative w-20 h-20 rounded-full border-[3px] flex justify-center items-center transition-all ${isProcessing ? 'border-gray-500 opacity-50 scale-90' : 'border-white hover:bg-white/10 active:scale-95'}`}>
           <div className={`rounded-full bg-white transition-all ${isProcessing ? 'w-14 h-14 bg-gray-400' : 'w-16 h-16'}`} />
         </button>
