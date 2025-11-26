@@ -179,70 +179,68 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       capturePhotoSequence();
   };
 
-  cconst capturePhotoSequence = async () => {
+  const capturePhotoSequence = async () => {
   if (!videoRef.current || !canvasRef.current) return;
 
   setIsProcessing(true);
   setCapturedPreviews([]);
-  
+
   const video = videoRef.current;
   const canvas = canvasRef.current;
+
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  // -------------------------------
-  // GET CAMERA TRACK + CAPABILITIES
-  // -------------------------------
+  // --- GET CAMERA TRACK ---
   const stream = video.srcObject as MediaStream;
   const track = stream.getVideoTracks()[0];
-  const capabilities = track.getCapabilities?.() || {};
+  const capabilities: any = track.getCapabilities?.() || {};
 
   const supportsExposure =
     capabilities.exposureCompensation !== undefined &&
-    capabilities.exposureCompensation.min !== undefined &&
-    capabilities.exposureCompensation.max !== undefined;
+    typeof capabilities.exposureCompensation.min === "number" &&
+    typeof capabilities.exposureCompensation.max === "number";
 
-  // -----------------------------------
-  // HP-HDR REAL EXPOSURE CURVE (9 steps)
-  // Map EV → index (device-specific)
-  // -----------------------------------
+  // --- HP-HDR EV CURVE ---
   const hpEV = [1.7, 1.0, 0.5, 0.0, -0.3, -1.0, -2.0, -2.7, -3.5];
   const hpLabels = ["+1.7", "+1.0", "+0.5", "0.0", "-0.3", "-1.0", "-2.0", "-2.7", "-3.5"];
 
-  const exposureIndexes = hpEV.map(ev => {
+  const exposureIndexes = hpEV.map((ev) => {
     if (!supportsExposure) return null;
 
     const step = capabilities.exposureCompensationStep || 1;
-    const idx = Math.round(ev / step);
-    return Math.max(capabilities.exposureCompensation.min,
-      Math.min(capabilities.exposureCompensation.max, idx)
+    const index = Math.round(ev / step);
+
+    return Math.max(
+      capabilities.exposureCompensation.min,
+      Math.min(capabilities.exposureCompensation.max, index)
     );
   });
 
-  // Fallback brightness if sensor does NOT support exposureCompensation
+  // fallback brightness (apenas para devices sem EV real)
   const fallbackBrightness = [3.25, 2.0, 1.41, 1.0, 0.81, 0.5, 0.25, 0.15, 0.09];
 
-  // -----------------------------------
-  // CAPTURE LOOP (REAL HDR)
-  // -----------------------------------
+  const previews: { url: string; ev: string }[] = [];
+  let bestImageBase64 = "";
+
   setProcessingStep("A capturar HP-HDR Real…");
   setProcessingProgress(5);
 
-  const previews: { url: string, ev: string }[] = [];
-  let bestImageBase64 = "";
-
   for (let i = 0; i < 9; i++) {
-    // ----------- REAL EXPOSURE ----------
+    // ---- APPLY EXPOSURE REAL ----
     if (supportsExposure && exposureIndexes[i] !== null) {
-      await track.applyConstraints({
-        advanced: [{ exposureCompensation: exposureIndexes[i] }]
-      });
-      await new Promise(r => setTimeout(r, 120)); // stabilize
+      try {
+        await track.applyConstraints({
+          advanced: [{ exposureCompensation: exposureIndexes[i] }]
+        });
+        await new Promise((r) => setTimeout(r, 120));
+      } catch (e) {
+        console.warn("Exposure adjustment failed:", e);
+      }
     } else {
-      // fallback artificial brightness ONLY if necessary
       ctx.filter = `brightness(${fallbackBrightness[i]})`;
     }
 
@@ -257,23 +255,22 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     ctx.filter = "none";
 
     const jpeg = canvas.toDataURL("image/jpeg", 0.95);
+
     if (i === 4) bestImageBase64 = jpeg;
 
     previews.push({ url: jpeg, ev: hpLabels[i] });
     setCapturedPreviews([...previews]);
 
     setProcessingProgress(10 + i * 6);
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise((r) => setTimeout(r, 150));
   }
 
-  // -----------------------------------
-  // AI Enhancement (HP-HDR Fusion)
-  // -----------------------------------
+  // --- AI FUSION ---
   if (hdrMode) {
     const steps = [
       { msg: "Highlight Mapping Inteligente…", prog: 60 },
       { msg: "Shadow Recovery Natural…", prog: 70 },
-      { msg: "Nitidez Real (Texture-Aware)…", prog: 80 },
+      { msg: "Nitidez Real…", prog: 80 },
       { msg: "Correção de Perspetiva…", prog: 85 },
       { msg: "Fusão HP-HDR Final…", prog: 90 }
     ];
@@ -281,19 +278,16 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     for (const step of steps) {
       setProcessingStep(step.msg);
       setProcessingProgress(step.prog);
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
     }
 
     try {
       bestImageBase64 = await enhanceImage(bestImageBase64);
-    } catch (e) {
-      console.error("AI enhancement failed", e);
+    } catch (err) {
+      console.error("AI enhancement failed", err);
     }
   }
 
-  // -----------------------------------
-  // RETURN FINAL IMAGE
-  // -----------------------------------
   setProcessingStep("A finalizar imagem premium…");
   setProcessingProgress(100);
 
@@ -303,20 +297,13 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     originalUrl: bestImageBase64,
     name: `HP-HDR_${new Date().toISOString()}`,
     timestamp: Date.now(),
-    type: hdrMode ? "hdr" : "standard",
+    type: hdrMode ? "hdr" : "standard"
   };
 
   onPhotoCaptured(finalPhoto);
   setIsProcessing(false);
   setCapturedPreviews([]);
 };
-
-
-    } catch (error) {
-      console.error("Capture pipeline error", error);
-      setIsProcessing(false);
-    }
-  };
 
   return (
     <div className="fixed inset-0 bg-black z-50 font-sans overflow-hidden select-none">
