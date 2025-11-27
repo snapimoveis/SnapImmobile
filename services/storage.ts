@@ -5,52 +5,13 @@ import {
     signOut 
 } from "firebase/auth";
 import { 
-    doc, 
-    setDoc, 
-    getDoc, 
-    updateDoc, 
-    deleteDoc, 
-    collection, 
-    query, 
-    where, 
-    getDocs 
-} from "firebase/firestore/lite";
-import { 
-    ref, 
-    uploadBytes, 
-    getDownloadURL 
-} from "firebase/storage";
+    doc, setDoc, getDoc, updateDoc, deleteDoc, 
+    collection, query, where, getDocs 
+} from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "./firebaseConfig";
 import { Project, UserProfile, Photo, CompanySettings, Device, Invoice } from '../types';
-
-const getUniqueDeviceId = () => {
-    let deviceId = localStorage.getItem('snap_device_id');
-    if (!deviceId) {
-        deviceId = crypto.randomUUID();
-        localStorage.setItem('snap_device_id', deviceId);
-    }
-    return deviceId;
-};
-
-const getDeviceModel = () => {
-    const ua = navigator.userAgent;
-    if (ua.includes("iPhone")) return "iPhone";
-    if (ua.includes("iPad")) return "iPad";
-    if (ua.includes("Android")) return "Android Phone";
-    if (ua.includes("Mac")) return "Mac";
-    if (ua.includes("Windows")) return "Windows PC";
-    return "Unknown Device";
-};
-
-const base64ToBlob = (base64: string): Blob => {
-    const arr = base64.split(',');
-    const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) { u8arr[n] = bstr.charCodeAt(n); }
-    return new Blob([u8arr], { type: mime });
-};
+import { base64ToBlob, getDeviceModel, getUniqueDeviceId } from "../utils/helpers";
 
 const uploadPhotoToStorage = async (base64Data: string, path: string): Promise<string> => {
     try {
@@ -68,7 +29,6 @@ export const registerUser = async (user: UserProfile, password?: string): Promis
     if (!password) throw new Error("Password required");
     const userCredential = await createUserWithEmailAndPassword(auth, user.email, password);
     
-    // Create a default company for the new user (Owner)
     const companyId = crypto.randomUUID();
     const companySettings: CompanySettings = {
         id: companyId,
@@ -86,7 +46,7 @@ export const registerUser = async (user: UserProfile, password?: string): Promis
         id: userCredential.user.uid, 
         deviceId: getUniqueDeviceId(), 
         createdAt: Date.now(),
-        companyId: companyId // Link user to new company
+        companyId: companyId
     };
     await setDoc(doc(db, "users", userCredential.user.uid), newUser);
     return newUser;
@@ -101,8 +61,6 @@ export const loginUser = async (email: string, password?: string): Promise<UserP
         if (!userDoc.exists()) return { id: uid, email, role: 'Fotografo', firstName: 'User', lastName: '', phone: '', cpf: '', createdAt: Date.now() };
         
         const userData = userDoc.data() as UserProfile;
-        
-        // Record Device Login
         const deviceId = getUniqueDeviceId();
         const deviceData: Device = {
             id: deviceId,
@@ -114,13 +72,9 @@ export const loginUser = async (email: string, password?: string): Promise<UserP
             lastAccess: Date.now(),
             status: 'Active'
         };
-        // Save to subcollection
         await setDoc(doc(db, `users/${uid}/devices/${deviceId}`), deviceData);
 
-        // Check if blocked logic (DeviceLocker)
         if (userData.deviceId && userData.deviceId !== deviceId) {
-            // Logic to check if THIS device is blocked in the devices subcollection could go here
-            // For now, we update the main deviceId to current to allow "switching" but tracking history
             await updateDoc(doc(db, "users", uid), { deviceId: deviceId, lastActive: Date.now() });
         }
 
@@ -130,8 +84,6 @@ export const loginUser = async (email: string, password?: string): Promise<UserP
         throw error;
     }
 };
-
-// --- COMPANY SETTINGS ---
 
 export const getCompanySettings = async (companyId: string): Promise<CompanySettings | null> => {
     try {
@@ -143,13 +95,11 @@ export const getCompanySettings = async (companyId: string): Promise<CompanySett
 
 export const saveCompanySettings = async (settings: CompanySettings, logoFile?: File): Promise<CompanySettings> => {
     let logoUrl = settings.logoUrl;
-    
     if (logoFile) {
         const storageRef = ref(storage, `companies/${settings.id}/logo.png`);
         await uploadBytes(storageRef, logoFile);
         logoUrl = await getDownloadURL(storageRef);
     }
-
     const updated = { ...settings, logoUrl };
     await setDoc(doc(db, "companies", settings.id), updated);
     return updated;
@@ -166,11 +116,8 @@ export const getCompanyUsers = async (companyId: string): Promise<UserProfile[]>
 };
 
 export const getCompanyDevices = async (companyId: string): Promise<Device[]> => {
-    // In Firestore Lite, collectionGroup queries are limited. 
-    // Ideally we query all users of company, then fetch their devices.
     const users = await getCompanyUsers(companyId);
     const allDevices: Device[] = [];
-    
     for (const user of users) {
         try {
             const devSnap = await getDocs(collection(db, `users/${user.id}/devices`));
@@ -189,7 +136,6 @@ export const getInvoices = async (companyId: string): Promise<Invoice[]> => {
         const q = query(collection(db, "invoices"), where("companyId", "==", companyId));
         const snap = await getDocs(q);
         if (snap.empty) {
-            // Create mock invoice if empty for demo
             const mock: Invoice = { 
                 id: 'inv_1', companyId, number: 'NV2025-001', 
                 date: Date.now(), amount: 59.00, status: 'Paid' 
@@ -203,27 +149,21 @@ export const getInvoices = async (companyId: string): Promise<Invoice[]> => {
     } catch (e) { return []; }
 };
 
-// --- EXISTING USER/PROJECT LOGIC ---
-
 export const updateUser = async (user: UserProfile): Promise<UserProfile> => {
     let avatarUrl = user.avatar;
     let watermarkUrl = user.watermarkUrl;
 
-    // Upload Avatar if Base64
     if (user.avatar && user.avatar.startsWith('data:image')) {
         try { avatarUrl = await uploadPhotoToStorage(user.avatar, `avatars/${user.id}_${Date.now()}.jpg`); } catch (e) {}
     }
 
-    // Upload Watermark if Base64
     if (user.watermarkUrl && user.watermarkUrl.startsWith('data:image')) {
         try { 
             const blob = base64ToBlob(user.watermarkUrl);
             const storageRef = ref(storage, `watermarks/${user.id}_wm.png`);
             await uploadBytes(storageRef, blob, { contentType: 'image/png' });
             watermarkUrl = await getDownloadURL(storageRef);
-        } catch (e) {
-            console.error("Watermark upload failed", e);
-        }
+        } catch (e) { console.error(e); }
     }
 
     const updatedUser = { ...user, avatar: avatarUrl, watermarkUrl: watermarkUrl };
@@ -250,12 +190,10 @@ export const saveProject = async (project: Project): Promise<Project> => {
         let finalUrl = photo.url;
         let finalOriginalUrl = photo.originalUrl;
         
-        // 1. Upload Main Image
         if (photo.url.startsWith('data:image')) {
             finalUrl = await uploadPhotoToStorage(photo.url, `projects/${project.userId}/${project.id}/${photo.id}.jpg`);
         }
 
-        // 2. Upload Original Image (Fixes 1MB Limit)
         if (photo.originalUrl && photo.originalUrl.startsWith('data:image')) {
             if (photo.originalUrl === photo.url && finalUrl.startsWith('http')) {
                 finalOriginalUrl = finalUrl;
@@ -263,7 +201,6 @@ export const saveProject = async (project: Project): Promise<Project> => {
                 finalOriginalUrl = await uploadPhotoToStorage(photo.originalUrl, `projects/${project.userId}/${project.id}/${photo.id}_orig.jpg`);
             }
         }
-        
         photosWithUrls.push({ ...photo, url: finalUrl, originalUrl: finalOriginalUrl });
     }
 
