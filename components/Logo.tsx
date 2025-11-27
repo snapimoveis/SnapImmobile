@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface LogoProps {
@@ -6,8 +7,9 @@ interface LogoProps {
 }
 
 export const Logo: React.FC<LogoProps> = ({ variant = 'default', className = "w-32 h-32" }) => {
-  // Enforce strict usage of brand assets
-  const src = variant === 'white' ? '/brand/logo_branco.svg' : '/brand/logo_color.svg';
+  // Enforce strict usage of official brand assets from /static/brand/
+  // Never use inline SVGs or other paths.
+  const src = variant === 'white' ? '/static/brand/logo_branco.svg' : '/static/brand/logo_color.svg';
 
   return (
     <img 
