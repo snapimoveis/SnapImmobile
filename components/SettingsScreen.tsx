@@ -3,13 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, Device, Invoice, CompanySettings, Project } from '../types';
 import { 
     getCompanySettings, saveCompanySettings, getCompanyUsers, 
-    getCompanyDevices, getInvoices, toggleDeviceStatus, getUserProjects 
+    getCompanyDevices, getInvoices, toggleDeviceStatus, getUserProjects, updateUser 
 } from '../services/storage';
 import { GeneralTab } from './settings/GeneralTab';
 import { PropertiesTab } from './settings/PropertiesTab';
 import { UsersTab } from './settings/UsersTab';
 import { DevicesTab } from './settings/DevicesTab';
 import { BillingTab } from './settings/BillingTab';
+import { ProfileTab } from './settings/ProfileTab';
 
 interface SettingsScreenProps {
   currentUser: UserProfile | null;
@@ -17,9 +18,10 @@ interface SettingsScreenProps {
   onDeleteAccount: () => void;
 }
 
-type Tab = 'general' | 'properties' | 'users' | 'devices' | 'billing';
+// Added 'teams' and 'integrations' to match screenshot
+type Tab = 'general' | 'properties' | 'users' | 'teams' | 'integrations' | 'devices' | 'billing' | 'my_profile';
 
-export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser }) => {
+export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onUpdateUser }) => {
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -29,6 +31,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser }) =
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
 
+  // If we are in "My Profile" mode vs "Company" mode
+  const isProfileMode = activeTab === 'my_profile';
+
   useEffect(() => {
       if (!currentUser?.companyId) return;
 
@@ -36,8 +41,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser }) =
           setIsLoading(true);
           try {
               const settings = await getCompanySettings(currentUser.companyId!);
-              if (settings) setCompany(settings);
-              else {
+              if (settings) {
+                  setCompany(settings);
+              } else {
                   const def: CompanySettings = {
                       id: currentUser.companyId!,
                       name: currentUser.company || 'Minha Empresa',
@@ -45,7 +51,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser }) =
                       primaryColor: '#623aa2',
                       backgroundColor: '#ffffff',
                       allowUserWatermark: true,
-                      ownerId: currentUser.id
+                      ownerId: currentUser.id,
+                      virtualTourDays: ['SEG', 'TER', 'QUA', 'QUI', 'SEX']
                   };
                   setCompany(def);
               }
@@ -92,6 +99,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser }) =
       }
   };
 
+  const handleWatermarkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      // Placeholder for watermark upload logic
+      alert("Upload de marca d'água");
+  };
+
   const handleBlockDevice = async (device: Device) => {
       const newStatus = device.status === 'Active' ? 'Blocked' : 'Active';
       await toggleDeviceStatus(device.userId, device.id, newStatus);
@@ -100,44 +112,92 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser }) =
 
   return (
     <div className="min-h-screen bg-[#f9fafb] font-sans pb-20">
+      
+      {/* Dynamic Header */}
       <div className="bg-white border-b border-gray-200 pt-8 px-8 pb-0">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">A minha organização</h1>
-          <div className="flex overflow-x-auto no-scrollbar border-b border-gray-200 bg-white sticky top-0 z-20">
-              {[
-                  { id: 'general', label: 'Informações gerais' },
-                  { id: 'properties', label: 'Imóvel' },
-                  { id: 'users', label: 'Utilizadores' },
-                  { id: 'devices', label: 'Dispositivos' },
-                  { id: 'billing', label: 'Faturação e Subscrição' }
-              ].map(tab => (
-                  <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id as Tab)}
-                      className={`px-6 py-4 text-sm font-medium whitespace-nowrap transition-colors relative ${
-                          activeTab === tab.id ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                  >
-                      {tab.label}
-                      {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t-full"></div>}
-                  </button>
-              ))}
+          <div className="flex justify-between items-center mb-6">
+             <h1 className="text-2xl font-bold text-gray-900">
+                 {activeTab === 'my_profile' ? 'A minha conta' : 'A minha organização'}
+             </h1>
+             {/* Simple Toggle for Demo Purposes to switch views */}
+             <div className="flex bg-gray-100 rounded-lg p-1">
+                 <button 
+                    onClick={() => setActiveTab('general')}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${activeTab !== 'my_profile' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
+                 >
+                    Empresa
+                 </button>
+                 <button 
+                    onClick={() => setActiveTab('my_profile')}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${activeTab === 'my_profile' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
+                 >
+                    Perfil
+                 </button>
+             </div>
           </div>
+
+          {!isProfileMode ? (
+              <div className="flex overflow-x-auto no-scrollbar bg-white sticky top-0 z-20 gap-6">
+                  {[
+                      { id: 'general', label: 'Informações gerais' },
+                      { id: 'properties', label: 'Imóvel' },
+                      { id: 'users', label: 'Utilizadores' },
+                      { id: 'teams', label: 'Equipas' },
+                      { id: 'integrations', label: 'Integrações' },
+                      { id: 'devices', label: 'Dispositivos' },
+                      { id: 'billing', label: 'Faturação e Subscrição' }
+                  ].map(tab => (
+                      <button
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id as Tab)}
+                          className={`pb-4 text-sm font-medium whitespace-nowrap transition-colors relative ${
+                              activeTab === tab.id ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                      >
+                          {tab.label}
+                      </button>
+                  ))}
+              </div>
+          ) : (
+              <div className="flex overflow-x-auto no-scrollbar bg-white sticky top-0 z-20 gap-6">
+                  <button className="pb-4 text-sm font-medium text-blue-600 border-b-2 border-blue-600">Informações gerais</button>
+                  <button className="pb-4 text-sm font-medium text-gray-500 hover:text-gray-700">Segurança</button>
+                  <button className="pb-4 text-sm font-medium text-gray-500 hover:text-gray-700">Preferências</button>
+                  <button className="pb-4 text-sm font-medium text-gray-500 hover:text-gray-700">Actividade</button>
+                  <button className="pb-4 text-sm font-medium text-gray-500 hover:text-gray-700">Cartão de visitas</button>
+              </div>
+          )}
       </div>
 
-      <div className="px-8">
-          {activeTab === 'general' && company && (
-              <GeneralTab 
-                  company={company} 
-                  setCompany={setCompany} 
-                  onSave={handleSaveGeneral} 
-                  isLoading={isLoading} 
-                  onLogoUpload={handleLogoUpload} 
-              />
+      <div className="px-8 pt-8">
+          {/* Company Context */}
+          {!isProfileMode && (
+              <>
+                {activeTab === 'general' && company && (
+                    <GeneralTab 
+                        company={company} 
+                        setCompany={setCompany} 
+                        onSave={handleSaveGeneral} 
+                        isLoading={isLoading} 
+                        onLogoUpload={handleLogoUpload} 
+                        onWatermarkUpload={handleWatermarkUpload}
+                    />
+                )}
+                {activeTab === 'properties' && <PropertiesTab projects={projects} currentUser={currentUser} />}
+                {activeTab === 'users' && <UsersTab users={users} />}
+                {activeTab === 'devices' && <DevicesTab devices={devices} onBlockDevice={handleBlockDevice} />}
+                {activeTab === 'billing' && <BillingTab invoices={invoices} users={users} />}
+                {/* Placeholders for new tabs */}
+                {(activeTab === 'teams' || activeTab === 'integrations') && (
+                    <div className="text-center py-20 text-gray-500">Funcionalidade em desenvolvimento.</div>
+                )}
+              </>
           )}
-          {activeTab === 'properties' && <PropertiesTab projects={projects} currentUser={currentUser} />}
-          {activeTab === 'users' && <UsersTab users={users} />}
-          {activeTab === 'devices' && <DevicesTab devices={devices} onBlockDevice={handleBlockDevice} />}
-          {activeTab === 'billing' && <BillingTab invoices={invoices} users={users} />}
+
+          {/* User Context */}
+          {isProfileMode && currentUser && (
+              <ProfileTab currentUser={currentUser} onUpdateUser={onUpdateUser} />
+          )}
       </div>
     </div>
   );

@@ -56,7 +56,7 @@ export interface UserProfile {
   id: string;
   role: 'Corretor' | 'Proprietario' | 'Fotografo' | 'Imobiliária' | 'Administrador';
   firstName: string;
-  lastName: string;
+  lastName: string; // Apelido
   email: string;
   password?: string;
   phone: string;
@@ -64,12 +64,14 @@ export interface UserProfile {
   company?: string; // Name of company
   companyId?: string; // ID linking to CompanySettings
   avatar?: string; // Base64 avatar image
+  businessImage?: string; // Imagem do negócio
   watermarkUrl?: string; // URL for the user's watermark PNG
   preferences?: UserPreferences;
   createdAt: number;
   deviceId?: string;
   status?: 'Active' | 'Blocked' | 'Pending';
   lastActive?: number;
+  deviceModel?: string; // e.g. "iPhone 14"
 }
 
 export interface Device {
@@ -102,6 +104,7 @@ export interface CompanySettings {
   backgroundColor: string;
   allowUserWatermark: boolean;
   watermarkUrl?: string;
+  virtualTourDays?: string[]; // ['SEG', 'TER', 'QUA'...]
   ownerId: string;
 }
 
