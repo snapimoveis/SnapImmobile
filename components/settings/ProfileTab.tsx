@@ -30,7 +30,7 @@ export const ProfileTab: React.FC<Props> = ({ currentUser, onUpdateUser }) => {
                 <h3 className="text-xl font-bold text-gray-900 mb-6 border-b border-gray-100 pb-4">Informações gerais</h3>
                 
                 <div>
-                    <label className="block text-sm font-bold text-gray-900 mb-2">Correio electrónico</label>
+                    <label className="block text-sm font-bold text-gray-900 mb-2">E-mail</label>
                     <input 
                         type="email" 
                         value={currentUser.email} 
