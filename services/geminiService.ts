@@ -4,10 +4,24 @@ import { GoogleGenAI, Modality } from "@google/genai";
 declare const process: any;
 
 const getApiKey = () => {
+    // 1. Priority: User-defined key (LocalStorage)
+    // Useful for diagnosing issues or using personal quotas
     const localKey = localStorage.getItem('snap_gemini_api_key');
-    if (localKey) return localKey;
-    // Fallback to hardcoded key if process.env fails
-    return process.env.API_KEY || 'AIzaSyDrfl26AjdJxdwxH2Eli_fme0uE9Qx5Kmk';
+    if (localKey) {
+        console.debug('[Snap AI] Usando chave de API do Utilizador');
+        return localKey;
+    }
+
+    // 2. Priority: System Default (Hardcoded)
+    // Ensures the app works immediately for testers without env config
+    const systemKey = 'AIzaSyDrfl26AjdJxdwxH2Eli_fme0uE9Qx5Kmk';
+    if (systemKey) {
+        return systemKey;
+    }
+
+    // 3. Priority: Environment Variable
+    // Standard for production builds
+    return process.env.API_KEY || '';
 };
 
 const cleanBase64 = (data: string) => {
@@ -23,6 +37,11 @@ const getMimeType = (data: string) => {
 
 export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interior' | 'hp_hdr_exterior' | 'hp_hdr_window' = 'hp_hdr_interior'): Promise<string> => {
   const apiKey = getApiKey();
+  if (!apiKey) {
+      console.error("[Snap AI] Nenhuma chave de API encontrada.");
+      return base64Image;
+  }
+
   const ai = new GoogleGenAI({ apiKey });
   
   let contextInstruction = "";
@@ -123,7 +142,7 @@ export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interio
       }
       return base64Image;
   } catch (error: any) {
-    console.error("AI Enhancement Failed:", error);
+    console.error("[Snap AI] Falha no Melhoramento de Imagem:", error);
     throw error;
   }
 };
@@ -154,9 +173,9 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
                   return `data:image/png;base64,${part.inlineData.data}`;
               }
           }
-          throw new Error("No image generated");
+          throw new Error("Nenhuma imagem gerada pela IA.");
     } catch (error: any) {
-        console.error("Edit Failed:", error);
+        console.error("[Snap AI] Falha na Edição:", error);
         throw error;
     }
 };
@@ -175,5 +194,8 @@ export const generateDescription = async (base64Image: string): Promise<string> 
             }
         });
         return response.text || "Imóvel";
-    } catch (e) { return "Imóvel"; }
+    } catch (e) { 
+        console.warn("[Snap AI] Falha na descrição:", e);
+        return "Imóvel"; 
+    }
 }
