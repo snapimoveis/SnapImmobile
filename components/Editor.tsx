@@ -11,7 +11,7 @@ interface EditorProps {
 }
 
 export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
-  const [currentImage, setCurrentImage] = useState(photo.url);
+  const [currentImage, setCurrentImage] = useState<string>(''); // Start empty, wait for blob
   const [mode, setMode] = useState<ToolMode>(ToolMode.NONE);
   const [promptText, setPromptText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -28,8 +28,51 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // History stack for undo/redo
-  const [history, setHistory] = useState<string[]>([photo.url]);
+  const [history, setHistory] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Initial Load: Convert Remote URL to Local Blob to prevent Tainted Canvas
+  useEffect(() => {
+      let isMounted = true;
+      const prepareImage = async () => {
+          // If it's already a data URI or blob, use it
+          if (photo.url.startsWith('data:') || photo.url.startsWith('blob:')) {
+              if (isMounted) {
+                  setCurrentImage(photo.url);
+                  setHistory([photo.url]);
+              }
+              return;
+          }
+
+          // If remote, fetch as blob
+          try {
+              const response = await fetch(photo.url, { mode: 'cors' });
+              const blob = await response.blob();
+              const objectUrl = URL.createObjectURL(blob);
+              if (isMounted) {
+                  setCurrentImage(objectUrl);
+                  setHistory([objectUrl]);
+              }
+          } catch (e) {
+              console.error("Failed to load image securely for editing", e);
+              // Fallback (might taint canvas but better than blank)
+              if (isMounted) {
+                  setCurrentImage(photo.url);
+                  setHistory([photo.url]);
+              }
+          }
+      };
+
+      prepareImage();
+
+      return () => {
+          isMounted = false;
+          // Clean up blob URLs if we created them (optimization)
+          history.forEach(url => {
+              if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+          });
+      };
+  }, [photo.id]); // Only re-run if photo ID changes
 
   // Initialize Canvas Size on Image Load/Resize
   useEffect(() => {
@@ -163,6 +206,12 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
       const originalImg = imgRef.current;
       const maskCanvas = canvasRef.current;
 
+      // Ensure the original image isn't cross-origin tainted
+      if (originalImg.crossOrigin !== 'anonymous' && !originalImg.src.startsWith('data:') && !originalImg.src.startsWith('blob:')) {
+          // This should ideally be caught by the useEffect, but as a safeguard:
+          originalImg.crossOrigin = "anonymous";
+      }
+
       // Calculate scaling to limit max dimension to 1536px for AI performance
       // This prevents timeouts with 4K images while keeping enough detail for editing
       const MAX_DIM = 1536;
@@ -182,15 +231,21 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
       const ctx = tempCanvas.getContext('2d');
       if (!ctx) return currentImage;
 
-      // 1. Draw Original Image (Scaled)
-      ctx.drawImage(originalImg, 0, 0, width, height);
+      try {
+          // 1. Draw Original Image (Scaled)
+          ctx.drawImage(originalImg, 0, 0, width, height);
 
-      // 2. Draw Mask (Scaled)
-      if (mode === ToolMode.MAGIC_ERASE) {
-          ctx.drawImage(maskCanvas, 0, 0, width, height);
+          // 2. Draw Mask (Scaled)
+          if (mode === ToolMode.MAGIC_ERASE) {
+              ctx.drawImage(maskCanvas, 0, 0, width, height);
+          }
+
+          return tempCanvas.toDataURL('image/jpeg', 0.85);
+      } catch (e) {
+          console.error("Canvas export failed (likely tainted)", e);
+          alert("Erro de segurança: A imagem não pode ser processada devido a restrições do navegador (CORS). Tente recarregar.");
+          return currentImage;
       }
-
-      return tempCanvas.toDataURL('image/jpeg', 0.85);
   };
 
   const handleEdit = async () => {
@@ -250,6 +305,15 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
           url: currentImage,
       });
   };
+
+  if (!currentImage) {
+      return (
+          <div className="flex flex-col h-screen bg-gray-950 text-white font-sans items-center justify-center">
+              <div className="w-10 h-10 border-t-2 border-white rounded-full animate-spin mb-4"></div>
+              <p>A carregar imagem...</p>
+          </div>
+      );
+  }
 
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white font-sans">
@@ -322,6 +386,7 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
                 ref={imgRef}
                 src={currentImage} 
                 alt="Editing" 
+                crossOrigin="anonymous" 
                 onLoad={() => {
                     // Trigger resize to match canvas
                     if(canvasRef.current && imgRef.current) {

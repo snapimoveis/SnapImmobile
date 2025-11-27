@@ -19,9 +19,8 @@ const loadImage = async (src: string): Promise<HTMLImageElement> => {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
-                // Clean up memory
-                // We don't revoke immediately because we need to draw it, 
-                // but in a larger app we would track this.
+                // We resolve with the image element but it points to a blob: URI
+                // The caller should ideally handle cleanup if this was a rigorous memory managed app
                 resolve(img);
             };
             img.onerror = (e) => {
@@ -31,12 +30,15 @@ const loadImage = async (src: string): Promise<HTMLImageElement> => {
             img.src = objectUrl;
         });
     } catch (e) {
-        // Fallback for data URIs or if fetch fails (e.g. local files)
+        // Fallback for data URIs or if fetch fails (e.g. local files or strict CORS failure)
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.crossOrigin = "anonymous";
             img.onload = () => resolve(img);
-            img.onerror = (e) => reject(e);
+            img.onerror = (e) => {
+                console.error("Image load failed fallback", e);
+                reject(e);
+            };
             img.src = src;
         });
     }
