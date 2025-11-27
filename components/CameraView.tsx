@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { enhanceImage } from '../services/geminiService';
@@ -64,23 +65,46 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   const startCamera = async () => {
     try {
-      // Explicitly requesting 4:3 Aspect Ratio (1.333...) for professional photo format
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // 1. Try High-Quality 4:3 first
+      const constraintsHQ = {
         video: {
           facingMode: 'environment',
           aspectRatio: { ideal: 1.333333 }, 
-          width: { ideal: 2048 }, // High resolution preferred
-          zoom: true
-        } as any
-      });
+          width: { ideal: 2560 }, 
+          height: { ideal: 1920 }
+          // Note: Do NOT add 'zoom: true' here, it causes errors on some Android WebViews
+        }
+      };
 
-      if (videoRef.current) {
+      let stream;
+      try {
+          stream = await navigator.mediaDevices.getUserMedia(constraintsHQ);
+      } catch (e) {
+          console.warn("HQ Camera failed, trying fallback...", e);
+          // 2. Fallback: Basic camera (any resolution, usually 16:9 or 4:3 default)
+          stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: 'environment' }
+          });
+      }
+
+      if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
-        setIsStreaming(true);
+        
+        // Wait for video to actually start to apply capabilities
+        videoRef.current.onloadedmetadata = async () => {
+            setIsStreaming(true);
+            // Apply zoom capability check after stream is active
+            const track = stream.getVideoTracks()[0];
+            const caps: any = track.getCapabilities?.() || {};
+            if (caps.zoom) {
+                // Reset zoom to 1x explicitly if possible
+                try { await track.applyConstraints({ advanced: [{ zoom: 1 }] } as any); } catch(e){}
+            }
+        };
       }
     } catch (err) {
       console.error(err);
-      alert('Não foi possível aceder à câmara. Verifique as permissões.');
+      alert('Não foi possível aceder à câmara. Verifique se está num ambiente seguro (HTTPS) e se deu permissão.');
     }
   };
 
@@ -133,6 +157,34 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     capturePhotoSequence();
   };
 
+  // Helper to crop video feed to strict 4:3 aspect ratio
+  const drawCroppedFrame = (video: HTMLVideoElement, canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
+      const videoWidth = video.videoWidth;
+      const videoHeight = video.videoHeight;
+      const targetRatio = 4 / 3;
+      const currentRatio = videoWidth / videoHeight;
+
+      let drawWidth = videoWidth;
+      let drawHeight = videoHeight;
+      let startX = 0;
+      let startY = 0;
+
+      // Logic: If image is wider than 4:3 (e.g. 16:9), crop sides. If taller, crop top/bottom.
+      if (currentRatio > targetRatio) {
+          drawWidth = videoHeight * targetRatio;
+          startX = (videoWidth - drawWidth) / 2;
+      } else if (currentRatio < targetRatio) {
+          drawHeight = videoWidth / targetRatio;
+          startY = (videoHeight - drawHeight) / 2;
+      }
+
+      // Force canvas to match the DRAW dimensions (Strict 4:3)
+      canvas.width = drawWidth;
+      canvas.height = drawHeight;
+
+      ctx.drawImage(video, startX, startY, drawWidth, drawHeight, 0, 0, drawWidth, drawHeight);
+  };
+
   const capturePhotoSequence = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
@@ -141,11 +193,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    
-    // Ensure canvas captures at full video resolution
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -165,9 +212,10 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     let effectiveProfile: 'hp_hdr_interior' | 'hp_hdr_exterior' | 'hp_hdr_window' =
       hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
 
+    // Auto-detect window/bright light in interior mode
     if (hdrProfile === 'interior') {
       try {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        drawCroppedFrame(video, canvas, ctx); // Analyze the cropped frame
         const topHeight = Math.floor(canvas.height * 0.35);
         const topData = ctx.getImageData(0, 0, canvas.width, topHeight);
         
@@ -206,13 +254,14 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       setFlashVisual(true);
       setTimeout(() => setFlashVisual(false), 50);
 
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // CRITICAL: Always use drawCroppedFrame to ensure strict 4:3 ratio
+      drawCroppedFrame(video, canvas, ctx);
       ctx.filter = 'none';
 
-      const url = canvas.toDataURL('image/jpeg', 0.5);
+      const url = canvas.toDataURL('image/jpeg', 0.6); // Lower quality for previews
       setCapturedPreviews(prev => [...prev, { url, ev: `${chosenEV[i]}EV` }]);
 
-      if (i === 4) bestBase64 = canvas.toDataURL('image/jpeg', 0.95);
+      if (i === 4) bestBase64 = canvas.toDataURL('image/jpeg', 0.95); // High quality for processing
       setProcessingProgress(10 + i * 6);
       await new Promise((r) => setTimeout(r, 120));
     }
@@ -222,7 +271,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const steps = [
       { msg: 'Highlight Mapping...', prog: 50 },
       { msg: 'Shadow Recovery...', prog: 65 },
-      { msg: 'Nitidez (Nodal Style)...', prog: 75 },
+      { msg: 'Nitidez (Pro)...', prog: 75 },
       { msg: 'Geometria 4:3...', prog: 85 },
       { msg: 'Fusão Final...', prog: 90 }
     ];
@@ -248,7 +297,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       id: crypto.randomUUID(),
       url: bestBase64,
       originalUrl: bestBase64,
-      name: `HPHDR_NODAL_${Date.now()}`,
+      name: `HPHDR_PRO_${Date.now()}`,
       timestamp: Date.now(),
       type: 'hdr'
     });
@@ -261,9 +310,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   return (
     <div className="fixed inset-0 bg-black z-50 font-sans overflow-hidden select-none flex flex-col">
       
-      {/* Viewfinder Container - Manages the 4:3 aspect ratio centering */}
+      {/* Viewfinder Container - Enforces visual 4:3 via CSS to match capture logic */}
       <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
-        {/* Video constrained to object-contain to respect aspect ratio without stretching */}
+        {/* The video element might be 16:9, but we visually mask it to 4:3 using aspect-ratio and object-cover */}
         <video ref={videoRef} autoPlay playsInline className="max-w-full max-h-full aspect-[4/3] object-cover shadow-2xl" />
         
         <canvas ref={canvasRef} className="hidden" />
@@ -276,9 +325,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           </div>
         )}
 
-        {/* GRID + LEVEL - Centered on the Camera Viewport, not full screen */}
+        {/* GRID + LEVEL - Strictly bound to the 4:3 Viewport */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            {/* 4:3 Aspect Ratio Grid Container */}
             <div className="w-full h-full max-h-full aspect-[4/3] relative border border-white/10">
                 <div className="grid grid-cols-3 grid-rows-3 w-full h-full opacity-40">
                     <div className="border-r border-white/40"></div><div className="border-r border-white/40"></div><div></div>

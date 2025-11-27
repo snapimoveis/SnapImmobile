@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Modality } from "@google/genai";
 import { cleanBase64, getMimeType } from "../utils/helpers";
 
@@ -42,9 +41,20 @@ export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interio
     Tu és o motor de processamento de imagem do Snap Immobile.
     ${contextInstruction}
 
-    Recebes 9 imagens da mesma cena capturadas em bracketing...
-    [PROMPT COMPLETO MANTIDO INTERNAMENTE PELO MODELO]
-    OBJETIVO FINAL: Gerar uma imagem HDR 4:3, luminosa, limpa, natural e com profundidade subtil.
+    Recebes 9 imagens da mesma cena capturadas em bracketing (EV -4 a +4) que foram fundidas.
+    
+    REGRAS DE GEOMETRIA (ABSOLUTAS):
+    1. A imagem de entrada é 4:3. A SAÍDA DEVE SER 4:3.
+    2. PROIBIDO CORTAR (CROP). PROIBIDO ESTICAR (STRETCH).
+    3. PROIBIDO MUDAR A DISTÂNCIA FOCAL (FOV).
+    4. Simula a preservação de dados EXIF: Não alucines novas lentes. Mantém a distorção natural da lente original.
+
+    PROCESSAMENTO HDR:
+    1. Highlight Mapping Inteligente: Recupera brancos estourados (janelas/lâmpadas).
+    2. Shadow Recovery Natural: Ilumina sombras sem criar ruído ou "cinza lavado".
+    3. Nitidez Real: Foca nas texturas (chão, madeira, tecido) usando microcontraste.
+    
+    OBJETIVO FINAL: Gerar uma imagem HDR 4:3, luminosa, limpa, natural e com profundidade subtil, pronta para o mercado imobiliário.
   `;
 
   try {
@@ -77,8 +87,8 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
     const ai = new GoogleGenAI({ apiKey });
     
     const sys = mode === 'ERASE' 
-        ? `STRICT TASK: INPAINTING. The user has marked an area with a translucent RED MASK. 1. Identify the pixels covered by the RED MASK. 2. Remove the object(s) underneath. 3. Inpaint the removed area to perfectly match the surrounding environment.`
-        : `TASK: VIRTUAL STAGING. Add furniture: "${prompt}". Match perspective, lighting, and shadows.`;
+        ? `STRICT TASK: INPAINTING. The user has marked an area with a translucent RED MASK. 1. Identify the pixels covered by the RED MASK. 2. Remove the object(s) underneath. 3. Inpaint the removed area to perfectly match the surrounding environment. MAINTAIN 4:3 ASPECT RATIO.`
+        : `TASK: VIRTUAL STAGING. Add furniture: "${prompt}". Match perspective, lighting, and shadows. MAINTAIN 4:3 ASPECT RATIO.`;
 
     try {
         const response = await ai.models.generateContent({
