@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Photo, ToolMode } from '../types';
-import { Wand2, Sofa, Eraser, Check, X, Undo, Save, Sparkles, ScanEye, Trash2, Brush, Maximize, Minimize } from 'lucide-react';
+import { Wand2, Sofa, Eraser, Check, X, Undo, Redo, Save, Sparkles, ScanEye, Trash2, Brush, Maximize, Minimize } from 'lucide-react';
 import { editImageWithPrompt } from '../services/geminiService';
 
 interface EditorProps {
@@ -27,8 +27,9 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // History stack for undo
+  // History stack for undo/redo
   const [history, setHistory] = useState<string[]>([photo.url]);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   // Initialize Canvas Size on Image Load/Resize
   useEffect(() => {
@@ -61,12 +62,20 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
   }, [isFullScreen]);
 
   const handleUndo = () => {
-      if (history.length > 1) {
-          const newHistory = [...history];
-          newHistory.pop();
-          setHistory(newHistory);
-          setCurrentImage(newHistory[newHistory.length - 1]);
+      if (currentIndex > 0) {
+          const newIndex = currentIndex - 1;
+          setCurrentIndex(newIndex);
+          setCurrentImage(history[newIndex]);
           clearMask(); // Clear any mask when undoing image
+      }
+  };
+
+  const handleRedo = () => {
+      if (currentIndex < history.length - 1) {
+          const newIndex = currentIndex + 1;
+          setCurrentIndex(newIndex);
+          setCurrentImage(history[newIndex]);
+          clearMask();
       }
   };
 
@@ -214,8 +223,15 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
 
       try {
           const newImageUrl = await editImageWithPrompt(imageToSend, finalPrompt, editMode);
-          setHistory(prev => [...prev, newImageUrl]);
+          
+          // Add to history (remove any future redo steps if any)
+          const newHistory = history.slice(0, currentIndex + 1);
+          newHistory.push(newImageUrl);
+          
+          setHistory(newHistory);
+          setCurrentIndex(newHistory.length - 1);
           setCurrentImage(newImageUrl);
+          
           setPromptText('');
           clearMask();
           setMode(ToolMode.NONE); 
@@ -258,14 +274,24 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
                 >
                     <Maximize className="w-5 h-5" />
                 </button>
+                <div className="h-6 w-px bg-gray-700 mx-1"></div>
                 <button 
                     onClick={handleUndo} 
-                    disabled={history.length <= 1}
-                    className="p-2 rounded-lg hover:bg-gray-800 disabled:opacity-30 transition-colors text-gray-300"
+                    disabled={currentIndex === 0}
+                    className="p-2 rounded-lg hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-300"
                     title="Desfazer"
                 >
                     <Undo className="w-5 h-5" />
                 </button>
+                <button 
+                    onClick={handleRedo} 
+                    disabled={currentIndex === history.length - 1}
+                    className="p-2 rounded-lg hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-300"
+                    title="Refazer"
+                >
+                    <Redo className="w-5 h-5" />
+                </button>
+                <div className="h-6 w-px bg-gray-700 mx-1"></div>
                 <button 
                     onClick={handleSave}
                     className="bg-blue-600 hover:bg-blue-50 text-white px-5 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"

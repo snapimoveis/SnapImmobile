@@ -3,30 +3,8 @@ import { cleanBase64, getMimeType } from "../utils/helpers";
 
 declare const process: any;
 
-const getApiKey = (): string => {
-    // 1. Priority: User-defined key (LocalStorage)
-    const localKey = localStorage.getItem('snap_gemini_api_key');
-    if (localKey) {
-        console.debug('[Snap AI] Usando chave de API do Utilizador');
-        return localKey;
-    }
-
-    // 2. Priority: System Default
-    const systemKey = 'AIzaSyDrfl26AjdJxdwxH2Eli_fme0uE9Qx5Kmk';
-    if (systemKey) return systemKey;
-
-    // 3. Priority: Environment Variable
-    return process.env.API_KEY || '';
-};
-
 export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interior' | 'hp_hdr_exterior' | 'hp_hdr_window' = 'hp_hdr_interior'): Promise<string> => {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-      console.error("[Snap AI] Nenhuma chave de API encontrada.");
-      return base64Image;
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const contextMap = {
       'hp_hdr_interior': "CONTEXTO: Interior de Imóvel. Prioridade: Profundidade e Iluminação Natural.",
@@ -83,8 +61,7 @@ export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interio
 };
 
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
-    const apiKey = getApiKey();
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const sys = mode === 'ERASE' 
         ? `STRICT TASK: INPAINTING. The user has marked an area with a translucent RED MASK. 1. Identify the pixels covered by the RED MASK. 2. Remove the object(s) underneath. 3. Inpaint the removed area to perfectly match the surrounding environment. MAINTAIN 4:3 ASPECT RATIO.`
@@ -116,8 +93,7 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
 };
 
 export const generateDescription = async (base64Image: string): Promise<string> => {
-    const apiKey = getApiKey();
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
