@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Modality } from "@google/genai";
 
 declare const process: any;
@@ -132,7 +133,7 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
     const ai = new GoogleGenAI({ apiKey });
     
     const sys = mode === 'ERASE' 
-        ? `STRICT TASK: INPAINTING. Look for RED MASK overlay. Remove ONLY the content under the red mask. Reconstruct the background (wall, floor, texture) naturally to fill the void. Do NOT alter the rest of the image.`
+        ? `STRICT TASK: INPAINTING. The user has marked an area with a translucent RED MASK. 1. Identify the pixels covered by the RED MASK. 2. Remove the object(s) underneath. 3. Inpaint the removed area to perfectly match the surrounding environment (wall, floor, shadows). The result must be seamless.`
         : `TASK: VIRTUAL STAGING. Add furniture: "${prompt}". Match perspective, lighting, and shadows of the room.`;
 
     try {
@@ -141,7 +142,7 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
             contents: {
               parts: [
                 { inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } },
-                { text: sys },
+                { text: sys + "\n\n" + prompt },
               ],
             },
             config: { responseModalities: [Modality.IMAGE] },

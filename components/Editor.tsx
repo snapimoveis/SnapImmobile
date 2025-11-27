@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Photo, ToolMode } from '../types';
 import { Wand2, Sofa, Eraser, Check, X, Undo, Save, Sparkles, ScanEye, Trash2, Brush, Maximize, Minimize } from 'lucide-react';
@@ -139,7 +140,7 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
 
       ctx.lineWidth = brushSize;
       ctx.lineCap = 'round';
-      ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'; // Translucent Red
+      ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; // Stronger Red for better detection
       
       ctx.lineTo(x, y);
       ctx.stroke();
@@ -153,22 +154,34 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
       const originalImg = imgRef.current;
       const maskCanvas = canvasRef.current;
 
-      // Create a temporary canvas at full native resolution
+      // Calculate scaling to limit max dimension to 1536px for AI performance
+      // This prevents timeouts with 4K images while keeping enough detail for editing
+      const MAX_DIM = 1536;
+      let width = originalImg.naturalWidth;
+      let height = originalImg.naturalHeight;
+      
+      if (width > MAX_DIM || height > MAX_DIM) {
+          const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+      }
+
+      // Create a temporary canvas
       const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = originalImg.naturalWidth;
-      tempCanvas.height = originalImg.naturalHeight;
+      tempCanvas.width = width;
+      tempCanvas.height = height;
       const ctx = tempCanvas.getContext('2d');
       if (!ctx) return currentImage;
 
-      // 1. Draw Original Image
-      ctx.drawImage(originalImg, 0, 0);
+      // 1. Draw Original Image (Scaled)
+      ctx.drawImage(originalImg, 0, 0, width, height);
 
-      // 2. Draw Mask (Scaled up from display size to natural size)
+      // 2. Draw Mask (Scaled)
       if (mode === ToolMode.MAGIC_ERASE) {
-          ctx.drawImage(maskCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
+          ctx.drawImage(maskCanvas, 0, 0, width, height);
       }
 
-      return tempCanvas.toDataURL('image/jpeg', 0.9);
+      return tempCanvas.toDataURL('image/jpeg', 0.85);
   };
 
   const handleEdit = async () => {
@@ -193,8 +206,8 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
       if (editMode === 'ERASE') {
           imageToSend = await getCompositedImage();
           // If user didn't type anything but drew a mask, provide a default prompt
-          const userInstruction = promptText.trim() ? promptText : "the red highlighted object";
-          finalPrompt = `Remove ${userInstruction}. The area to remove is marked in RED overlay. Fill with background.`;
+          const userInstruction = promptText.trim() ? promptText : "the red marked object";
+          finalPrompt = `INPAINTING: Remove ${userInstruction}. It is highlighted in RED. Replace with natural background.`;
       } else {
           finalPrompt = `Add ${promptText}. Ensure it sits on the floor correctly with contact shadows consistent with the room's lighting direction.`;
       }
