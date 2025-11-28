@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, SchemaType } from "@google/genai";
 import { cleanBase64, getMimeType } from "../utils/helpers";
 
 // Detecção segura da API Key (Compatível com Vite e Node)
@@ -18,6 +18,8 @@ const getApiKey = () => {
 
 const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
+
+// --- MÉTODOS DE SERVIÇO ---
 
 export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interior' | 'hp_hdr_exterior' | 'hp_hdr_window' = 'hp_hdr_interior'): Promise<string> => {
   if (!apiKey) throw new Error("Chave de API não configurada.");
@@ -49,14 +51,15 @@ export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interio
 
   try {
     const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image', // Verifique se este modelo está ativo na sua conta
+        model: 'gemini-2.5-flash-image-preview', // MODELO CORRIGIDO PARA EDIÇÃO
         contents: {
           parts: [
             { inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } },
             { text: prompt },
           ],
         },
-        config: { responseModalities: [Modality.IMAGE] },
+        // Pedimos explicitamente uma imagem de volta
+        config: { responseModalities: ['IMAGE'] },
       });
       
       const parts = response.candidates?.[0]?.content?.parts || [];
@@ -76,45 +79,54 @@ export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interio
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
     if (!apiKey) throw new Error("Chave de API não configurada.");
     
-    // CRÍTICO: Para o modo ERASE funcionar, a 'base64Image' DEVE conter os riscos vermelhos pintados nela.
+    // CRÍTICO: O modelo espera que a imagem de entrada já tenha os riscos vermelhos pintados para saber o que apagar.
     const sys = mode === 'ERASE' 
         ? `TASK: MAGIC ERASER / INPAINTING.
            INPUT: An image with translucent RED STROKES marking objects to remove.
            ACTION: 
            1. Detect pixels covered by red strokes.
            2. Remove the objects under the strokes.
-           3. Inpaint the background realistically.
-           4. RETURN ONLY THE CLEAN IMAGE (No red marks).
-           MAINTAIN ASPECT RATIO.`
-        : `TASK: VIRTUAL STAGING. Add furniture: "${prompt}". Match perspective, lighting, and shadows. MAINTAIN 4:3 ASPECT RATIO.`;
+           3. Inpaint the background realistically to match the surroundings.
+           4. RETURN ONLY THE CLEAN IMAGE (No red marks).`
+        : `TASK: VIRTUAL STAGING. Add furniture: "${prompt}". Match perspective, lighting, and shadows. MAINTAIN ASPECT RATIO.`;
 
     try {
-        console.log(`[Snap AI] Iniciando edição modo: ${mode}...`);
+        console.log(`[Snap AI] Iniciando edição modo: ${mode} com modelo gemini-2.5-flash-image-preview...`);
         
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
+            model: 'gemini-2.5-flash-image-preview', // MODELO CORRIGIDO
             contents: {
               parts: [
                 { inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } },
                 { text: sys + "\n\nUser Instruction: " + prompt },
               ],
             },
-            config: { responseModalities: [Modality.IMAGE] },
+            // IMPORTANTE: Permitir TEXTO e IMAGEM na resposta para depuração, mas focamos na imagem
+            config: { responseModalities: ['IMAGE', 'TEXT'] },
           });
           
           const parts = response.candidates?.[0]?.content?.parts || [];
+          
+          // Procura primeiro por uma parte de imagem
           for (const part of parts) {
               if (part.inlineData && part.inlineData.data) {
                   console.log("[Snap AI] Imagem gerada com sucesso.");
                   return `data:image/png;base64,${part.inlineData.data}`;
               }
           }
+          
+          // Se não houver imagem, verifica se houve uma recusa de texto
+          const textPart = parts.find(p => p.text);
+          if (textPart) {
+              console.warn("[Snap AI] Resposta de texto da IA (sem imagem):", textPart.text);
+              throw new Error("A IA respondeu com texto em vez de imagem: " + textPart.text);
+          }
+
           throw new Error("A IA não gerou uma imagem de retorno.");
     } catch (error: any) {
         console.error("[Snap AI] Falha na Edição:", error);
-        // Tratamento específico de erro de segurança
         if (error.message?.includes('SAFETY')) {
-            throw new Error("A edição foi bloqueada pelo filtro de segurança da Google.");
+            throw new Error("A edição foi bloqueada por filtros de segurança.");
         }
         throw error;
     }
@@ -129,7 +141,7 @@ export const generateDescription = async (base64Image: string): Promise<string> 
             contents: {
                 parts: [
                     { inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } },
-                    { text: "Descreva esta divisão imobiliária numa frase curta e profissional em PT-PT. Ex: 'Sala de estar ampla com muita luz natural e piso em madeira.'" }
+                    { text: "Descreva esta divisão imobiliária numa frase curta e profissional em PT-PT." }
                 ]
             }
         });
