@@ -18,40 +18,53 @@ const getApiKey = () => {
 const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
 
-// --- CORREÇÃO AQUI: Aceita string OU array de strings ---
 export const enhanceImage = async (base64Images: string | string[], profile: string = 'hp_hdr_interior'): Promise<string> => {
   if (!apiKey) throw new Error("Chave de API não configurada.");
 
-  // Garante que é sempre um array para processamento
   const images = Array.isArray(base64Images) ? base64Images : [base64Images];
 
+  // Instruções específicas baseadas na análise visual
   const contextMap: any = {
-      'hp_hdr_interior': "CONTEXTO: Interior. Foco: Janelas perfeitas e luz natural.",
-      'hp_hdr_exterior': "CONTEXTO: Fachada. Foco: Céu azul e sombras detalhadas.",
-      'hp_hdr_window': "CONTEXTO: Contra-luz. Foco: Recuperação total da vista."
+      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário. PROBLEMA COMUM: Imagens saem escuras e sem textura no chão.",
+      'hp_hdr_exterior': "CONTEXTO: Fachada Exterior. Foco: Céu azul vibrante e sombras recuperadas.",
+      'hp_hdr_window': "CONTEXTO: Contra-luz Intenso. Foco: Igualar a luz interior com a exterior."
   };
 
   const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
-  // Prompt estrito para 4:3 e Nodalview Style
   const prompt = `
-    SYSTEM: SNAP FUSION ENGINE (Multi-Exposure Logic).
+    SYSTEM: SNAP FUSION ENGINE (PRO REAL ESTATE TUNING).
     ${contextInstruction}
     
-    ESTRITAMENTE PROIBIDO: MUDAR O FORMATO DA IMAGEM.
-    A SAÍDA DEVE SER EXATAMENTE 4:3 (ASPECT RATIO ORIGINAL).
-    NUNCA CONVERTER PARA 16:9. NUNCA RECORTAR (CROP).
+    OBJETIVO VISUAL: REPLICAR O LOOK "NODALVIEW" (Brilhante, Nítido, Profundo).
 
-    TAREFA (HDR IMOBILIÁRIO PROFISSIONAL):
-    1. Geometria: Mantém 100% da geometria e aparência real. Não alterar FOV, distância focal ou perspetiva.
-    2. Fusão: Combina as exposições para criar um dynamic range real.
-       - Exposições negativas (-4, -2): Recupera 100% dos detalhes nas janelas/luzes.
-       - Exposições positivas (+2, +4): Ilumina sombras sem ruído e sem "lavar" a imagem.
-    3. Profundidade: Aplica microcontraste subtil no piso e texturas para dar sensação de espaço.
-    4. Cor: Balanço de brancos natural. Zero filtros "artísticos".
+    ESTRITAMENTE PROIBIDO: 
+    - MUDAR O FORMATO (Mantenha 4:3).
+    - CORTAR (CROP).
+    - ALUCINAR OBJETOS.
+
+    TAREFA DE PROCESSAMENTO (Prioridade Máxima):
     
-    RESULTADO FINAL: Uma imagem HDR 4:3 pura, luminosa e nítida.
-    RETORNA APENAS A IMAGEM FINAL.
+    1. ILUMINAÇÃO (CRÍTICO): 
+       - A imagem de entrada tende a ser escura. APLIQUE UM "MIDTONE LIFT" FORTE.
+       - Abra as sombras agressivamente (Shadow Recovery) para ver detalhes nos cantos escuros e debaixo de móveis.
+       - O histograma deve ser equilibrado e luminoso, não escuro.
+
+    2. TEXTURA E PROFUNDIDADE (CRÍTICO):
+       - O chão e tecidos parecem "lisos" demais. CORRIJA ISSO.
+       - Aplique MICRO-CONTRASTE (Clarity/Structure) forte no piso, tapetes e madeiras.
+       - Quero sentir a textura tátil dos materiais. Isso cria a profundidade 3D.
+
+    3. COR:
+       - Corrija tendências de verde/azul (Tint).
+       - Aqueça ligeiramente a imagem para um tom neutro e acolhedor (White Balance).
+
+    4. FUSÃO HDR:
+       - Use as exposições mais escuras APENAS para recuperar o que está "estourado" (lâmpadas, janelas).
+       - Mantenha as lâmpadas com cor, não manchas brancas.
+
+    RESUMO: Quero uma imagem final CLARA, VIBRANTE e com TEXTURA "CROCANTE" no chão.
+    RETORNA APENAS A IMAGEM FINAL EM 4:3.
   `;
 
   try {
@@ -76,7 +89,6 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
               return `data:image/png;base64,${part.inlineData.data}`;
           }
       }
-      // Fallback: retorna a imagem do meio se falhar a geração
       return images[Math.floor(images.length / 2)];
   } catch (error) {
     console.error("[Snap AI] Falha na Fusão HDR:", error);
