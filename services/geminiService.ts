@@ -18,50 +18,47 @@ const getApiKey = () => {
 const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
 
-// --- AGORA ACEITA ARRAY DE IMAGENS ---
 export const enhanceImage = async (base64Images: string | string[], profile: string = 'hp_hdr_interior'): Promise<string> => {
   if (!apiKey) throw new Error("Chave de API não configurada.");
 
-  // Garante que é sempre um array para processamento
   const images = Array.isArray(base64Images) ? base64Images : [base64Images];
 
   const contextMap: any = {
-      'hp_hdr_interior': "CONTEXTO: Interior. Foco: Textura extrema no piso e luzes controladas.",
-      'hp_hdr_exterior': "CONTEXTO: Fachada. Foco: Céu azul e sombras detalhadas.",
-      'hp_hdr_window': "CONTEXTO: Contra-luz. Foco: Recuperação total da vista."
+      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário. PROBLEMA: A imagem está muito escura/pesada.",
+      'hp_hdr_exterior': "CONTEXTO: Fachada Exterior. Foco: Céu azul vibrante e sombras recuperadas.",
+      'hp_hdr_window': "CONTEXTO: Contra-luz Intenso. Foco: Igualar a luz interior com a exterior."
   };
 
   const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
-  // Prompt estrito para 4:3 e Nodalview Style (V2 - High Texture)
+  // PROMPT CALIBRADO V3 (Brilho + Midtones + Marca Própria)
   const prompt = `
-    SYSTEM: SNAP FUSION ENGINE (PRO TEXTURE & LIGHT).
+    SYSTEM: SNAP FUSION ENGINE (HIGH KEY & TEXTURE).
     ${contextInstruction}
     
     ESTRITAMENTE PROIBIDO: MUDAR O FORMATO DA IMAGEM.
-    A SAÍDA DEVE SER EXATAMENTE 4:3 (ASPECT RATIO ORIGINAL).
-    NUNCA CONVERTER PARA 16:9. NUNCA RECORTAR (CROP).
+    A SAÍDA DEVE SER EXATAMENTE 4:3.
+    NUNCA CONVERTER PARA 16:9. NUNCA RECORTAR.
 
-    TAREFA DE PROCESSAMENTO "SNAP LOOK":
+    TAREFA DE PROCESSAMENTO "SNAP FUSION BRIGHT LOOK":
     
-    1. TEXTURA E NITIDEZ (PRIORIDADE #1):
-       - A imagem atual está demasiado suave. APLIQUE "STRUCTURE" e "CLARITY" FORTES.
-       - O chão (madeira/piso) tem de parecer "crocante" e tátil. Realce os veios da madeira.
-       - Aplique "High Pass Sharpening" inteligente nas arestas e texturas.
+    1. ILUMINAÇÃO (PRIORIDADE ABSOLUTA):
+       - AUMENTE A EXPOSIÇÃO GLOBAL (+0.7 EV). A imagem tem de parecer CLARA e AREJADA.
+       - LEVANTE OS TONS MÉDIOS (MIDTONE LIFT) AGRESSIVAMENTE. As paredes e móveis devem parecer bem iluminados, não sombrios.
+       - ABRA AS SOMBRAS TOTALMENTE. Não quero cantos pretos. Quero ver detalhes debaixo dos móveis.
 
-    2. CONTROLO DE LUZES (PRIORIDADE #2):
-       - Elimine qualquer "Glow" ou "Halo" à volta das luzes do teto.
-       - As luzes devem ser pontos definidos, não manchas brancas difusas.
-       - Use as exposições escuras (-4 EV) para recuperar a cor dentro da lâmpada.
+    2. TEXTURA E NITIDEZ:
+       - Mantenha a textura do piso "crocante" (High Clarity/Structure).
+       - Aplique nitidez inteligente (Smart Sharpening) para definir arestas.
 
-    3. CONTRASTE E PRETO:
-       - Mantenha o brilho alto (Midtone Lift), mas certifique-se que os pretos continuam pretos (Black Point).
-       - Evite o aspeto "cinzento lavado" nas sombras. Contraste local alto.
+    3. CONTROLO DE LUZES:
+       - Recupere o detalhe DENTRO das luzes do teto (não deixe ser apenas uma mancha branca).
+       - Elimine o "nevoeiro" (Dehaze) para que a imagem fique cristalina.
 
-    4. GEOMETRIA:
-       - Mantém 100% da geometria e aparência real (4:3).
+    4. COR:
+       - Remova qualquer tonalidade amarelada/esverdeada. Procure um branco puro e neutro.
 
-    RESULTADO: Uma imagem com "Pop", textura nítida no chão e luzes contidas.
+    RESULTADO: Uma imagem HDR brilhante, aberta, nítida e convidativa.
     RETORNA APENAS A IMAGEM FINAL.
   `;
 
@@ -87,7 +84,6 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
               return `data:image/png;base64,${part.inlineData.data}`;
           }
       }
-      // Fallback: retorna a imagem do meio se falhar a geração
       return images[Math.floor(images.length / 2)];
   } catch (error) {
     console.error("[Snap AI] Falha na Fusão HDR:", error);
