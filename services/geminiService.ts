@@ -21,44 +21,36 @@ const ai = new GoogleGenAI({ apiKey });
 export const enhanceImage = async (base64Images: string | string[], profile: string = 'hp_hdr_interior'): Promise<string> => {
   if (!apiKey) throw new Error("Chave de API não configurada.");
 
+  // Força array
   const images = Array.isArray(base64Images) ? base64Images : [base64Images];
 
+  // Instruções de contexto
   const contextMap: any = {
-      'hp_hdr_interior': "CONTEXTO: Interior muito escuro com luz artificial quente.",
-      'hp_hdr_exterior': "CONTEXTO: Fachada Exterior.",
-      'hp_hdr_window': "CONTEXTO: Interior com contra-luz."
+      'hp_hdr_interior': "Interior Property Photography.",
+      'hp_hdr_exterior': "Exterior Property Photography.",
+      'hp_hdr_window': "Interior with Window Glare."
   };
-
   const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
-  // PROMPT CALIBRADO V3 (RELIGHTING TOTAL / DAYLIGHT SIMULATION)
-  // Este prompt é muito mais agressivo para forçar a saída da "escuridão".
+  // PROMPT V4: FUSÃO TÉCNICA LIMPA (3-Imagens)
+  // Menos "agressivo" na linguagem, mais focado na tarefa técnica para evitar rejeição da IA.
   const prompt = `
-    SYSTEM: SNAP FUSION ENGINE (DAYLIGHT SIMULATION MODE).
-    ${contextInstruction}
+    TASK: HDR MERGE & ENHANCE.
+    CONTEXT: ${contextInstruction}
     
-    ESTRITAMENTE PROIBIDO: MUDAR O FORMATO DA IMAGEM (4:3). NUNCA RECORTAR.
+    INPUT: You are receiving 3 bracketed exposures:
+    1. Underexposed (Dark) - Contains window details.
+    2. Normal Exposure - Base colors.
+    3. Overexposed (Bright) - Contains shadow details.
 
-    TAREFA DE PROCESSAMENTO "SNAP FUSION DAYLIGHT LOOK" (V3 - NUCLEAR):
-    
-    ATENÇÃO: A imagem de entrada está inaceitavelmente escura e amarela.
-    A sua tarefa é RE-ILUMINAR a cena completamente.
+    INSTRUCTIONS:
+    1. MERGE these 3 images into a single High Dynamic Range (HDR) image.
+    2. WINDOWS: Use the dark exposure to fix "blown out" white windows. I want to see clearly through the glass.
+    3. INTERIOR: Use the bright exposure to brighten the room walls and floor significantly (+1.0 EV brightness).
+    4. TEXTURE: Apply "Structure" filter to the floor to enhance wood/tile detail.
+    5. COLOR: Ensure white walls look white (remove yellow color cast).
 
-    1. ILUMINAÇÃO (SIMULAÇÃO DE DIA):
-       - IGNORE a iluminação atual. Simule um ambiente de DIA CLARO com muita luz natural.
-       - Aumente a exposição dramaticamente (+2.0 EV). A imagem final deve ser MUITO BRILHANTE, quase "high-key".
-       - Não quero ver sombras escuras no primeiro plano (chão). Ilumine tudo.
-
-    2. COR E TEMPERATURA (ELIMINAR O AMARELO):
-       - Elimine TOTALMENTE a tonalidade amarela/quente das luzes artificiais.
-       - A luz deve ser BRANCA PURA e NEUTRA (5500K). Paredes brancas devem ser brancas, não cremes.
-
-    3. TEXTURA E CLARIDADE:
-       - Com tanta luz, a textura deve ser super nítida (High Structure).
-       - A imagem deve parecer limpa, cristalina e arejada.
-
-    RESULTADO: Uma transformação total para uma imagem de dia, brilhante e branca.
-    RETORNA APENAS A IMAGEM FINAL.
+    OUTPUT: Return ONLY the final merged image in 4:3 aspect ratio.
   `;
 
   try {
@@ -83,13 +75,18 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
               return `data:image/png;base64,${part.inlineData.data}`;
           }
       }
+      
+      console.warn("IA falhou em gerar imagem, retornando original.");
+      // Fallback para a imagem do meio se falhar
       return images[Math.floor(images.length / 2)];
   } catch (error) {
     console.error("[Snap AI] Falha na Fusão HDR:", error);
-    throw error;
+    // Em caso de erro, não crasha a app, devolve a original
+    return images[Math.floor(images.length / 2)];
   }
 };
 
+// ... (editImageWithPrompt e generateDescription mantêm-se iguais) ...
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
     if (!apiKey) throw new Error("Chave de API não configurada.");
     const sys = mode === 'ERASE' 
