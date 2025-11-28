@@ -64,7 +64,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   const startCamera = async () => {
     try {
-      // 1. Try High-Quality 4:3 first
       const constraintsHQ = {
         video: {
           facingMode: 'environment',
@@ -79,7 +78,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           stream = await navigator.mediaDevices.getUserMedia(constraintsHQ);
       } catch (e) {
           console.warn("HQ Camera failed, trying fallback...", e);
-          // 2. Fallback: Basic camera
           stream = await navigator.mediaDevices.getUserMedia({
               video: { facingMode: 'environment' }
           });
@@ -115,24 +113,25 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     if (navigator.vibrate) navigator.vibrate(20);
   };
 
-  // --- SISTEMA DE SOM HÍBRIDO ---
-  // Tenta tocar o arquivo MP3 específico.
-  // Se falhar (arquivo não existe), usa o oscilador digital.
+  // --- SISTEMA DE SOM (MP3 + Fallback) ---
   const playShutterSound = () => {
-    // 1. Tentar tocar o arquivo atualizado
+    // 1. Tenta o arquivo específico que você pediu
+    // Nota: PNG é imagem, se tiver um som, deve ser .mp3, .wav, .m4a, etc.
     const audio = new Audio('/iphone-camera-capture-6448.mp3'); 
     audio.volume = 1.0;
     
+    // Tenta tocar. Se o navegador bloquear ou arquivo não existir, vai para o catch
     const playPromise = audio.play();
 
     if (playPromise !== undefined) {
-      playPromise.catch(() => {
-        // 2. Fallback: Se der erro (arquivo não encontrado), usa o som digital
+      playPromise.catch((error) => {
+        console.warn("MP3 playback failed (file missing or blocked), using digital beep.", error);
         playDigitalBeep();
       });
     }
   };
 
+  // Som de reserva gerado por código (caso o MP3 falhe)
   const playDigitalBeep = () => {
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -145,7 +144,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       osc.connect(gain);
       gain.connect(ctx.destination);
 
-      osc.type = 'square';
+      osc.type = 'square'; // Tom "digital" nítido
       osc.frequency.setValueAtTime(800, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.1);
 
