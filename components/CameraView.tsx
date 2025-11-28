@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { enhanceImage } from '../services/geminiService';
@@ -72,7 +71,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           aspectRatio: { ideal: 1.333333 }, 
           width: { ideal: 2560 }, 
           height: { ideal: 1920 }
-          // Note: Do NOT add 'zoom: true' here, it causes errors on some Android WebViews
         }
       };
 
@@ -81,7 +79,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           stream = await navigator.mediaDevices.getUserMedia(constraintsHQ);
       } catch (e) {
           console.warn("HQ Camera failed, trying fallback...", e);
-          // 2. Fallback: Basic camera (any resolution, usually 16:9 or 4:3 default)
+          // 2. Fallback: Basic camera
           stream = await navigator.mediaDevices.getUserMedia({
               video: { facingMode: 'environment' }
           });
@@ -90,21 +88,18 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
         
-        // Wait for video to actually start to apply capabilities
         videoRef.current.onloadedmetadata = async () => {
             setIsStreaming(true);
-            // Apply zoom capability check after stream is active
             const track = stream.getVideoTracks()[0];
             const caps: any = track.getCapabilities?.() || {};
             if (caps.zoom) {
-                // Reset zoom to 1x explicitly if possible
                 try { await track.applyConstraints({ advanced: [{ zoom: 1 }] } as any); } catch(e){}
             }
         };
       }
     } catch (err) {
       console.error(err);
-      alert('Não foi possível aceder à câmara. Verifique se está num ambiente seguro (HTTPS) e se deu permissão.');
+      alert('Não foi possível aceder à câmara. Verifique as permissões.');
     }
   };
 
@@ -120,12 +115,47 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     if (navigator.vibrate) navigator.vibrate(20);
   };
 
+  // --- SISTEMA DE SOM HÍBRIDO ---
+  // Tenta tocar o arquivo MP3 específico.
+  // Se falhar (arquivo não existe), usa o oscilador digital.
   const playShutterSound = () => {
+    // 1. Tentar tocar o arquivo atualizado
+    const audio = new Audio('/iphone-camera-capture-6448.mp3'); 
+    audio.volume = 1.0;
+    
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        // 2. Fallback: Se der erro (arquivo não encontrado), usa o som digital
+        playDigitalBeep();
+      });
+    }
+  };
+
+  const playDigitalBeep = () => {
     try {
-      const audio = new Audio('data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
-      audio.play().catch(() => {});
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.1);
+
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
     } catch (e) {
-      console.error(e);
+      console.error("Audio error", e);
     }
   };
 
@@ -157,7 +187,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     capturePhotoSequence();
   };
 
-  // Helper to crop video feed to strict 4:3 aspect ratio
   const drawCroppedFrame = (video: HTMLVideoElement, canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
       const videoWidth = video.videoWidth;
       const videoHeight = video.videoHeight;
@@ -169,7 +198,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       let startX = 0;
       let startY = 0;
 
-      // Logic: If image is wider than 4:3 (e.g. 16:9), crop sides. If taller, crop top/bottom.
       if (currentRatio > targetRatio) {
           drawWidth = videoHeight * targetRatio;
           startX = (videoWidth - drawWidth) / 2;
@@ -178,7 +206,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           startY = (videoHeight - drawHeight) / 2;
       }
 
-      // Force canvas to match the DRAW dimensions (Strict 4:3)
       canvas.width = drawWidth;
       canvas.height = drawHeight;
 
@@ -212,10 +239,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     let effectiveProfile: 'hp_hdr_interior' | 'hp_hdr_exterior' | 'hp_hdr_window' =
       hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
 
-    // Auto-detect window/bright light in interior mode
     if (hdrProfile === 'interior') {
       try {
-        drawCroppedFrame(video, canvas, ctx); // Analyze the cropped frame
+        drawCroppedFrame(video, canvas, ctx);
         const topHeight = Math.floor(canvas.height * 0.35);
         const topData = ctx.getImageData(0, 0, canvas.width, topHeight);
         
@@ -254,14 +280,13 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       setFlashVisual(true);
       setTimeout(() => setFlashVisual(false), 50);
 
-      // CRITICAL: Always use drawCroppedFrame to ensure strict 4:3 ratio
       drawCroppedFrame(video, canvas, ctx);
       ctx.filter = 'none';
 
-      const url = canvas.toDataURL('image/jpeg', 0.6); // Lower quality for previews
+      const url = canvas.toDataURL('image/jpeg', 0.6);
       setCapturedPreviews(prev => [...prev, { url, ev: `${chosenEV[i]}EV` }]);
 
-      if (i === 4) bestBase64 = canvas.toDataURL('image/jpeg', 0.95); // High quality for processing
+      if (i === 4) bestBase64 = canvas.toDataURL('image/jpeg', 0.95);
       setProcessingProgress(10 + i * 6);
       await new Promise((r) => setTimeout(r, 120));
     }
@@ -310,9 +335,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   return (
     <div className="fixed inset-0 bg-black z-50 font-sans overflow-hidden select-none flex flex-col">
       
-      {/* Viewfinder Container - Enforces visual 4:3 via CSS to match capture logic */}
+      {/* Viewfinder */}
       <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
-        {/* The video element might be 16:9, but we visually mask it to 4:3 using aspect-ratio and object-cover */}
         <video ref={videoRef} autoPlay playsInline className="max-w-full max-h-full aspect-[4/3] object-cover shadow-2xl" />
         
         <canvas ref={canvasRef} className="hidden" />
@@ -325,7 +349,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           </div>
         )}
 
-        {/* GRID + LEVEL - Strictly bound to the 4:3 Viewport */}
+        {/* GRID + LEVEL */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-full h-full max-h-full aspect-[4/3] relative border border-white/10">
                 <div className="grid grid-cols-3 grid-rows-3 w-full h-full opacity-40">
@@ -394,7 +418,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         <button onClick={onClose} className="text-white/80 hover:text-white pointer-events-auto"><X className="w-8 h-8" strokeWidth={1.5} /></button>
       </div>
 
-      {/* SHUTTER BUTTON AREA (Black Bar) */}
+      {/* SHUTTER BUTTON AREA */}
       <div className={`absolute z-40 flex justify-center items-center ${isLandscape ? 'right-0 top-0 bottom-0 w-32 bg-black' : 'bottom-0 left-0 right-0 h-32 pb-6 bg-black'}`}>
         <button onClick={initiateCapture} disabled={isProcessing} className={`relative w-20 h-20 rounded-full border-[3px] flex justify-center items-center transition-all ${isProcessing ? 'border-gray-500 opacity-50 scale-90' : 'border-white hover:bg-white/10 active:scale-95'}`}>
           <div className={`rounded-full bg-white transition-all ${isProcessing ? 'w-14 h-14 bg-gray-400' : 'w-16 h-16'}`} />
