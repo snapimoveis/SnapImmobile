@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Grid3X3, Image as ImageIcon } from 'lucide-react';
 import { enhanceImage } from '../services/geminiService';
 import { Photo } from '../types';
 
@@ -18,11 +18,11 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const [processingProgress, setProcessingProgress] = useState(0);
 
   const [hdrProfile, setHdrProfile] = useState<'interior' | 'exterior'>('interior');
-
   const [flashVisual, setFlashVisual] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [isLandscape, setIsLandscape] = useState(false);
   const [timerValue, setTimerValue] = useState<number | null>(null);
+  const [showGrid, setShowGrid] = useState(true);
 
   const [tilt, setTilt] = useState({ beta: 0, gamma: 0 });
   const [capturedPreviews, setCapturedPreviews] = useState<{ url: string; ev: string }[]>([]);
@@ -30,112 +30,65 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   useEffect(() => {
     const checkOrientation = () => {
-      const isLand = window.innerWidth > window.innerHeight;
-      setIsLandscape(isLand);
+      setIsLandscape(window.innerWidth > window.innerHeight);
     };
-
     checkOrientation();
     window.addEventListener('resize', checkOrientation);
-    
-    return () => {
-      window.removeEventListener('resize', checkOrientation);
-    };
+    return () => window.removeEventListener('resize', checkOrientation);
   }, []);
 
-  useEffect(() => {
-    startCamera();
-    return () => stopCamera();
-  }, []);
+  useEffect(() => { startCamera(); return () => stopCamera(); }, []);
 
   useEffect(() => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
       if (event.beta !== null && event.gamma !== null) {
-        setTilt({ beta: event.beta, gamma: event.gamma });
+        // Suavização simples para evitar tremores excessivos na UI
+        setTilt(prev => ({
+            beta: prev.beta * 0.8 + event.beta! * 0.2,
+            gamma: prev.gamma * 0.8 + event.gamma! * 0.2
+        }));
       }
     };
     window.addEventListener('deviceorientation', handleOrientation);
     return () => window.removeEventListener('deviceorientation', handleOrientation);
   }, []);
 
-  const currentTilt = isLandscape ? tilt.beta : tilt.gamma;
-  const isLevel = Math.abs(currentTilt) < 2;
+  // Lógica de Nivelamento (Crosshair)
+  // Beta: Inclinação frente/trás (-180 a 180). Gamma: Esquerda/Direita (-90 a 90).
+  // Ajuste para landscape/portrait
+  const horizontalTilt = isLandscape ? tilt.beta : tilt.gamma;
+  const verticalTilt = isLandscape ? tilt.gamma : tilt.beta; // Aproximação simplificada
+  
+  const isLevelH = Math.abs(horizontalTilt) < 2;
+  const isLevelV = Math.abs(verticalTilt - (isLandscape ? 0 : 90)) < 5; // Ajuste conforme a posição de segurar
 
   const startCamera = async () => {
     try {
-      const constraintsHQ = {
-        video: {
-          facingMode: 'environment',
-          aspectRatio: { ideal: 1.333333 }, 
-          width: { ideal: 2560 }, 
-          height: { ideal: 1920 }
-        }
+      const constraints = {
+        video: { facingMode: 'environment', aspectRatio: { ideal: 1.333 }, width: { ideal: 2560 }, height: { ideal: 1920 } }
       };
-
-      let stream;
-      try {
-          stream = await navigator.mediaDevices.getUserMedia(constraintsHQ);
-      } catch (e) {
-          console.warn("HQ Camera failed, trying fallback...", e);
-          stream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: 'environment' }
-          });
-      }
-
-      if (videoRef.current && stream) {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = async () => {
-            setIsStreaming(true);
-            const track = stream.getVideoTracks()[0];
-            const caps: any = track.getCapabilities?.() || {};
-            if (caps.zoom) {
-                try { await track.applyConstraints({ advanced: [{ zoom: 1 }] } as any); } catch(e){}
-            }
-        };
+        videoRef.current.onloadedmetadata = () => setIsStreaming(true);
       }
     } catch (err) {
       console.error(err);
-      alert('Não foi possível aceder à câmara. Verifique as permissões.');
+      alert('Erro ao aceder à câmara.');
     }
   };
 
   const stopCamera = () => {
     if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((t) => t.stop());
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
       setIsStreaming(false);
     }
   };
 
-  const triggerHaptic = () => {
-    if (navigator.vibrate) navigator.vibrate(20);
-  };
-
   const playShutterSound = () => {
-    const audio = new Audio('/iphone-camera-capture-6448.mp3'); 
+    const audio = new Audio('/iphone-camera-capture-6448.mp3');
     audio.volume = 1.0;
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(() => playDigitalBeep());
-    }
-  };
-
-  const playDigitalBeep = () => {
-    try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(800, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.1);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.1);
-    } catch (e) {}
+    audio.play().catch(() => {});
   };
 
   const handleZoom = async (level: number) => {
@@ -151,243 +104,225 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   const initiateCapture = async () => {
     if (isProcessing) return;
-    for (let i = 3; i > 0; i--) {
-      setTimerValue(i);
-      await new Promise((r) => setTimeout(r, 1000));
-    }
-    setTimerValue(null);
     capturePhotoSequence();
   };
 
   const drawCroppedFrame = (video: HTMLVideoElement, canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
-      const videoWidth = video.videoWidth;
-      const videoHeight = video.videoHeight;
+      const ratio = video.videoWidth / video.videoHeight;
       const targetRatio = 4 / 3;
-      const currentRatio = videoWidth / videoHeight;
-      let drawWidth = videoWidth;
-      let drawHeight = videoHeight;
-      let startX = 0;
-      let startY = 0;
-      if (currentRatio > targetRatio) {
-          drawWidth = videoHeight * targetRatio;
-          startX = (videoWidth - drawWidth) / 2;
-      } else if (currentRatio < targetRatio) {
-          drawHeight = videoWidth / targetRatio;
-          startY = (videoHeight - drawHeight) / 2;
+      let w = video.videoWidth, h = video.videoHeight, sx = 0, sy = 0;
+
+      if (ratio > targetRatio) {
+          w = h * targetRatio;
+          sx = (video.videoWidth - w) / 2;
+      } else {
+          h = w / targetRatio;
+          sy = (video.videoHeight - h) / 2;
       }
-      canvas.width = drawWidth;
-      canvas.height = drawHeight;
-      ctx.drawImage(video, startX, startY, drawWidth, drawHeight, 0, 0, drawWidth, drawHeight);
+      canvas.width = w; canvas.height = h;
+      ctx.drawImage(video, sx, sy, w, h, 0, 0, w, h);
   };
 
   const capturePhotoSequence = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     setIsProcessing(true);
     setCapturedPreviews([]);
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const stream = video.srcObject as MediaStream;
-    const track = stream.getVideoTracks()[0];
+
+    const track = (video.srcObject as MediaStream).getVideoTracks()[0];
     const caps: any = track.getCapabilities?.() || {};
-    const supportsExposure = caps.exposureCompensation !== undefined;
-    const interiorEV = [1, 0.5, 0, -0.7, -1.3, -2, -2.7, -3.3, -4];
-    const exteriorEV = [2, 1.3, 0.7, 0, -0.3, -1, -1.7, -2.3, -3];
-    const janelaEV = [0.3, 0, -0.7, -1.5, -2.5, -3.5, -4.3, -5, -6];
-    let effectiveProfile = hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
+    const supportsEV = !!caps.exposureCompensation;
 
-    if (hdrProfile === 'interior') {
-      try {
-        drawCroppedFrame(video, canvas, ctx);
-        const topHeight = Math.floor(canvas.height * 0.35);
-        const topData = ctx.getImageData(0, 0, canvas.width, topHeight);
-        let whites = 0;
-        let total = topData.data.length / 4;
-        for (let i = 0; i < topData.data.length; i += 16) {
-            if (topData.data[i] > 240) whites++;
+    // Sequência HDR
+    const evSequence = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
+    const brightnessFallback = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.2];
+    const capturedBlobs: string[] = [];
+
+    setProcessingStep('Snap Fusion (9)...');
+    setProcessingProgress(0);
+
+    for (let i = 0; i < evSequence.length; i++) {
+        if (supportsEV) {
+            const ev = Math.max(caps.exposureCompensation.min, Math.min(caps.exposureCompensation.max, evSequence[i]));
+            try { await track.applyConstraints({ advanced: [{ exposureCompensation: ev }] } as any); } catch(e){}
+        } else {
+            ctx.filter = `brightness(${brightnessFallback[i]})`;
         }
-        if (whites / (total/4) > 0.15) effectiveProfile = 'hp_hdr_window';
-      } catch (e) {}
+
+        await new Promise(r => setTimeout(r, 100)); // Rápido para UX fluida
+        playShutterSound();
+        setFlashVisual(true);
+        setTimeout(() => setFlashVisual(false), 50);
+
+        drawCroppedFrame(video, canvas, ctx);
+        ctx.filter = 'none';
+
+        const frameData = canvas.toDataURL('image/jpeg', 0.85);
+        capturedBlobs.push(frameData);
+        
+        // Apenas mostra algumas previews para não poluir
+        if (i % 2 === 0) setCapturedPreviews(prev => [...prev, { url: frameData, ev: `${evSequence[i]}` }]);
+        setProcessingProgress(((i + 1) / 9) * 40);
     }
 
-    const chosenEV = (effectiveProfile === 'hp_hdr_interior' ? interiorEV : (effectiveProfile === 'hp_hdr_exterior' ? exteriorEV : janelaEV)) as number[];
-    const stepExp = caps.exposureCompensationStep || 1;
-    const exposureIndexes = chosenEV.map((ev) =>
-      supportsExposure
-        ? Math.max(caps.exposureCompensation.min, Math.min(caps.exposureCompensation.max, Math.round(ev / stepExp)))
-        : null
-    );
-    const fallbackBrightness = [3.2, 2.1, 1.4, 1, 0.8, 0.55, 0.32, 0.18, 0.08];
-    let bestBase64 = '';
+    if (supportsEV) try { await track.applyConstraints({ advanced: [{ exposureCompensation: 0 }] } as any); } catch(e){}
 
-    setProcessingStep('A Capturar Snap Fusion (9 Exp)...'); // Nome alterado aqui
-    setProcessingProgress(5);
+    // Fusão IA
+    const indicesToUse = [0, 2, 4, 6, 8]; 
+    const fusionPayload = indicesToUse.map(i => capturedBlobs[i]);
 
-    for (let i = 0; i < 9; i++) {
-      if (supportsExposure && exposureIndexes[i] !== null) {
-        await track.applyConstraints({ advanced: [{ exposureCompensation: exposureIndexes[i] }] } as any);
-      } else {
-        ctx.filter = `brightness(${fallbackBrightness[i]})`;
-      }
-      playShutterSound();
-      triggerHaptic();
-      setFlashVisual(true);
-      setTimeout(() => setFlashVisual(false), 50);
-      drawCroppedFrame(video, canvas, ctx);
-      ctx.filter = 'none';
-      const url = canvas.toDataURL('image/jpeg', 0.6);
-      setCapturedPreviews(prev => [...prev, { url, ev: `${chosenEV[i]}EV` }]);
-      if (i === 4) bestBase64 = canvas.toDataURL('image/jpeg', 0.95);
-      setProcessingProgress(10 + i * 6);
-      await new Promise((r) => setTimeout(r, 120));
-    }
-
-    if (!bestBase64) bestBase64 = canvas.toDataURL('image/jpeg', 0.95);
-
-    const steps = [
-      { msg: 'Highlight Mapping...', prog: 50 },
-      { msg: 'Shadow Recovery...', prog: 65 },
-      { msg: 'Nitidez (Pro)...', prog: 75 },
-      { msg: 'Geometria 4:3...', prog: 85 },
-      { msg: 'Fusão Final...', prog: 90 }
-    ];
-
-    for (const st of steps) {
-      setProcessingStep(st.msg);
-      setProcessingProgress(st.prog);
-      await new Promise((r) => setTimeout(r, 400));
-    }
+    setProcessingStep('A Processar IA...');
+    setProcessingProgress(50);
 
     try {
-        bestBase64 = await enhanceImage(bestBase64, effectiveProfile as any);
-    } catch (e) {
-        console.error("AI Failed", e);
-    }
+        const finalImage = await enhanceImage(fusionPayload, hdrProfile);
+        setProcessingStep('Concluído');
+        setProcessingProgress(100);
+        setLastSavedPhoto(finalImage);
 
-    setProcessingStep('Finalizando...');
-    setProcessingProgress(100);
-    setLastSavedPhoto(bestBase64);
-    onPhotoCaptured({
-      id: crypto.randomUUID(),
-      url: bestBase64,
-      originalUrl: bestBase64,
-      name: `SNAP_FUSION_${Date.now()}`, // Nome do ficheiro alterado também
-      timestamp: Date.now(),
-      type: 'hdr'
-    });
-    setIsProcessing(false);
-    setProcessingProgress(0);
-    setCapturedPreviews([]);
+        onPhotoCaptured({
+            id: crypto.randomUUID(),
+            url: finalImage,
+            originalUrl: capturedBlobs[4],
+            name: `SNAP_FUSION_${Date.now()}`,
+            timestamp: Date.now(),
+            type: 'hdr'
+        });
+    } catch (e) {
+        console.error(e);
+        alert("Erro no processamento.");
+    } finally {
+        setIsProcessing(false);
+        setProcessingProgress(0);
+        setCapturedPreviews([]);
+    }
   };
 
   return (
-    <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-col touch-none">
+    <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-col md:flex-row text-white touch-none">
       
-      {/* Viewfinder */}
-      <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden w-full">
-        <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
-        <canvas ref={canvasRef} className="hidden" />
-        <div className={`absolute inset-0 bg-white transition-opacity duration-75 z-50 pointer-events-none ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
+      {/* --- VISOR (ESQUERDA/TOPO) --- */}
+      <div className="flex-1 relative bg-[#121212] overflow-hidden flex items-center justify-center">
+        {/* Vídeo com Aspect Ratio forçado 4:3 */}
+        <div className="relative w-full max-w-[100%] aspect-[3/4] md:aspect-[4/3] overflow-hidden bg-black shadow-2xl">
+            <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
+            <canvas ref={canvasRef} className="hidden" />
+            
+            {/* Flash Effect */}
+            <div className={`absolute inset-0 bg-white transition-opacity duration-75 pointer-events-none ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
 
-        {timerValue && (
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-40">
-            <span className={`text-8xl font-extrabold text-white animate-ping ${isLandscape ? '-rotate-90' : ''}`}>{timerValue}</span>
-          </div>
-        )}
+            {/* GUIDES OVERLAY (Grid + Level) */}
+            <div className="absolute inset-0 pointer-events-none">
+                {/* Rule of Thirds Grid */}
+                {showGrid && (
+                    <div className="w-full h-full grid grid-cols-3 grid-rows-3 opacity-30">
+                        <div className="border-r border-b border-white"></div>
+                        <div className="border-r border-b border-white"></div>
+                        <div className="border-b border-white"></div>
+                        <div className="border-r border-b border-white"></div>
+                        <div className="border-r border-b border-white"></div>
+                        <div className="border-b border-white"></div>
+                        <div className="border-r border-white"></div>
+                        <div className="border-r border-white"></div>
+                        <div></div>
+                    </div>
+                )}
 
-        {/* GRID + LEVEL (Overlay) */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-full max-w-[100dvh] aspect-[3/4] md:aspect-[4/3] relative border border-white/10">
-                <div className="grid grid-cols-3 grid-rows-3 w-full h-full opacity-40">
-                    <div className="border-r border-white/40"></div><div className="border-r border-white/40"></div><div></div>
-                    <div className="border-t border-r border-white/40"></div><div className="border-t border-r border-white/40"></div><div className="border-t border-white/40"></div>
-                    <div className="border-t border-r border-white/40"></div><div className="border-t border-r border-white/40"></div><div className="border-t border-white/40"></div>
+                {/* Level Crosshair (Igual ao Anexo) */}
+                {/* Linha Horizontal (Verde quando nivelada) */}
+                <div className={`absolute top-1/2 left-1/4 right-1/4 h-[1px] transition-colors duration-300 ${isLevelH ? 'bg-green-500 shadow-[0_0_4px_#22c55e]' : 'bg-white/50'}`} 
+                     style={{ transform: `rotate(${horizontalTilt}deg)` }} />
+                
+                {/* Linha Vertical (Vermelha/Verde quando nivelada) */}
+                {/* Nota: No anexo a vertical é vermelha se desalinhada. Vamos simular isso. */}
+                <div className={`absolute left-1/2 top-1/4 bottom-1/4 w-[1px] transition-colors duration-300 ${isLevelH ? 'bg-green-500 shadow-[0_0_4px_#22c55e]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} 
+                     style={{ transform: `rotate(${horizontalTilt * -1}deg)` }} />
+                
+                {/* Centro Cruz */}
+                <div className="absolute top-1/2 left-1/2 w-4 h-4 -mt-2 -ml-2">
+                    <div className="w-full h-[1px] bg-white absolute top-1/2"></div>
+                    <div className="h-full w-[1px] bg-white absolute left-1/2"></div>
                 </div>
-                <div className={`absolute top-1/2 left-1/2 transition-all -translate-x-1/2 -translate-y-1/2 shadow ${isLevel ? 'bg-[#623aa2]' : 'bg-white'}`}
-                    style={{ width: isLandscape ? '1px' : '70px', height: isLandscape ? '70px' : '1px', transform: `translate(-50%, -50%) rotate(${currentTilt}deg)` }} />
             </div>
-        </div>
 
-        {/* ZOOM - Floating */}
-        <div className={`absolute z-40 ${isLandscape ? 'right-32 top-1/2 -translate-y-1/2' : 'bottom-40 left-1/2 -translate-x-1/2'}`}>
-          <div className={`flex gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-lg ${isLandscape ? 'flex-col' : ''}`}>
-            {[0.5, 1, 2].map((level) => (
-              <button key={level} onClick={() => { handleZoom(level); triggerHaptic(); }}
-                className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs transition-all ${zoom === level ? 'bg-[#623aa2] text-white scale-110 shadow-lg border border-white/30' : 'text-white hover:bg-white/20'}`}>
-                <span className={`${isLandscape ? '-rotate-90' : ''}`}>{level === 0.5 ? '.5' : level}x</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* LAST PHOTO */}
-        {lastSavedPhoto && !isProcessing && (
-            <div className={`absolute z-40 ${isLandscape ? 'right-6 bottom-6' : 'left-6 bottom-8'} w-14 h-14 rounded-lg border-2 border-white overflow-hidden shadow-lg bg-black animate-in zoom-in`}>
-                <img src={lastSavedPhoto} className="w-full h-full object-cover" alt="Last shot" />
+            {/* Botões Interior/Exterior Flutuantes no Visor (Como pedido) */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4 z-20">
+                <button onClick={() => setHdrProfile('interior')} 
+                    className={`px-4 py-1 rounded-full text-xs font-bold tracking-wide backdrop-blur-md border transition-all ${hdrProfile === 'interior' ? 'bg-yellow-400/20 border-yellow-400 text-yellow-300' : 'bg-black/30 border-white/30 text-white/70'}`}>
+                    INTERIOR
+                </button>
+                <button onClick={() => setHdrProfile('exterior')} 
+                    className={`px-4 py-1 rounded-full text-xs font-bold tracking-wide backdrop-blur-md border transition-all ${hdrProfile === 'exterior' ? 'bg-blue-400/20 border-blue-400 text-blue-300' : 'bg-black/30 border-white/30 text-white/70'}`}>
+                    EXTERIOR
+                </button>
             </div>
-        )}
-
-        {/* BURST PREVIEWS */}
-        {capturedPreviews.length > 0 && (
-          <div className={`absolute z-40 flex gap-1 px-4 overflow-x-auto ${isLandscape ? 'right-32 top-0 bottom-0 flex-col w-16 py-6' : 'bottom-56 left-0 right-0 flex-row h-16'}`}>
-            {capturedPreviews.map((p, i) => (
-              <div key={i} className="aspect-[4/3] border border-white/40 rounded-sm overflow-hidden w-full h-full bg-black">
-                <img src={p.url} className="object-cover w-full h-full opacity-80" />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* PROCESSING OVERLAY */}
-        {isProcessing && (
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center z-50">
-            <div className="relative w-24 h-24 mb-6">
-              <svg className="w-full h-full rotate-[-90deg]">
-                <circle cx="48" cy="48" r="42" fill="none" stroke="#334155" strokeWidth="6" />
-                <circle cx="48" cy="48" r="42" fill="none" stroke="#623aa2" strokeWidth="6" strokeDasharray="264" strokeDashoffset={264 - (264 * processingProgress) / 100} strokeLinecap="round" />
-              </svg>
-              <div className="absolute inset-0 flex justify-center items-center"><span className="text-white text-lg font-bold">{Math.round(processingProgress)}%</span></div>
-            </div>
-            <p className="text-[#623aa2] font-medium text-sm animate-pulse tracking-wide">{processingStep}</p>
-          </div>
-        )}
-
-        {/* INTERIOR/EXTERIOR - Bottom Switcher */}
-        <div className={`absolute z-40 flex gap-2 p-1 bg-black/40 backdrop-blur-md rounded-full border border-white/10 ${isLandscape ? 'bottom-6 left-1/2 -translate-x-1/2' : 'bottom-28 left-1/2 -translate-x-1/2'}`}>
-          <button onClick={() => setHdrProfile('interior')} className={`px-4 py-1.5 rounded-full text-[10px] font-bold tracking-wider transition-all ${hdrProfile === 'interior' ? 'bg-white text-black shadow-sm' : 'text-white/70 hover:text-white'}`}>INTERIOR</button>
-          <button onClick={() => setHdrProfile('exterior')} className={`px-4 py-1.5 rounded-full text-[10px] font-bold tracking-wider transition-all ${hdrProfile === 'exterior' ? 'bg-white text-black shadow-sm' : 'text-white/70 hover:text-white'}`}>EXTERIOR</button>
         </div>
       </div>
 
-      {/* TOP BAR */}
-      <div className="absolute top-0 left-0 right-0 h-20 p-4 flex justify-between items-start bg-gradient-to-b from-black/90 to-transparent z-40 pointer-events-none">
-        <button onClick={onClose} className="p-2 bg-black/20 backdrop-blur-md rounded-full text-white pointer-events-auto hover:bg-black/40 transition-colors">
-          <X size={28} strokeWidth={1.5} />
-        </button>
-        {/* Adicionei o label Snap Fusion aqui no topo também para branding */}
-        <span className="bg-black/30 backdrop-blur-sm text-white/80 px-3 py-1 rounded-full text-xs font-medium tracking-widest border border-white/10">
-            SNAP FUSION
-        </span>
+      {/* --- BARRA DE CONTROLO LATERAL (DIREITA em Landscape / BAIXO em Portrait) --- */}
+      <div className="bg-black flex md:flex-col items-center justify-between p-6 md:w-32 md:h-full h-32 md:border-l border-white/10 z-30">
+        
+        {/* Topo da Barra: Botões Auxiliares */}
+        <div className="flex md:flex-col gap-6 items-center order-1 md:order-1">
+            <button onClick={() => setShowGrid(!showGrid)} className={`p-2 rounded-full ${showGrid ? 'text-yellow-400' : 'text-gray-400'}`}>
+                <Grid3X3 size={24} />
+            </button>
+            {/* Fechar está aqui no anexo */}
+            <button onClick={onClose} className="p-2 text-white/80 hover:text-white md:hidden">
+                <X size={28} />
+            </button>
+        </div>
+
+        {/* Centro da Barra: Disparo e Zoom */}
+        <div className="flex md:flex-col items-center gap-6 order-2 md:order-2 flex-1 justify-center">
+            
+            {/* Zoom Controls (Texto vertical simples como no anexo) */}
+            <div className="flex md:flex-col gap-4 text-sm font-medium text-gray-400">
+                <button onClick={() => handleZoom(1)} className={`transition-colors ${zoom === 1 ? 'text-yellow-400 font-bold scale-110' : 'hover:text-white'}`}>1x</button>
+                <button onClick={() => handleZoom(0.5)} className={`transition-colors ${zoom === 0.5 ? 'text-yellow-400 font-bold scale-110' : 'hover:text-white'}`}>0.5x</button>
+            </div>
+
+            {/* Shutter Button (Grande Branco) */}
+            <button 
+                onClick={initiateCapture} 
+                disabled={isProcessing} 
+                className="relative w-16 h-16 md:w-20 md:h-20 rounded-full border-[4px] border-white flex items-center justify-center transition-transform active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+            >
+                <div className={`w-14 h-14 md:w-[68px] md:h-[68px] rounded-full bg-white transition-all duration-200 ${isProcessing ? 'scale-75 bg-gray-400' : ''}`} />
+            </button>
+        </div>
+
+        {/* Fundo da Barra: Galeria e Close (Desktop) */}
+        <div className="flex md:flex-col gap-6 items-center order-3 md:order-3">
+            {/* Gallery Thumbnail */}
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-gray-800 rounded-md overflow-hidden border border-white/20 relative">
+                {lastSavedPhoto ? (
+                    <img src={lastSavedPhoto} className="w-full h-full object-cover" />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-500"><ImageIcon size={16}/></div>
+                )}
+            </div>
+            
+            <button onClick={onClose} className="hidden md:block p-2 text-white/80 hover:text-white border border-white/20 rounded-md">
+                <X size={20} />
+            </button>
+        </div>
       </div>
 
-      {/* BOTTOM SHUTTER BAR - Z-INDEX BOOSTED & PADDED */}
-      <div className={`absolute z-[60] flex justify-center items-center pointer-events-auto
-        ${isLandscape 
-            ? 'right-0 top-0 bottom-0 w-32 bg-black/90 border-l border-white/10' 
-            : 'bottom-0 left-0 right-0 h-32 pb-8 bg-black/90 border-t border-white/10 safe-area-pb'
-        }`}>
-        <button 
-            onClick={initiateCapture} 
-            disabled={isProcessing} 
-            className={`
-                relative w-20 h-20 rounded-full border-4 flex justify-center items-center transition-all shadow-lg
-                ${isProcessing ? 'border-gray-600 opacity-50 scale-95 cursor-not-allowed' : 'border-white hover:bg-white/10 active:scale-90 active:border-gray-300'}
-            `}
-        >
-          <div className={`rounded-full bg-white transition-all duration-300 ${isProcessing ? 'w-8 h-8 rounded-md bg-gray-400' : 'w-16 h-16'}`} />
-        </button>
-      </div>
+      {/* Processing Overlay (Global) */}
+      {isProcessing && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="flex flex-col items-center">
+                <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4"></div>
+                <div className="text-white font-medium text-lg tracking-wide">{processingStep}</div>
+                <div className="text-white/50 text-sm mt-1">{Math.round(processingProgress)}%</div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
