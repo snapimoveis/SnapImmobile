@@ -30,17 +30,15 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   useEffect(() => {
     const checkOrientation = () => {
-      const landscape = window.matchMedia('(orientation: landscape)').matches;
-      setIsLandscape(landscape);
+      const isLand = window.innerWidth > window.innerHeight;
+      setIsLandscape(isLand);
     };
 
     checkOrientation();
     window.addEventListener('resize', checkOrientation);
-    window.addEventListener('orientationchange', checkOrientation);
-
+    
     return () => {
       window.removeEventListener('resize', checkOrientation);
-      window.removeEventListener('orientationchange', checkOrientation);
     };
   }, []);
 
@@ -85,7 +83,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
       if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
-        
         videoRef.current.onloadedmetadata = async () => {
             setIsStreaming(true);
             const track = stream.getVideoTracks()[0];
@@ -113,76 +110,52 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     if (navigator.vibrate) navigator.vibrate(20);
   };
 
-  // --- SISTEMA DE SOM (MP3 + Fallback) ---
   const playShutterSound = () => {
-    // 1. Tenta o arquivo específico que você pediu
-    // Nota: PNG é imagem, se tiver um som, deve ser .mp3, .wav, .m4a, etc.
     const audio = new Audio('/iphone-camera-capture-6448.mp3'); 
     audio.volume = 1.0;
-    
-    // Tenta tocar. Se o navegador bloquear ou arquivo não existir, vai para o catch
     const playPromise = audio.play();
-
     if (playPromise !== undefined) {
-      playPromise.catch((error) => {
-        console.warn("MP3 playback failed (file missing or blocked), using digital beep.", error);
-        playDigitalBeep();
-      });
+      playPromise.catch(() => playDigitalBeep());
     }
   };
 
-  // Som de reserva gerado por código (caso o MP3 falhe)
   const playDigitalBeep = () => {
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContext) return;
-
       const ctx = new AudioContext();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-
       osc.connect(gain);
       gain.connect(ctx.destination);
-
-      osc.type = 'square'; // Tom "digital" nítido
+      osc.type = 'square';
       osc.frequency.setValueAtTime(800, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.1);
-
       gain.gain.setValueAtTime(0.1, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-
       osc.start();
       osc.stop(ctx.currentTime + 0.1);
-    } catch (e) {
-      console.error("Audio error", e);
-    }
+    } catch (e) {}
   };
 
   const handleZoom = async (level: number) => {
     setZoom(level);
     if (!videoRef.current?.srcObject) return;
-
     const track = (videoRef.current.srcObject as MediaStream).getVideoTracks()[0];
     const caps: any = track.getCapabilities?.() || {};
-
     if (!caps.zoom) return;
-
     try {
       await track.applyConstraints({ advanced: [{ zoom: level }] } as any);
-    } catch (e) {
-      console.warn('Zoom constraint failed', e);
-    }
+    } catch (e) {}
   };
 
   const initiateCapture = async () => {
     if (isProcessing) return;
-
     for (let i = 3; i > 0; i--) {
       setTimerValue(i);
       await new Promise((r) => setTimeout(r, 1000));
     }
     setTimerValue(null);
-
     capturePhotoSequence();
   };
 
@@ -191,12 +164,10 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       const videoHeight = video.videoHeight;
       const targetRatio = 4 / 3;
       const currentRatio = videoWidth / videoHeight;
-
       let drawWidth = videoWidth;
       let drawHeight = videoHeight;
       let startX = 0;
       let startY = 0;
-
       if (currentRatio > targetRatio) {
           drawWidth = videoHeight * targetRatio;
           startX = (videoWidth - drawWidth) / 2;
@@ -204,67 +175,53 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           drawHeight = videoWidth / targetRatio;
           startY = (videoHeight - drawHeight) / 2;
       }
-
       canvas.width = drawWidth;
       canvas.height = drawHeight;
-
       ctx.drawImage(video, startX, startY, drawWidth, drawHeight, 0, 0, drawWidth, drawHeight);
   };
 
   const capturePhotoSequence = async () => {
     if (!videoRef.current || !canvasRef.current) return;
-
     setIsProcessing(true);
     setCapturedPreviews([]);
-
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
     const stream = video.srcObject as MediaStream;
     const track = stream.getVideoTracks()[0];
     const caps: any = track.getCapabilities?.() || {};
-
-    const supportsExposure =
-      caps.exposureCompensation !== undefined &&
-      typeof caps.exposureCompensation.min === 'number' &&
-      typeof caps.exposureCompensation.max === 'number';
-
+    const supportsExposure = caps.exposureCompensation !== undefined;
     const interiorEV = [1, 0.5, 0, -0.7, -1.3, -2, -2.7, -3.3, -4];
     const exteriorEV = [2, 1.3, 0.7, 0, -0.3, -1, -1.7, -2.3, -3];
     const janelaEV = [0.3, 0, -0.7, -1.5, -2.5, -3.5, -4.3, -5, -6];
-
-    let effectiveProfile: 'hp_hdr_interior' | 'hp_hdr_exterior' | 'hp_hdr_window' =
-      hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
+    let effectiveProfile = hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
 
     if (hdrProfile === 'interior') {
       try {
         drawCroppedFrame(video, canvas, ctx);
         const topHeight = Math.floor(canvas.height * 0.35);
         const topData = ctx.getImageData(0, 0, canvas.width, topHeight);
-        
         let whites = 0;
         let total = topData.data.length / 4;
         for (let i = 0; i < topData.data.length; i += 16) {
-            if (topData.data[i] > 240 && topData.data[i+1] > 240 && topData.data[i+2] > 240) whites++;
+            if (topData.data[i] > 240) whites++;
         }
         if (whites / (total/4) > 0.15) effectiveProfile = 'hp_hdr_window';
-      } catch (e) { console.warn(e); }
+      } catch (e) {}
     }
 
-    const chosenEV = effectiveProfile === 'hp_hdr_interior' ? interiorEV : (effectiveProfile === 'hp_hdr_exterior' ? exteriorEV : janelaEV);
+    const chosenEV = (effectiveProfile === 'hp_hdr_interior' ? interiorEV : (effectiveProfile === 'hp_hdr_exterior' ? exteriorEV : janelaEV)) as number[];
     const stepExp = caps.exposureCompensationStep || 1;
     const exposureIndexes = chosenEV.map((ev) =>
       supportsExposure
         ? Math.max(caps.exposureCompensation.min, Math.min(caps.exposureCompensation.max, Math.round(ev / stepExp)))
         : null
     );
-    
     const fallbackBrightness = [3.2, 2.1, 1.4, 1, 0.8, 0.55, 0.32, 0.18, 0.08];
     let bestBase64 = '';
 
-    setProcessingStep('A Capturar HP-HDR (9 Exp)...');
+    setProcessingStep('A Capturar Snap Fusion (9 Exp)...'); // Nome alterado aqui
     setProcessingProgress(5);
 
     for (let i = 0; i < 9; i++) {
@@ -273,18 +230,14 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       } else {
         ctx.filter = `brightness(${fallbackBrightness[i]})`;
       }
-
       playShutterSound();
       triggerHaptic();
       setFlashVisual(true);
       setTimeout(() => setFlashVisual(false), 50);
-
       drawCroppedFrame(video, canvas, ctx);
       ctx.filter = 'none';
-
       const url = canvas.toDataURL('image/jpeg', 0.6);
       setCapturedPreviews(prev => [...prev, { url, ev: `${chosenEV[i]}EV` }]);
-
       if (i === 4) bestBase64 = canvas.toDataURL('image/jpeg', 0.95);
       setProcessingProgress(10 + i * 6);
       await new Promise((r) => setTimeout(r, 120));
@@ -307,39 +260,34 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     }
 
     try {
-        bestBase64 = await enhanceImage(bestBase64, effectiveProfile);
+        bestBase64 = await enhanceImage(bestBase64, effectiveProfile as any);
     } catch (e) {
         console.error("AI Failed", e);
     }
 
     setProcessingStep('Finalizando...');
     setProcessingProgress(100);
-
     setLastSavedPhoto(bestBase64);
-
     onPhotoCaptured({
       id: crypto.randomUUID(),
       url: bestBase64,
       originalUrl: bestBase64,
-      name: `HPHDR_PRO_${Date.now()}`,
+      name: `SNAP_FUSION_${Date.now()}`, // Nome do ficheiro alterado também
       timestamp: Date.now(),
       type: 'hdr'
     });
-
     setIsProcessing(false);
     setProcessingProgress(0);
     setCapturedPreviews([]);
   };
 
   return (
-    <div className="fixed inset-0 bg-black z-50 font-sans overflow-hidden select-none flex flex-col">
+    <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-col touch-none">
       
       {/* Viewfinder */}
-      <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
-        <video ref={videoRef} autoPlay playsInline className="max-w-full max-h-full aspect-[4/3] object-cover shadow-2xl" />
-        
+      <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden w-full">
+        <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
         <canvas ref={canvasRef} className="hidden" />
-
         <div className={`absolute inset-0 bg-white transition-opacity duration-75 z-50 pointer-events-none ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
 
         {timerValue && (
@@ -348,9 +296,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           </div>
         )}
 
-        {/* GRID + LEVEL */}
+        {/* GRID + LEVEL (Overlay) */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-full h-full max-h-full aspect-[4/3] relative border border-white/10">
+            <div className="w-full max-w-[100dvh] aspect-[3/4] md:aspect-[4/3] relative border border-white/10">
                 <div className="grid grid-cols-3 grid-rows-3 w-full h-full opacity-40">
                     <div className="border-r border-white/40"></div><div className="border-r border-white/40"></div><div></div>
                     <div className="border-t border-r border-white/40"></div><div className="border-t border-r border-white/40"></div><div className="border-t border-white/40"></div>
@@ -361,22 +309,22 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             </div>
         </div>
 
-        {/* ZOOM CONTROLS */}
-        <div className={`absolute z-40 ${isLandscape ? 'right-36 top-1/2 -translate-y-1/2' : 'bottom-40 left-1/2 -translate-x-1/2'}`}>
-          <div className={`flex gap-2 bg-black/50 px-3 py-2 rounded-full border border-white/10 shadow-xl ${isLandscape ? 'flex-col' : ''}`}>
+        {/* ZOOM - Floating */}
+        <div className={`absolute z-40 ${isLandscape ? 'right-32 top-1/2 -translate-y-1/2' : 'bottom-40 left-1/2 -translate-x-1/2'}`}>
+          <div className={`flex gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-lg ${isLandscape ? 'flex-col' : ''}`}>
             {[0.5, 1, 2].map((level) => (
               <button key={level} onClick={() => { handleZoom(level); triggerHaptic(); }}
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${zoom === level ? 'bg-[#623aa2] text-white scale-110 shadow' : 'text-white/90 hover:bg-white/20'}`}>
+                className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs transition-all ${zoom === level ? 'bg-[#623aa2] text-white scale-110 shadow-lg border border-white/30' : 'text-white hover:bg-white/20'}`}>
                 <span className={`${isLandscape ? '-rotate-90' : ''}`}>{level === 0.5 ? '.5' : level}x</span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* LAST PHOTO THUMBNAIL */}
+        {/* LAST PHOTO */}
         {lastSavedPhoto && !isProcessing && (
-            <div className={`absolute z-40 ${isLandscape ? 'right-8 bottom-8' : 'left-8 bottom-8'} w-14 h-14 rounded-lg border-2 border-white overflow-hidden shadow-lg bg-black animate-in zoom-in`}>
-                <img src={lastSavedPhoto} className="w-full h-full object-cover opacity-80" alt="Last shot" />
+            <div className={`absolute z-40 ${isLandscape ? 'right-6 bottom-6' : 'left-6 bottom-8'} w-14 h-14 rounded-lg border-2 border-white overflow-hidden shadow-lg bg-black animate-in zoom-in`}>
+                <img src={lastSavedPhoto} className="w-full h-full object-cover" alt="Last shot" />
             </div>
         )}
 
@@ -384,8 +332,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         {capturedPreviews.length > 0 && (
           <div className={`absolute z-40 flex gap-1 px-4 overflow-x-auto ${isLandscape ? 'right-32 top-0 bottom-0 flex-col w-16 py-6' : 'bottom-56 left-0 right-0 flex-row h-16'}`}>
             {capturedPreviews.map((p, i) => (
-              <div key={i} className="aspect-[4/3] border border-white/40 rounded-sm overflow-hidden w-full h-full">
-                <img src={p.url} className="object-cover w-full h-full" />
+              <div key={i} className="aspect-[4/3] border border-white/40 rounded-sm overflow-hidden w-full h-full bg-black">
+                <img src={p.url} className="object-cover w-full h-full opacity-80" />
               </div>
             ))}
           </div>
@@ -393,7 +341,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
         {/* PROCESSING OVERLAY */}
         {isProcessing && (
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center z-50">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center z-50">
             <div className="relative w-24 h-24 mb-6">
               <svg className="w-full h-full rotate-[-90deg]">
                 <circle cx="48" cy="48" r="42" fill="none" stroke="#334155" strokeWidth="6" />
@@ -401,26 +349,43 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
               </svg>
               <div className="absolute inset-0 flex justify-center items-center"><span className="text-white text-lg font-bold">{Math.round(processingProgress)}%</span></div>
             </div>
-            <p className="text-[#623aa2] font-medium text-sm animate-pulse">{processingStep}</p>
+            <p className="text-[#623aa2] font-medium text-sm animate-pulse tracking-wide">{processingStep}</p>
           </div>
         )}
 
-        {/* INTERIOR/EXTERIOR TOGGLE */}
-        <div className={`absolute z-40 flex gap-4 ${isLandscape ? 'bottom-8 left-1/2 -translate-x-1/2' : 'bottom-28 left-1/2 -translate-x-1/2'}`}>
-          <button onClick={() => setHdrProfile('interior')} className={`px-5 py-2 rounded-full text-xs font-semibold border ${hdrProfile === 'interior' ? 'bg-white text-black border-white' : 'bg-transparent text-white border-white/60'}`}>INTERIOR</button>
-          <button onClick={() => setHdrProfile('exterior')} className={`px-5 py-2 rounded-full text-xs font-semibold border ${hdrProfile === 'exterior' ? 'bg-white text-black border-white' : 'bg-transparent text-white border-white/60'}`}>EXTERIOR</button>
+        {/* INTERIOR/EXTERIOR - Bottom Switcher */}
+        <div className={`absolute z-40 flex gap-2 p-1 bg-black/40 backdrop-blur-md rounded-full border border-white/10 ${isLandscape ? 'bottom-6 left-1/2 -translate-x-1/2' : 'bottom-28 left-1/2 -translate-x-1/2'}`}>
+          <button onClick={() => setHdrProfile('interior')} className={`px-4 py-1.5 rounded-full text-[10px] font-bold tracking-wider transition-all ${hdrProfile === 'interior' ? 'bg-white text-black shadow-sm' : 'text-white/70 hover:text-white'}`}>INTERIOR</button>
+          <button onClick={() => setHdrProfile('exterior')} className={`px-4 py-1.5 rounded-full text-[10px] font-bold tracking-wider transition-all ${hdrProfile === 'exterior' ? 'bg-white text-black shadow-sm' : 'text-white/70 hover:text-white'}`}>EXTERIOR</button>
         </div>
       </div>
 
-      {/* TOP CONTROLS */}
-      <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-40 pointer-events-none">
-        <button onClick={onClose} className="text-white/80 hover:text-white pointer-events-auto"><X className="w-8 h-8" strokeWidth={1.5} /></button>
+      {/* TOP BAR */}
+      <div className="absolute top-0 left-0 right-0 h-20 p-4 flex justify-between items-start bg-gradient-to-b from-black/90 to-transparent z-40 pointer-events-none">
+        <button onClick={onClose} className="p-2 bg-black/20 backdrop-blur-md rounded-full text-white pointer-events-auto hover:bg-black/40 transition-colors">
+          <X size={28} strokeWidth={1.5} />
+        </button>
+        {/* Adicionei o label Snap Fusion aqui no topo também para branding */}
+        <span className="bg-black/30 backdrop-blur-sm text-white/80 px-3 py-1 rounded-full text-xs font-medium tracking-widest border border-white/10">
+            SNAP FUSION
+        </span>
       </div>
 
-      {/* SHUTTER BUTTON AREA */}
-      <div className={`absolute z-40 flex justify-center items-center ${isLandscape ? 'right-0 top-0 bottom-0 w-32 bg-black' : 'bottom-0 left-0 right-0 h-32 pb-6 bg-black'}`}>
-        <button onClick={initiateCapture} disabled={isProcessing} className={`relative w-20 h-20 rounded-full border-[3px] flex justify-center items-center transition-all ${isProcessing ? 'border-gray-500 opacity-50 scale-90' : 'border-white hover:bg-white/10 active:scale-95'}`}>
-          <div className={`rounded-full bg-white transition-all ${isProcessing ? 'w-14 h-14 bg-gray-400' : 'w-16 h-16'}`} />
+      {/* BOTTOM SHUTTER BAR - Z-INDEX BOOSTED & PADDED */}
+      <div className={`absolute z-[60] flex justify-center items-center pointer-events-auto
+        ${isLandscape 
+            ? 'right-0 top-0 bottom-0 w-32 bg-black/90 border-l border-white/10' 
+            : 'bottom-0 left-0 right-0 h-32 pb-8 bg-black/90 border-t border-white/10 safe-area-pb'
+        }`}>
+        <button 
+            onClick={initiateCapture} 
+            disabled={isProcessing} 
+            className={`
+                relative w-20 h-20 rounded-full border-4 flex justify-center items-center transition-all shadow-lg
+                ${isProcessing ? 'border-gray-600 opacity-50 scale-95 cursor-not-allowed' : 'border-white hover:bg-white/10 active:scale-90 active:border-gray-300'}
+            `}
+        >
+          <div className={`rounded-full bg-white transition-all duration-300 ${isProcessing ? 'w-8 h-8 rounded-md bg-gray-400' : 'w-16 h-16'}`} />
         </button>
       </div>
     </div>
