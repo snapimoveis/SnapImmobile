@@ -1,4 +1,4 @@
-import { GoogleGenAI, SchemaType } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { cleanBase64, getMimeType } from "../utils/helpers";
 
 // Detecção segura da API Key (Compatível com Vite e Node)
@@ -51,14 +51,13 @@ export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interio
 
   try {
     const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview', // MODELO CORRIGIDO PARA EDIÇÃO
+        model: 'gemini-2.5-flash-image-preview',
         contents: {
           parts: [
             { inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } },
             { text: prompt },
           ],
         },
-        // Pedimos explicitamente uma imagem de volta
         config: { responseModalities: ['IMAGE'] },
       });
       
@@ -79,7 +78,6 @@ export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interio
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
     if (!apiKey) throw new Error("Chave de API não configurada.");
     
-    // CRÍTICO: O modelo espera que a imagem de entrada já tenha os riscos vermelhos pintados para saber o que apagar.
     const sys = mode === 'ERASE' 
         ? `TASK: MAGIC ERASER / INPAINTING.
            INPUT: An image with translucent RED STROKES marking objects to remove.
@@ -94,20 +92,18 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
         console.log(`[Snap AI] Iniciando edição modo: ${mode} com modelo gemini-2.5-flash-image-preview...`);
         
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image-preview', // MODELO CORRIGIDO
+            model: 'gemini-2.5-flash-image-preview',
             contents: {
               parts: [
                 { inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } },
                 { text: sys + "\n\nUser Instruction: " + prompt },
               ],
             },
-            // IMPORTANTE: Permitir TEXTO e IMAGEM na resposta para depuração, mas focamos na imagem
             config: { responseModalities: ['IMAGE', 'TEXT'] },
           });
           
           const parts = response.candidates?.[0]?.content?.parts || [];
           
-          // Procura primeiro por uma parte de imagem
           for (const part of parts) {
               if (part.inlineData && part.inlineData.data) {
                   console.log("[Snap AI] Imagem gerada com sucesso.");
@@ -115,7 +111,6 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string, m
               }
           }
           
-          // Se não houver imagem, verifica se houve uma recusa de texto
           const textPart = parts.find(p => p.text);
           if (textPart) {
               console.warn("[Snap AI] Resposta de texto da IA (sem imagem):", textPart.text);
