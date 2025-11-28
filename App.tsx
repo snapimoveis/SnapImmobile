@@ -5,11 +5,9 @@ import { ProjectList } from './components/ProjectList';
 import { CameraView } from './components/CameraView';
 import { Editor } from './components/Editor';
 
-// --- CORREÇÃO AQUI ---
-// Mudámos de './pages/ProjectDetails' para './components/ProjectDetails'
-// Certifique-se de salvar o código do ProjectDetails que lhe dei antes 
-// dentro da pasta 'components' com o nome 'ProjectDetails.tsx'.
-import { ProjectDetails } from './components/ProjectDetails'; 
+// --- CORREÇÃO FINAL: Import no SINGULAR ---
+// Importamos do ficheiro que JÁ EXISTE: ProjectDetail.tsx
+import { ProjectDetail } from './components/ProjectDetail'; 
 
 import { TourViewer } from './components/TourViewer';
 import { NewProjectModal } from './components/NewProjectModal';
@@ -294,8 +292,9 @@ function App() {
       case AppRoute.PROJECT_DETAILS:
         if (!activeProject) return <div>Erro: Nenhum projeto selecionado</div>;
         return (
+            // Uso correto do componente singular
             // @ts-ignore
-            <ProjectDetails 
+            <ProjectDetail 
                 initialProject={activeProject} 
                 onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} 
                 onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} 
