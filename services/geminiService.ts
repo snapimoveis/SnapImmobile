@@ -40,12 +40,12 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
     A SAÍDA DEVE SER EXATAMENTE 4:3.
     NUNCA CONVERTER PARA 16:9. NUNCA RECORTAR.
 
-    TAREFA DE PROCESSAMENTO "SNAP FUSION BRIGHT LOOK":
+    TAREFA DE PROCESSAMENTO "SNAP FUSION BRIGHT LOOK" (V2 - MAIS BRILHO):
     
     1. ILUMINAÇÃO (PRIORIDADE ABSOLUTA):
-       - AUMENTE A EXPOSIÇÃO GLOBAL (+0.7 EV). A imagem tem de parecer CLARA e AREJADA.
-       - LEVANTE OS TONS MÉDIOS (MIDTONE LIFT) AGRESSIVAMENTE. As paredes e móveis devem parecer bem iluminados, não sombrios.
-       - ABRA AS SOMBRAS TOTALMENTE. Não quero cantos pretos. Quero ver detalhes debaixo dos móveis.
+       - AUMENTE A EXPOSIÇÃO GLOBAL PARA +1.0 EV. A imagem tem de ser MUITO CLARA e LUMINOSA, quase "high-key".
+       - LEVANTE OS TONS MÉDIOS (MIDTONE LIFT) EXTREMAMENTE. Paredes, sofás e móveis devem parecer vibrantes e cheios de luz.
+       - ABRA AS SOMBRAS PROFUNDAMENTE, mas mantenha o contraste local para evitar um aspecto "lavado".
 
     2. TEXTURA E NITIDEZ:
        - Mantenha a textura do piso "crocante" (High Clarity/Structure).
