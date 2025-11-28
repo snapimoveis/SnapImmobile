@@ -157,16 +157,11 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const caps: any = track.getCapabilities?.() || {};
     const supportsEV = !!caps.exposureCompensation;
 
-    // EV Sequence: -4 to +4
     const evSequence = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
-    
-    // Tabela de Brilho Digital (Extreme Range)
-    // 0.1 = Muito Escuro (Janelas) | 6.0 = Muito Claro (Sombras)
     const brightnessValues = [0.1, 0.3, 0.5, 0.8, 1.0, 1.5, 2.5, 4.0, 6.0];
     
     const capturedBlobs: string[] = [];
 
-    // Detetar perfil
     let effectiveProfile = hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
     if (hdrProfile === 'interior') {
       try {
@@ -189,7 +184,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             try { await track.applyConstraints({ advanced: [{ exposureCompensation: ev }] } as any); } catch(e){}
         } 
         
-        // Aplica sempre o brilho digital para garantir contraste
         ctx.filter = `brightness(${brightnessValues[i]}) saturate(1.1)`; 
 
         playShutterSound();
@@ -210,10 +204,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
     if (supportsEV) try { await track.applyConstraints({ advanced: [{ exposureCompensation: 0 }] } as any); } catch(e){}
 
-    // --- CORREÇÃO: ENVIAR APENAS 3 FOTOS ---
-    // Envia apenas as essenciais para garantir sucesso e rapidez
-    // Index 1 (Escura/Janelas), Index 4 (Normal), Index 7 (Clara/Sombras)
-    const indicesToUse = [1, 4, 7]; 
+    // --- VOLTAMOS A USAR 5 FOTOS ---
+    // Index 0 (-4), 2 (-2), 4 (0), 6 (+2), 8 (+4)
+    const indicesToUse = [0, 2, 4, 6, 8]; 
     const fusionPayload = indicesToUse.map(i => capturedBlobs[i]);
 
     setProcessingStep('A Fundir HDR (IA)...');
