@@ -54,13 +54,10 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       }
     };
 
-    // Tenta adicionar logo o listener (funciona em Android)
     window.addEventListener('deviceorientation', handleOrientation);
-    
     return () => window.removeEventListener('deviceorientation', handleOrientation);
   }, []);
 
-  // Função para pedir permissão (iOS 13+)
   const requestSensorAccess = async () => {
     if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
         try {
@@ -68,7 +65,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             if (permissionState === 'granted') {
                 setHasSensorPermission(true);
             } else {
-                alert("Permissão de sensores negada. O nível não funcionará.");
+                alert("Permissão de sensores negada.");
             }
         } catch (e) {
             console.error(e);
@@ -76,21 +73,17 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     }
   };
 
-  // --- LÓGICA DE NIVELAMENTO CORRIGIDA ---
-  // Landscape: Beta é o horizonte (roll). Gamma é a inclinação frente/trás (pitch).
-  // Portrait: Gamma é o horizonte (roll). Beta é a inclinação frente/trás (pitch).
-  
+  // --- LÓGICA DE NIVELAMENTO CALIBRADA ---
   const roll = isLandscape ? tilt.beta : tilt.gamma; 
   const pitch = isLandscape ? tilt.gamma : tilt.beta; 
 
-  // Ajuste de "Zero" para o Pitch (depende de como se segura o telemóvel)
-  // Em portrait, Beta ~90 graus é vertical. Em landscape, Gamma ~0 é vertical.
   const pitchOffset = isLandscape ? 0 : 90; 
   const normalizedPitch = pitch - pitchOffset;
 
-  // Margens de erro para ficar verde
-  const isLevelRoll = Math.abs(roll) < 1.5; // Horizonte
-  const isLevelPitch = Math.abs(normalizedPitch) < 3; // Verticalidade
+  // Margens de tolerância
+  const isLevelRoll = Math.abs(roll) < 2; // Horizonte (era 1.5)
+  // AUMENTADO PARA 10 GRAUS: Facilita ficar verde na mão
+  const isLevelPitch = Math.abs(normalizedPitch) < 10; 
 
   const startCamera = async () => {
     try {
@@ -270,31 +263,32 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                     </div>
                 )}
 
-                {/* --- NIVEL (CROSSHAIR) --- */}
-                {/* O nível só aparece se tivermos dados do sensor. Se não, não engana o utilizador. */}
+                {/* --- NIVEL (CROSSHAIR) CENTRAL PEQUENO --- */}
                 {hasSensorPermission && (
-                    <>
-                        {/* Linha Horizontal (Roll - Horizonte) */}
-                        {/* Fica VERMELHA se torta, VERDE se nivelada */}
-                        <div className={`absolute top-1/2 left-[20%] right-[20%] h-[1px] transition-colors duration-200 
-                            ${isLevelRoll ? 'bg-[#00ff00] shadow-[0_0_6px_#00ff00]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} 
-                            style={{ transform: `rotate(${roll}deg)` }} 
-                        />
-                        
-                        {/* Linha Vertical (Pitch - Inclinação) */}
-                        {/* Fica VERMELHA se inclinada, VERDE se a prumo */}
-                        {/* Nota: Usamos isLevelPitch para a cor, não isLevelRoll */}
-                        <div className={`absolute left-1/2 top-[20%] bottom-[20%] w-[1px] transition-colors duration-200 
-                            ${isLevelPitch ? 'bg-[#00ff00] shadow-[0_0_6px_#00ff00]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} 
-                            style={{ transform: `rotate(${-roll}deg)` }} 
-                        />
-                        
-                        {/* Centro Cruz (Branco Fixo) */}
-                        <div className="absolute top-1/2 left-1/2 w-4 h-4 -mt-2 -ml-2 opacity-80">
-                            <div className="w-full h-[2px] bg-white absolute top-1/2 -mt-[1px]"></div>
-                            <div className="h-full w-[2px] bg-white absolute left-1/2 -ml-[1px]"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        {/* Container da Cruz (Tamanho Fixo Menor) */}
+                        <div className="relative w-48 h-48 flex items-center justify-center opacity-80">
+                            
+                            {/* Linha Horizontal (Roll) - Centralizada */}
+                            {/* Roda sobre o centro do container */}
+                            <div 
+                                className={`absolute w-full h-[1px] transition-colors duration-300 shadow-sm
+                                ${isLevelRoll ? 'bg-[#00ff00] shadow-[0_0_4px_#00ff00]' : 'bg-white/60'}`}
+                                style={{ transform: `rotate(${roll}deg)` }}
+                            />
+
+                            {/* Linha Vertical (Pitch) - Centralizada */}
+                            {/* A cor agora depende do isLevelPitch (margem 10 graus) */}
+                            <div 
+                                className={`absolute h-full w-[1px] transition-colors duration-300 shadow-sm
+                                ${isLevelPitch ? 'bg-[#00ff00] shadow-[0_0_4px_#00ff00]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`}
+                                style={{ transform: `rotate(${-roll}deg)` }} 
+                            />
+
+                            {/* Ponto Central Fixo */}
+                            <div className="absolute w-1 h-1 bg-white rounded-full z-10"></div>
                         </div>
-                    </>
+                    </div>
                 )}
             </div>
 
@@ -319,7 +313,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 <Grid3X3 size={28} strokeWidth={1.5} />
             </button>
             
-            {/* Botão para pedir permissão de sensores no iOS (se ainda não tiver) */}
             {!hasSensorPermission && (
                 <button onClick={requestSensorAccess} className="text-red-400 animate-pulse" title="Ativar Nível">
                     <Compass size={28} strokeWidth={1.5} />
