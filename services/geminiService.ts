@@ -18,53 +18,51 @@ const getApiKey = () => {
 const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
 
+// --- AGORA ACEITA ARRAY DE IMAGENS ---
 export const enhanceImage = async (base64Images: string | string[], profile: string = 'hp_hdr_interior'): Promise<string> => {
   if (!apiKey) throw new Error("Chave de API não configurada.");
 
+  // Garante que é sempre um array para processamento
   const images = Array.isArray(base64Images) ? base64Images : [base64Images];
 
-  // Instruções específicas baseadas na análise visual
   const contextMap: any = {
-      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário. PROBLEMA COMUM: Imagens saem escuras e sem textura no chão.",
-      'hp_hdr_exterior': "CONTEXTO: Fachada Exterior. Foco: Céu azul vibrante e sombras recuperadas.",
-      'hp_hdr_window': "CONTEXTO: Contra-luz Intenso. Foco: Igualar a luz interior com a exterior."
+      'hp_hdr_interior': "CONTEXTO: Interior. Foco: Textura extrema no piso e luzes controladas.",
+      'hp_hdr_exterior': "CONTEXTO: Fachada. Foco: Céu azul e sombras detalhadas.",
+      'hp_hdr_window': "CONTEXTO: Contra-luz. Foco: Recuperação total da vista."
   };
 
   const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
+  // Prompt estrito para 4:3 e Nodalview Style (V2 - High Texture)
   const prompt = `
-    SYSTEM: SNAP FUSION ENGINE (PRO REAL ESTATE TUNING).
+    SYSTEM: SNAP FUSION ENGINE (PRO TEXTURE & LIGHT).
     ${contextInstruction}
     
-    OBJETIVO VISUAL: REPLICAR O LOOK "NODALVIEW" (Brilhante, Nítido, Profundo).
+    ESTRITAMENTE PROIBIDO: MUDAR O FORMATO DA IMAGEM.
+    A SAÍDA DEVE SER EXATAMENTE 4:3 (ASPECT RATIO ORIGINAL).
+    NUNCA CONVERTER PARA 16:9. NUNCA RECORTAR (CROP).
 
-    ESTRITAMENTE PROIBIDO: 
-    - MUDAR O FORMATO (Mantenha 4:3).
-    - CORTAR (CROP).
-    - ALUCINAR OBJETOS.
-
-    TAREFA DE PROCESSAMENTO (Prioridade Máxima):
+    TAREFA DE PROCESSAMENTO "SNAP LOOK":
     
-    1. ILUMINAÇÃO (CRÍTICO): 
-       - A imagem de entrada tende a ser escura. APLIQUE UM "MIDTONE LIFT" FORTE.
-       - Abra as sombras agressivamente (Shadow Recovery) para ver detalhes nos cantos escuros e debaixo de móveis.
-       - O histograma deve ser equilibrado e luminoso, não escuro.
+    1. TEXTURA E NITIDEZ (PRIORIDADE #1):
+       - A imagem atual está demasiado suave. APLIQUE "STRUCTURE" e "CLARITY" FORTES.
+       - O chão (madeira/piso) tem de parecer "crocante" e tátil. Realce os veios da madeira.
+       - Aplique "High Pass Sharpening" inteligente nas arestas e texturas.
 
-    2. TEXTURA E PROFUNDIDADE (CRÍTICO):
-       - O chão e tecidos parecem "lisos" demais. CORRIJA ISSO.
-       - Aplique MICRO-CONTRASTE (Clarity/Structure) forte no piso, tapetes e madeiras.
-       - Quero sentir a textura tátil dos materiais. Isso cria a profundidade 3D.
+    2. CONTROLO DE LUZES (PRIORIDADE #2):
+       - Elimine qualquer "Glow" ou "Halo" à volta das luzes do teto.
+       - As luzes devem ser pontos definidos, não manchas brancas difusas.
+       - Use as exposições escuras (-4 EV) para recuperar a cor dentro da lâmpada.
 
-    3. COR:
-       - Corrija tendências de verde/azul (Tint).
-       - Aqueça ligeiramente a imagem para um tom neutro e acolhedor (White Balance).
+    3. CONTRASTE E PRETO:
+       - Mantenha o brilho alto (Midtone Lift), mas certifique-se que os pretos continuam pretos (Black Point).
+       - Evite o aspeto "cinzento lavado" nas sombras. Contraste local alto.
 
-    4. FUSÃO HDR:
-       - Use as exposições mais escuras APENAS para recuperar o que está "estourado" (lâmpadas, janelas).
-       - Mantenha as lâmpadas com cor, não manchas brancas.
+    4. GEOMETRIA:
+       - Mantém 100% da geometria e aparência real (4:3).
 
-    RESUMO: Quero uma imagem final CLARA, VIBRANTE e com TEXTURA "CROCANTE" no chão.
-    RETORNA APENAS A IMAGEM FINAL EM 4:3.
+    RESULTADO: Uma imagem com "Pop", textura nítida no chão e luzes contidas.
+    RETORNA APENAS A IMAGEM FINAL.
   `;
 
   try {
@@ -89,6 +87,7 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
               return `data:image/png;base64,${part.inlineData.data}`;
           }
       }
+      // Fallback: retorna a imagem do meio se falhar a geração
       return images[Math.floor(images.length / 2)];
   } catch (error) {
     console.error("[Snap AI] Falha na Fusão HDR:", error);
