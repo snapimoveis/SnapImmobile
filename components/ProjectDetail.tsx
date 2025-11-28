@@ -13,8 +13,7 @@ import {
 } from 'lucide-react';
 import { Project, Photo } from '../types';
 
-// Interface compatível com o que o App.tsx está a enviar
-interface ProjectDetailsProps {
+interface ProjectDetailProps {
   initialProject: Project;
   onBack: () => void;
   onAddPhoto: () => void;
@@ -23,7 +22,8 @@ interface ProjectDetailsProps {
   onViewTour: () => void;
 }
 
-export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ 
+// CORREÇÃO: Nome da constante alterado para ProjectDetail (singular)
+export const ProjectDetail: React.FC<ProjectDetailProps> = ({ 
   initialProject, 
   onBack, 
   onAddPhoto, 
@@ -35,7 +35,6 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   const [activeTab, setActiveTab] = useState<'content' | 'contacts'>('content');
   const [mediaType, setMediaType] = useState<'photos' | 'videos'>('photos');
 
-  // Sincroniza o estado local se o projeto mudar no pai (ex: após salvar edição)
   useEffect(() => {
     setProject(initialProject);
   }, [initialProject]);
@@ -56,7 +55,6 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
 
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div className="flex items-center gap-4">
-            {/* Thumbnail do Projeto */}
             <div className="w-16 h-12 bg-gray-200 rounded overflow-hidden border border-gray-100 flex-shrink-0">
                {project.coverImage ? (
                    <img 
@@ -71,7 +69,6 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                )}
             </div>
             
-            {/* Título e Endereço */}
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-gray-900 leading-tight">
@@ -167,7 +164,6 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
 
         {/* --- GALERIA DIREITA --- */}
         <main className="flex-1 min-w-0">
-          {/* Toolbar */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <h2 className="text-gray-700 font-medium">
               {displayPhotos.length} fotos
@@ -209,12 +205,10 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                 </div>
              </div>
           ) : (
-              /* Grid de Fotos */
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-10">
                 
                 {displayPhotos.map((photo: Photo, index: number) => (
                   <React.Fragment key={photo.id || index}>
-                    {/* Inserção do Card Promocional de IA na posição 4 (index 3) */}
                     {index === 3 && (
                       <div className="aspect-[4/3] bg-gradient-to-br from-purple-50 to-white rounded-xl border border-purple-100 flex flex-col items-center justify-center p-6 text-center group hover:shadow-lg hover:border-purple-200 transition-all relative overflow-hidden">
                         <div className="relative z-10 grid grid-cols-2 gap-2 mb-4 w-24 opacity-80 group-hover:scale-105 transition-transform">
@@ -233,7 +227,6 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                       </div>
                     )}
 
-                    {/* Cartão da Foto */}
                     <div 
                         onClick={() => onEditPhoto(photo)}
                         className="group relative aspect-[4/3] bg-gray-100 rounded-xl overflow-hidden border border-gray-200 hover:shadow-lg hover:border-blue-200 transition-all cursor-pointer"
@@ -244,18 +237,13 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                         className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                         loading="lazy"
                       />
-                      
-                      {/* Overlay Gradiente */}
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
 
-                      {/* Checkbox (Top Left) */}
                       <div className="absolute top-3 left-3 z-10 opacity-0 group-hover:opacity-100 transition-all duration-200" onClick={e => e.stopPropagation()}>
                         <div className="bg-white rounded-md border border-gray-300 w-6 h-6 flex items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 shadow-sm">
-                          {/* Check logic */}
                         </div>
                       </div>
 
-                      {/* Actions (Top Right) */}
                       <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-10" onClick={e => e.stopPropagation()}>
                         <a 
                             href={photo.url} 
@@ -272,7 +260,6 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                         </button>
                       </div>
                       
-                      {/* Legenda (Bottom) */}
                       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent p-4 pt-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                           <p className="text-white text-xs truncate font-medium drop-shadow-sm">{photo.name}</p>
                       </div>
