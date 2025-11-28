@@ -1,158 +1,381 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  Pencil, 
-  MoreHorizontal, 
-  Camera, 
-  Cloud,
-  Play
-} from 'lucide-react';
-import { Project, Photo } from '../types';
+import React, { useRef, useEffect, useState } from 'react';
+import { X, Grid3X3, Image as ImageIcon, Settings2, Compass, CheckCircle } from 'lucide-react';
+import { enhanceImage } from '../services/geminiService';
+import { Photo } from '../types';
 
-interface ProjectDetailProps {
-  initialProject: Project;
-  onBack: () => void;
-  onAddPhoto: () => void;
-  onEditPhoto: (photo: Photo) => void;
-  onUpdateProject: (project: Project) => void;
-  onViewTour: () => void;
+interface CameraViewProps {
+  onPhotoCaptured: (photo: Photo) => void;
+  onClose: () => void;
 }
 
-export const ProjectDetail: React.FC<ProjectDetailProps> = ({ 
-  initialProject, 
-  onBack, 
-  onAddPhoto, 
-  onEditPhoto,
-  onUpdateProject,
-  onViewTour
-}) => {
-  const [project, setProject] = useState<Project>(initialProject);
-  const [activeTab, setActiveTab] = useState<'content' | 'contacts'>('content');
+export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStep, setProcessingStep] = useState<string>('');
+  const [processingProgress, setProcessingProgress] = useState(0);
+
+  const [hdrProfile, setHdrProfile] = useState<'interior' | 'exterior'>('interior');
+  const [flashVisual, setFlashVisual] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [isLandscape, setIsLandscape] = useState(false);
+  const [timerValue, setTimerValue] = useState<number | null>(null);
+  const [showGrid, setShowGrid] = useState(true);
+
+  // Sensores
+  const [tilt, setTilt] = useState({ beta: 0, gamma: 0 });
+  const [hasSensorPermission, setHasSensorPermission] = useState(false);
+  
+  const [capturedPreviews, setCapturedPreviews] = useState<{ url: string; ev: string }[]>([]);
+  const [lastSavedPhoto, setLastSavedPhoto] = useState<string | null>(null);
+  
+  // NOVO ESTADO: Preview da Imagem Final
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
-    setProject(initialProject);
-  }, [initialProject]);
+    const checkOrientation = () => {
+      setIsLandscape(window.innerWidth > window.innerHeight);
+    };
+    checkOrientation();
+    window.addEventListener('resize', checkOrientation);
+    return () => window.removeEventListener('resize', checkOrientation);
+  }, []);
 
-  const displayPhotos = project.photos || [];
+  useEffect(() => { startCamera(); return () => stopCamera(); }, []);
+
+  // Handler de Orientação
+  useEffect(() => {
+    const handleOrientation = (event: DeviceOrientationEvent) => {
+      if (event.beta !== null && event.gamma !== null) {
+        setHasSensorPermission(true);
+        setTilt(prev => ({
+            beta: prev.beta * 0.8 + event.beta! * 0.2, 
+            gamma: prev.gamma * 0.8 + event.gamma! * 0.2
+        }));
+      }
+    };
+    window.addEventListener('deviceorientation', handleOrientation);
+    return () => window.removeEventListener('deviceorientation', handleOrientation);
+  }, []);
+
+  const requestSensorAccess = async () => {
+    // @ts-ignore
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try {
+            // @ts-ignore
+            const permissionState = await DeviceOrientationEvent.requestPermission();
+            if (permissionState === 'granted') {
+                setHasSensorPermission(true);
+            } else {
+                alert("Permissão de sensores negada.");
+            }
+        } catch (e) { console.error(e); }
+    }
+  };
+
+  const roll = isLandscape ? tilt.beta : tilt.gamma; 
+  const pitch = isLandscape ? tilt.gamma : tilt.beta; 
+  const pitchOffset = isLandscape ? 0 : 90; 
+  const normalizedPitch = pitch - pitchOffset;
+
+  const isLevelRoll = Math.abs(roll) < 2; 
+  const isLevelPitch = Math.abs(normalizedPitch) < 10; 
+
+  const startCamera = async () => {
+    try {
+      const constraints = {
+        video: { facingMode: 'environment', aspectRatio: { ideal: 1.333 }, width: { ideal: 2560 }, height: { ideal: 1920 } }
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => setIsStreaming(true);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao aceder à câmara.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current?.srcObject) {
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      setIsStreaming(false);
+    }
+  };
+
+  const playShutterSound = () => {
+    const audio = new Audio('/iphone-camera-capture-6448.mp3');
+    audio.volume = 1.0;
+    audio.play().catch(() => {});
+  };
+
+  const handleZoom = async (level: number) => {
+    setZoom(level);
+    if (!videoRef.current?.srcObject) return;
+    const track = (videoRef.current.srcObject as MediaStream).getVideoTracks()[0];
+    const caps: any = track.getCapabilities?.() || {};
+    if (!caps.zoom) return;
+    try {
+      await track.applyConstraints({ advanced: [{ zoom: level }] } as any);
+    } catch (e) {}
+  };
+
+  const initiateCapture = async () => {
+    if (isProcessing) return;
+    capturePhotoSequence();
+  };
+
+  const drawCroppedFrame = (video: HTMLVideoElement, canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
+      const videoWidth = video.videoWidth;
+      const videoHeight = video.videoHeight;
+      const targetRatio = 4 / 3;
+      const currentRatio = videoWidth / videoHeight;
+      let w = videoWidth, h = videoHeight, sx = 0, sy = 0;
+
+      if (currentRatio > targetRatio) {
+          w = videoHeight * targetRatio;
+          sx = (videoWidth - w) / 2;
+      } else {
+          h = videoWidth / targetRatio;
+          sy = (videoHeight - h) / 2;
+      }
+      canvas.width = w; canvas.height = h;
+      ctx.drawImage(video, sx, sy, w, h, 0, 0, w, h);
+  };
+
+  const capturePhotoSequence = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    setIsProcessing(true);
+    setCapturedPreviews([]);
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const track = (video.srcObject as MediaStream).getVideoTracks()[0];
+    const caps: any = track.getCapabilities?.() || {};
+    const supportsEV = !!caps.exposureCompensation;
+
+    const evSequence = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
+    const brightnessValues = [0.1, 0.3, 0.5, 0.8, 1.0, 1.5, 2.5, 4.0, 6.0];
+    
+    const capturedBlobs: string[] = [];
+
+    let effectiveProfile = hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
+    if (hdrProfile === 'interior') {
+      try {
+        drawCroppedFrame(video, canvas, ctx);
+        const topData = ctx.getImageData(0, 0, canvas.width, Math.floor(canvas.height * 0.35));
+        let whites = 0;
+        for (let i = 0; i < topData.data.length; i += 16) {
+            if (topData.data[i] > 240) whites++;
+        }
+        if (whites / (topData.data.length/4) > 0.15) effectiveProfile = 'hp_hdr_window';
+      } catch (e) {}
+    }
+
+    setProcessingStep('Snap Fusion (9)...');
+    setProcessingProgress(0);
+
+    for (let i = 0; i < 9; i++) {
+        if (supportsEV) {
+            const ev = Math.max(caps.exposureCompensation.min, Math.min(caps.exposureCompensation.max, evSequence[i]));
+            try { await track.applyConstraints({ advanced: [{ exposureCompensation: ev }] } as any); } catch(e){}
+        } 
+        
+        ctx.filter = `brightness(${brightnessValues[i]}) saturate(1.1)`; 
+
+        playShutterSound();
+        setFlashVisual(true);
+        setTimeout(() => setFlashVisual(false), 50);
+
+        drawCroppedFrame(video, canvas, ctx);
+        ctx.filter = 'none';
+
+        const frameData = canvas.toDataURL('image/jpeg', 0.90);
+        capturedBlobs.push(frameData);
+        
+        if (i % 2 === 0) setCapturedPreviews(prev => [...prev, { url: frameData, ev: `${evSequence[i]}` }]);
+        setProcessingProgress(((i + 1) / 9) * 40);
+        
+        await new Promise(r => setTimeout(r, 80));
+    }
+
+    if (supportsEV) try { await track.applyConstraints({ advanced: [{ exposureCompensation: 0 }] } as any); } catch(e){}
+
+    const indicesToUse = [0, 2, 4, 6, 8]; 
+    const fusionPayload = indicesToUse.map(i => capturedBlobs[i]);
+
+    setProcessingStep('A Fundir Exposições...');
+    setProcessingProgress(50);
+
+    try {
+        const finalImage = await enhanceImage(fusionPayload, effectiveProfile);
+        setProcessingStep('Concluído');
+        setProcessingProgress(100);
+        setLastSavedPhoto(finalImage);
+        
+        // --- MOSTRAR PREVIEW AQUI ---
+        setPreviewImage(finalImage);
+
+        onPhotoCaptured({
+            id: crypto.randomUUID(),
+            url: finalImage,
+            originalUrl: capturedBlobs[4],
+            name: `SNAP_FUSION_${Date.now()}`,
+            timestamp: Date.now(),
+            type: 'hdr'
+        });
+    } catch (e) {
+        console.error(e);
+        alert("Erro no processamento.");
+    } finally {
+        setIsProcessing(false);
+        setProcessingProgress(0);
+        setCapturedPreviews([]);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col animate-in fade-in duration-300 pb-24">
-      {/* --- HEADER SUPERIOR --- */}
-      <header className="bg-white border-b border-gray-200 pt-6 px-4 md:px-6 pb-0 shadow-sm z-10 sticky top-0">
-        <div className="flex items-center justify-between mb-4">
-            <button 
-            onClick={onBack}
-            className="flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors font-medium"
-            >
-            <ArrowLeft size={20} className="mr-1" />
+    <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-col md:flex-row text-white touch-none">
+      
+      {/* --- PREVIEW FULL SCREEN (OVERLAY) --- */}
+      {previewImage && (
+        <div className="absolute inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
+            {/* Imagem Resultado */}
+            <img src={previewImage} className="max-w-full max-h-full object-contain" alt="Resultado HDR" />
+            
+            {/* Topo: Botão Fechar */}
+            <div className="absolute top-6 right-6">
+                <button 
+                    onClick={() => setPreviewImage(null)} 
+                    className="p-3 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-black/70 transition-all border border-white/20 shadow-lg"
+                >
+                    <X size={28} />
+                </button>
+            </div>
+
+            {/* Fundo: Mensagem de Sucesso */}
+            <div className="absolute bottom-10 bg-green-500/90 backdrop-blur-sm text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-xl">
+                <CheckCircle size={24} className="text-white" />
+                <span className="font-bold text-sm tracking-wide">FOTO GUARDADA</span>
+            </div>
+        </div>
+      )}
+
+      {/* --- VISOR 4:3 --- */}
+      <div className="flex-1 relative bg-[#000] overflow-hidden flex items-center justify-center">
+        <div className="relative w-full max-w-full aspect-[3/4] md:aspect-[4/3] overflow-hidden bg-black shadow-2xl">
+            <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
+            <canvas ref={canvasRef} className="hidden" />
+            
+            <div className={`absolute inset-0 bg-white transition-opacity duration-75 pointer-events-none ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
+
+            <div className="absolute inset-0 pointer-events-none">
+                {showGrid && (
+                    <div className="w-full h-full grid grid-cols-3 grid-rows-3 opacity-40">
+                        <div className="border-r border-b border-white/30"></div>
+                        <div className="border-r border-b border-white/30"></div>
+                        <div className="border-b border-white/30"></div>
+                        <div className="border-r border-b border-white/30"></div>
+                        <div className="border-r border-b border-white/30"></div>
+                        <div className="border-b border-white/30"></div>
+                        <div className="border-r border-white/30"></div>
+                        <div className="border-r border-white/30"></div>
+                        <div></div>
+                    </div>
+                )}
+
+                {hasSensorPermission && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="relative w-48 h-48 flex items-center justify-center opacity-80">
+                            <div 
+                                className={`absolute w-full h-[1px] transition-colors duration-300 shadow-sm
+                                ${isLevelRoll ? 'bg-[#00ff00] shadow-[0_0_4px_#00ff00]' : 'bg-white/60'}`}
+                                style={{ transform: `rotate(${roll}deg)` }}
+                            />
+                            <div 
+                                className={`absolute h-full w-[1px] transition-colors duration-300 shadow-sm
+                                ${isLevelPitch ? 'bg-[#00ff00] shadow-[0_0_4px_#00ff00]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`}
+                                style={{ transform: `rotate(${-roll}deg)` }} 
+                            />
+                            <div className="absolute w-1 h-1 bg-white rounded-full z-10"></div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-6 z-20 pointer-events-auto">
+                <button onClick={() => setHdrProfile('interior')} 
+                    className={`px-6 py-1.5 rounded-full text-xs font-bold tracking-widest transition-all ${hdrProfile === 'interior' ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20' : 'bg-black/40 text-white/80 border border-white/20'}`}>
+                    INTERIOR
+                </button>
+                <button onClick={() => setHdrProfile('exterior')} 
+                    className={`px-6 py-1.5 rounded-full text-xs font-bold tracking-widest transition-all ${hdrProfile === 'exterior' ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20' : 'bg-black/40 text-white/80 border border-white/20'}`}>
+                    EXTERIOR
+                </button>
+            </div>
+        </div>
+      </div>
+
+      {/* --- BARRA DE CONTROLO --- */}
+      <div className="bg-black flex md:flex-col items-center justify-between p-6 md:w-[140px] md:h-full h-[160px] z-30 flex-shrink-0">
+        
+        <div className="flex md:flex-col gap-8 items-center justify-center order-1 md:order-1 w-1/3 md:w-auto">
+            <button onClick={() => setShowGrid(!showGrid)} className={`transition-colors ${showGrid ? 'text-yellow-400' : 'text-white'}`}>
+                <Grid3X3 size={28} strokeWidth={1.5} />
             </button>
             
-            <div className="flex gap-2">
-                <button 
-                    onClick={onViewTour}
-                    className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-full transition-colors"
-                    title="Ver Tour"
-                >
-                    <Play size={20} />
+            {!hasSensorPermission && (
+                <button onClick={requestSensorAccess} className="text-red-400 animate-pulse" title="Ativar Nível">
+                    <Compass size={28} strokeWidth={1.5} />
                 </button>
-                <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
-                    <MoreHorizontal size={20} />
-                </button>
+            )}
+        </div>
+
+        <div className="flex flex-col items-center gap-6 order-2 md:order-2 w-1/3 md:w-auto justify-center">
+            <div className="flex flex-col gap-3 text-sm font-bold items-center">
+                <button onClick={() => handleZoom(1)} className={`transition-all ${zoom === 1 ? 'text-yellow-400 text-base scale-110' : 'text-white/60'}`}>1x</button>
+                <button onClick={() => handleZoom(0.5)} className={`transition-all ${zoom === 0.5 ? 'text-yellow-400 text-base scale-110' : 'text-white/60'}`}>0.5x</button>
             </div>
+
+            <button 
+                onClick={initiateCapture} 
+                disabled={isProcessing} 
+                className="relative w-[72px] h-[72px] rounded-full border-[4px] border-white flex items-center justify-center transition-transform active:scale-95 shadow-lg"
+            >
+                <div className={`w-[60px] h-[60px] rounded-full bg-white transition-all duration-200 ${isProcessing ? 'scale-75 bg-gray-400' : ''}`} />
+            </button>
         </div>
 
-        <div className="mb-6">
-            <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-gray-900 leading-tight">
-                    {project.title}
-                </h1>
-                <button className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100 transition-colors">
-                    <Pencil size={14} />
-                </button>
+        <div className="flex md:flex-col gap-8 items-center justify-center order-3 md:order-3 w-1/3 md:w-auto">
+            <div className="w-12 h-12 bg-gray-800 rounded-lg overflow-hidden border border-white/20 relative">
+                {lastSavedPhoto ? (
+                    <img src={lastSavedPhoto} className="w-full h-full object-cover opacity-80" />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-white/30"><ImageIcon size={20}/></div>
+                )}
             </div>
-            <p className="text-sm text-gray-500 mt-1">{project.address}</p>
+            
+            <button onClick={onClose} className="p-2 text-white/50 hover:text-white border border-white/20 rounded-lg">
+                <X size={24} />
+            </button>
         </div>
-
-        {/* --- ABAS (TABS) --- */}
-        <div className="flex gap-8 overflow-x-auto no-scrollbar">
-          <button 
-            onClick={() => setActiveTab('content')}
-            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'content' 
-                ? 'border-black text-black' 
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Conteúdo
-          </button>
-          <button 
-            onClick={() => setActiveTab('contacts')}
-            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'contacts' 
-                ? 'border-black text-black' 
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Contactos
-          </button>
-        </div>
-      </header>
-
-      {/* --- CONTEÚDO PRINCIPAL (GRID) --- */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
-          {displayPhotos.length === 0 ? (
-             <div className="text-center py-20 bg-white rounded-xl border-2 border-dashed border-gray-200 mt-4">
-                <div className="mx-auto h-16 w-16 text-gray-300 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                   <Camera size={32} strokeWidth={1.5} />
-                </div>
-                <h3 className="text-base font-semibold text-gray-900">Comece a capturar</h3>
-                <p className="mt-1 text-sm text-gray-500 max-w-xs mx-auto">Toque no botão abaixo para adicionar as primeiras fotos HDR.</p>
-             </div>
-          ) : (
-              /* Grid de Fotos - Estilo Visual do Anexo */
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {displayPhotos.map((photo: Photo) => (
-                    <div 
-                        key={photo.id}
-                        onClick={() => onEditPhoto(photo)}
-                        className="relative aspect-square rounded-xl overflow-hidden bg-gray-200 cursor-pointer shadow-sm active:scale-95 transition-transform"
-                    >
-                      <img 
-                        src={photo.url} 
-                        alt={photo.name} 
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                      
-                      {/* Gradiente subtil no fundo para legibilidade */}
-                      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
-
-                      {/* Nome / Marca de Água (Canto Inferior Esquerdo) */}
-                      <span className="absolute bottom-2 left-2 text-[10px] font-medium text-white/90 tracking-wide uppercase">
-                        Snap Fusion
-                      </span>
-
-                      {/* Ícone Nuvem (Canto Inferior Direito) - Estilo do Anexo */}
-                      <div className="absolute bottom-2 right-2 bg-white rounded-lg p-1.5 shadow-sm text-gray-800">
-                        <Cloud size={14} fill="currentColor" className="text-gray-400" />
-                      </div>
-                    </div>
-                ))}
-              </div>
-          )}
-      </main>
-
-      {/* --- BOTÃO FLUTUANTE "INICIAR CAPTURA" --- */}
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30 shadow-xl rounded-full">
-        <button 
-            onClick={onAddPhoto}
-            className="flex items-center gap-3 bg-white text-gray-900 px-6 py-3.5 rounded-full font-bold text-sm hover:bg-gray-50 active:scale-95 transition-all border border-gray-100"
-            style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }}
-        >
-            <Camera size={20} className="text-gray-800" />
-            <span>Iniciar captura</span>
-        </button>
       </div>
+
+      {isProcessing && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="flex flex-col items-center">
+                <div className="w-16 h-16 border-4 border-white/20 border-t-yellow-400 rounded-full animate-spin mb-4"></div>
+                <div className="text-yellow-400 font-bold text-xl tracking-widest uppercase">{processingStep}</div>
+                <div className="text-white/50 text-sm mt-1">{Math.round(processingProgress)}%</div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
