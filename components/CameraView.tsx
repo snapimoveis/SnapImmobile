@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { X, Grid3X3, CheckCircle } from 'lucide-react';
+import { X, Grid3X3 } from 'lucide-react';
 import { enhanceImage } from '../services/geminiService';
 import { Photo } from '../types';
 
@@ -24,20 +24,15 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const [timerValue, setTimerValue] = useState<number | null>(null);
   const [showGrid, setShowGrid] = useState(true);
 
-  // Sensores
-  const [tilt, setTilt] = useState({ beta: 0, gamma: 0 });
-  // Removido hasSensorPermission button (mas mantemos a lógica se já tiver permissão)
-  const [hasSensorPermission, setHasSensorPermission] = useState(false);
-  
   const [capturedPreviews, setCapturedPreviews] = useState<{ url: string; ev: string }[]>([]);
-  const [lastSavedPhoto, setLastSavedPhoto] = useState<string | null>(null);
-  
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+  // Detecção de Orientação Robusta
   useEffect(() => {
     const checkOrientation = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight);
+      const isLand = window.innerWidth > window.innerHeight;
+      setIsLandscape(isLand);
     };
+
     checkOrientation();
     window.addEventListener('resize', checkOrientation);
     return () => window.removeEventListener('resize', checkOrientation);
@@ -45,36 +40,37 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   useEffect(() => { startCamera(); return () => stopCamera(); }, []);
 
-  useEffect(() => {
-    const handleOrientation = (event: DeviceOrientationEvent) => {
-      if (event.beta !== null && event.gamma !== null) {
-        setHasSensorPermission(true);
-        setTilt(prev => ({
-            beta: prev.beta * 0.8 + event.beta! * 0.2, 
-            gamma: prev.gamma * 0.8 + event.gamma! * 0.2
-        }));
-      }
-    };
-    window.addEventListener('deviceorientation', handleOrientation);
-    return () => window.removeEventListener('deviceorientation', handleOrientation);
-  }, []);
-
-  // Lógica de Nivelamento (Crosshair)
-  const roll = isLandscape ? tilt.beta : tilt.gamma; 
-  const pitch = isLandscape ? tilt.gamma : tilt.beta; 
-  const pitchOffset = isLandscape ? 0 : 90; 
-  const normalizedPitch = pitch - pitchOffset;
-
-  const isLevelRoll = Math.abs(roll) < 2; 
-  const isLevelPitch = Math.abs(normalizedPitch) < 10; 
-
   const startCamera = async () => {
     try {
+      // Solicitamos a maior resolução possível em 4:3 para evitar desfoque
       const constraints = {
-        video: { facingMode: 'environment', aspectRatio: { ideal: 1.333 }, width: { ideal: 2560 }, height: { ideal: 1920 } }
+        video: { 
+            facingMode: 'environment', 
+            aspectRatio: { exact: 1.333333 }, // Tenta forçar 4:3 exato
+            width: { ideal: 4032 }, // 12MP
+            height: { ideal: 3024 }
+        }
       };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      if (videoRef.current) {
+
+      // Fallback se a câmara não suportar 4K
+      const constraintsFallback = {
+        video: { 
+            facingMode: 'environment', 
+            aspectRatio: { ideal: 1.333333 },
+            width: { ideal: 1920 }, 
+            height: { ideal: 1440 }
+        }
+      };
+
+      let stream;
+      try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (e) {
+          console.warn("4K falhou, tentando HD...", e);
+          stream = await navigator.mediaDevices.getUserMedia(constraintsFallback);
+      }
+
+      if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => setIsStreaming(true);
       }
@@ -114,11 +110,18 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   };
 
   const drawCroppedFrame = (video: HTMLVideoElement, canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
+      // GARANTIA DE NITIDEZ: Usar as dimensões REAIS do vídeo, não do ecrã
       const videoWidth = video.videoWidth;
       const videoHeight = video.videoHeight;
+      
+      // Força crop 4:3 centrado
       const targetRatio = 4 / 3;
       const currentRatio = videoWidth / videoHeight;
-      let w = videoWidth, h = videoHeight, sx = 0, sy = 0;
+      
+      let w = videoWidth;
+      let h = videoHeight;
+      let sx = 0;
+      let sy = 0;
 
       if (currentRatio > targetRatio) {
           w = videoHeight * targetRatio;
@@ -127,7 +130,14 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           h = videoWidth / targetRatio;
           sy = (videoHeight - h) / 2;
       }
-      canvas.width = w; canvas.height = h;
+      
+      canvas.width = w; 
+      canvas.height = h;
+      
+      // Configuração crítica para qualidade
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      
       ctx.drawImage(video, sx, sy, w, h, 0, 0, w, h);
   };
 
@@ -146,15 +156,14 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const supportsEV = !!caps.exposureCompensation;
 
     const evSequence = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
-    // Digital Bracketing para garantir contraste
     const brightnessValues = [0.1, 0.3, 0.5, 0.8, 1.0, 1.5, 2.5, 4.0, 6.0];
-    
     const capturedBlobs: string[] = [];
 
     let effectiveProfile = hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
     if (hdrProfile === 'interior') {
       try {
         drawCroppedFrame(video, canvas, ctx);
+        // Analisa apenas a parte de cima da imagem (teto/janelas)
         const topData = ctx.getImageData(0, 0, canvas.width, Math.floor(canvas.height * 0.35));
         let whites = 0;
         for (let i = 0; i < topData.data.length; i += 16) {
@@ -164,7 +173,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       } catch (e) {}
     }
 
-    setProcessingStep('Snap Fusion (9)...');
+    setProcessingStep('Capturando (9)...');
     setProcessingProgress(0);
 
     for (let i = 0; i < 9; i++) {
@@ -182,7 +191,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         drawCroppedFrame(video, canvas, ctx);
         ctx.filter = 'none';
 
-        const frameData = canvas.toDataURL('image/jpeg', 0.90);
+        // Qualidade máxima para o processamento
+        const frameData = canvas.toDataURL('image/jpeg', 0.95);
         capturedBlobs.push(frameData);
         
         if (i % 2 === 0) setCapturedPreviews(prev => [...prev, { url: frameData, ev: `${evSequence[i]}` }]);
@@ -193,18 +203,17 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
     if (supportsEV) try { await track.applyConstraints({ advanced: [{ exposureCompensation: 0 }] } as any); } catch(e){}
 
+    // 5 fotos críticas para a IA
     const indicesToUse = [0, 2, 4, 6, 8]; 
     const fusionPayload = indicesToUse.map(i => capturedBlobs[i]);
 
-    setProcessingStep('Fusão IA...');
+    setProcessingStep('Processando IA...');
     setProcessingProgress(50);
 
     try {
         const finalImage = await enhanceImage(fusionPayload, effectiveProfile);
         setProcessingStep('Concluído');
         setProcessingProgress(100);
-        setLastSavedPhoto(finalImage);
-        setPreviewImage(finalImage);
 
         onPhotoCaptured({
             id: crypto.randomUUID(),
@@ -225,126 +234,111 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   };
 
   return (
-    <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-row text-white touch-none">
+    // Container Principal - Flex para gerir layout responsivo
+    <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-col md:flex-row text-white touch-none">
       
-      {/* --- BARRA ESQUERDA (Settings) - Menor --- */}
-      {/* Em Portrait: Topo. Em Landscape: Esquerda. */}
-      <div className={`bg-black z-30 flex ${isLandscape ? 'flex-col w-16 h-full border-r border-white/10 py-6' : 'flex-row h-16 w-full border-b border-white/10 px-6'} items-center justify-between`}>
-         {/* Botão Fechar (agora à esquerda/topo) */}
-         <button onClick={onClose} className="p-2 text-white/80 hover:text-white rounded-full bg-gray-800/50">
+      {/* === BARRA SUPERIOR/ESQUERDA (Ferramentas) === */}
+      {/* Mobile: Barra Topo fina. Desktop: Barra Esquerda fina. */}
+      <div className={`bg-black z-30 flex items-center justify-between px-6
+        ${isLandscape 
+            ? 'flex-col w-20 h-full border-r border-white/10 py-8' 
+            : 'flex-row h-20 w-full border-b border-white/10'
+        }`}>
+         
+         <button onClick={onClose} className="p-3 text-white/80 hover:text-white bg-gray-800/50 rounded-full backdrop-blur-sm">
             <X size={24} />
          </button>
 
-         {/* Grid Toggle */}
-         <button onClick={() => setShowGrid(!showGrid)} className={`p-2 rounded-full transition-colors ${showGrid ? 'text-yellow-400 bg-yellow-400/10' : 'text-white/60 hover:text-white'}`}>
+         <button onClick={() => setShowGrid(!showGrid)} className={`p-3 rounded-full transition-colors ${showGrid ? 'text-yellow-400 bg-yellow-400/10' : 'text-white/60 hover:text-white'}`}>
             <Grid3X3 size={24} />
          </button>
 
-         {/* Spacer para equilíbrio se necessário */}
-         <div className="w-6 h-6"></div>
+         {/* Espaço vazio para equilíbrio em landscape */}
+         {isLandscape && <div className="w-6 h-6"></div>}
       </div>
 
-      {/* --- ÁREA CENTRAL (Viewfinder) --- */}
-      <div className="flex-1 relative bg-[#121212] overflow-hidden flex items-center justify-center">
-        {/* Container 4:3 Fixo */}
-        <div className="relative w-full max-w-full aspect-[4/3] overflow-hidden bg-black shadow-2xl">
+
+      {/* === VISOR CENTRAL (4:3 IMUTÁVEL) === */}
+      <div className="flex-1 relative bg-[#050505] overflow-hidden flex items-center justify-center p-2">
+        {/* O Video Container mantém 4:3 estrito */}
+        <div className="relative w-full max-w-full aspect-[3/4] md:aspect-[4/3] overflow-hidden bg-black shadow-2xl rounded-lg md:rounded-none">
             <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
             <canvas ref={canvasRef} className="hidden" />
             
+            {/* Flash */}
             <div className={`absolute inset-0 bg-white transition-opacity duration-75 pointer-events-none ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
 
-            {/* Overlays (Grid & Level) */}
-            <div className="absolute inset-0 pointer-events-none">
-                {showGrid && (
-                    <div className="w-full h-full grid grid-cols-3 grid-rows-3 opacity-40">
-                        <div className="border-r border-b border-white/30"></div>
-                        <div className="border-r border-b border-white/30"></div>
-                        <div className="border-b border-white/30"></div>
-                        <div className="border-r border-b border-white/30"></div>
-                        <div className="border-r border-b border-white/30"></div>
-                        <div className="border-b border-white/30"></div>
-                        <div className="border-r border-white/30"></div>
-                        <div className="border-r border-white/30"></div>
-                        <div></div>
-                    </div>
-                )}
+            {/* Grid Overlay */}
+            {showGrid && (
+                <div className="absolute inset-0 w-full h-full grid grid-cols-3 grid-rows-3 opacity-30 pointer-events-none">
+                    <div className="border-r border-b border-white"></div>
+                    <div className="border-r border-b border-white"></div>
+                    <div className="border-b border-white"></div>
+                    <div className="border-r border-b border-white"></div>
+                    <div className="border-r border-b border-white"></div>
+                    <div className="border-b border-white"></div>
+                    <div className="border-r border-white"></div>
+                    <div className="border-r border-white"></div>
+                    <div></div>
+                </div>
+            )}
 
-                {hasSensorPermission && (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-80">
-                        {/* Cruz Central - Estilo Fino */}
-                        <div className="relative w-32 h-32 flex items-center justify-center">
-                            <div 
-                                className={`absolute w-full h-[1px] transition-colors duration-300 shadow-sm
-                                ${isLevelRoll ? 'bg-[#00ff00] shadow-[0_0_4px_#00ff00]' : 'bg-white/50'}`}
-                                style={{ transform: `rotate(${roll}deg)` }}
-                            />
-                            <div 
-                                className={`absolute h-full w-[1px] transition-colors duration-300 shadow-sm
-                                ${isLevelPitch ? 'bg-[#00ff00] shadow-[0_0_4px_#00ff00]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`}
-                                style={{ transform: `rotate(${-roll}deg)` }} 
-                            />
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* --- BOTÕES INTERIOR/EXTERIOR --- */}
-            {/* Posicionados na parte inferior da imagem 4:3 */}
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-8 z-20">
+            {/* OVERLAYS DE INTERFACE (Dentro da foto) */}
+            
+            {/* 1. Botões Interior/Exterior (Fundo Centro) */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-6 z-20 pointer-events-auto">
                  <button onClick={() => setHdrProfile('interior')} 
-                    className={`text-xs font-bold tracking-widest transition-all px-2 py-1 ${hdrProfile === 'interior' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/70 hover:text-white'}`}>
+                    className={`text-xs font-bold tracking-widest transition-all px-3 py-1.5 rounded-full shadow-sm ${hdrProfile === 'interior' ? 'bg-yellow-400 text-black' : 'bg-black/40 text-white/90 backdrop-blur-sm'}`}>
                     INTERIOR
                 </button>
                 <button onClick={() => setHdrProfile('exterior')} 
-                    className={`text-xs font-bold tracking-widest transition-all px-2 py-1 ${hdrProfile === 'exterior' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/70 hover:text-white'}`}>
+                    className={`text-xs font-bold tracking-widest transition-all px-3 py-1.5 rounded-full shadow-sm ${hdrProfile === 'exterior' ? 'bg-yellow-400 text-black' : 'bg-black/40 text-white/90 backdrop-blur-sm'}`}>
                     EXTERIOR
                 </button>
             </div>
+
+            {/* 2. Botões Zoom (Canto Direito ou Inferior dependendo da orientação, perto do polegar) */}
+            {/* Em Landscape, ficam à direita, perto da barra de disparo. Em Portrait, em baixo. */}
+            <div className={`absolute z-20 flex gap-3 p-1 bg-black/20 backdrop-blur-md rounded-full
+                ${isLandscape 
+                    ? 'right-4 top-1/2 -translate-y-1/2 flex-col' 
+                    : 'bottom-16 left-1/2 -translate-x-1/2 flex-row'
+                }`}>
+                <button onClick={() => handleZoom(1)} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all ${zoom === 1 ? 'bg-yellow-400 text-black shadow-lg scale-110' : 'text-white hover:bg-white/20'}`}>1x</button>
+                <button onClick={() => handleZoom(0.5)} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all ${zoom === 0.5 ? 'bg-yellow-400 text-black shadow-lg scale-110' : 'text-white hover:bg-white/20'}`}>.5</button>
+            </div>
+
+            {/* Timer Display */}
+            {timerValue && (
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-40">
+                <span className={`text-8xl font-extrabold text-white animate-ping ${isLandscape ? '-rotate-90' : ''}`}>{timerValue}</span>
+              </div>
+            )}
         </div>
       </div>
 
-      {/* --- BARRA DIREITA (Controles) - Maior --- */}
-      {/* Em Portrait: Fundo. Em Landscape: Direita. */}
-      <div className={`bg-black z-30 flex ${isLandscape ? 'flex-col w-32 h-full border-l border-white/10' : 'flex-row h-32 w-full border-t border-white/10'} items-center justify-center relative`}>
-        
-        {/* Zoom - Vertical em Landscape, Horizontal em Portrait */}
-        <div className={`flex ${isLandscape ? 'flex-col gap-6 mb-8' : 'flex-row gap-6 mr-8'} items-center justify-center`}>
-            <button onClick={() => handleZoom(1)} className={`font-medium transition-all ${zoom === 1 ? 'text-yellow-400 text-base scale-110' : 'text-white/50 text-sm'}`}>1x</button>
-            <button onClick={() => handleZoom(0.5)} className={`font-medium transition-all ${zoom === 0.5 ? 'text-yellow-400 text-base scale-110' : 'text-white/50 text-sm'}`}>0.5x</button>
-        </div>
 
+      {/* === BARRA INFERIOR/DIREITA (Disparo) - Maior === */}
+      {/* Mobile: Barra Fundo Alta. Desktop: Barra Direita Larga. */}
+      <div className={`bg-black z-30 flex items-center justify-center relative
+        ${isLandscape 
+            ? 'flex-col w-32 h-full border-l border-white/10' 
+            : 'flex-row h-36 w-full border-t border-white/10 pb-6'
+        }`}>
+        
         {/* Botão Disparo */}
         <button 
             onClick={initiateCapture} 
             disabled={isProcessing} 
-            className="relative w-[72px] h-[72px] rounded-full border-[4px] border-white flex items-center justify-center transition-transform active:scale-95 shadow-lg"
+            className="relative w-20 h-20 rounded-full border-[4px] border-white flex items-center justify-center transition-transform active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.15)]"
         >
-            <div className={`w-[60px] h-[60px] rounded-full bg-white transition-all duration-200 ${isProcessing ? 'scale-75 bg-gray-400' : ''}`} />
+            <div className={`w-[68px] h-[68px] rounded-full bg-white transition-all duration-200 ${isProcessing ? 'scale-75 bg-gray-400' : ''}`} />
         </button>
-        
-        {/* Espaço vazio onde antes estava a galeria */}
-        {/* Se quiser recentrar o botão, podemos ajustar margens aqui */}
       </div>
 
-      {/* Preview Overlay */}
-      {previewImage && (
-        <div className="absolute inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
-            <img src={previewImage} className="max-w-full max-h-full object-contain" alt="Resultado" />
-            <div className="absolute top-6 right-6">
-                <button onClick={() => setPreviewImage(null)} className="p-3 bg-black/50 backdrop-blur-md rounded-full text-white border border-white/20">
-                    <X size={28} />
-                </button>
-            </div>
-            <div className="absolute bottom-10 bg-green-500/90 backdrop-blur-sm text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-xl">
-                <CheckCircle size={24} />
-                <span className="font-bold text-sm">GUARDADO</span>
-            </div>
-        </div>
-      )}
-
-      {/* Loading Overlay */}
+      {/* Processing Overlay */}
       {isProcessing && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
             <div className="flex flex-col items-center">
                 <div className="w-16 h-16 border-4 border-white/20 border-t-yellow-400 rounded-full animate-spin mb-4"></div>
                 <div className="text-yellow-400 font-bold text-xl tracking-widest uppercase">{processingStep}</div>
