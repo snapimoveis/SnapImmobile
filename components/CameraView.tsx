@@ -42,18 +42,17 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   useEffect(() => { startCamera(); return () => stopCamera(); }, []);
 
-  // Handler de Orientação com pedido de permissão para iOS
+  // Handler de Orientação
   useEffect(() => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
       if (event.beta !== null && event.gamma !== null) {
         setHasSensorPermission(true);
         setTilt(prev => ({
-            beta: prev.beta * 0.8 + event.beta! * 0.2, // Smoothing
+            beta: prev.beta * 0.8 + event.beta! * 0.2, 
             gamma: prev.gamma * 0.8 + event.gamma! * 0.2
         }));
       }
     };
-
     window.addEventListener('deviceorientation', handleOrientation);
     return () => window.removeEventListener('deviceorientation', handleOrientation);
   }, []);
@@ -67,22 +66,16 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             } else {
                 alert("Permissão de sensores negada.");
             }
-        } catch (e) {
-            console.error(e);
-        }
+        } catch (e) { console.error(e); }
     }
   };
 
-  // --- LÓGICA DE NIVELAMENTO CALIBRADA ---
   const roll = isLandscape ? tilt.beta : tilt.gamma; 
   const pitch = isLandscape ? tilt.gamma : tilt.beta; 
-
   const pitchOffset = isLandscape ? 0 : 90; 
   const normalizedPitch = pitch - pitchOffset;
 
-  // Margens de tolerância
-  const isLevelRoll = Math.abs(roll) < 2; // Horizonte (era 1.5)
-  // AUMENTADO PARA 10 GRAUS: Facilita ficar verde na mão
+  const isLevelRoll = Math.abs(roll) < 2; 
   const isLevelPitch = Math.abs(normalizedPitch) < 10; 
 
   const startCamera = async () => {
@@ -162,10 +155,17 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const caps: any = track.getCapabilities?.() || {};
     const supportsEV = !!caps.exposureCompensation;
 
+    // EV Sequence: -4 (Darkest) to +4 (Brightest)
     const evSequence = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
-    const brightnessFallback = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.2];
+    
+    // CORREÇÃO CRÍTICA: Tabela de brilho agora corresponde à sequência EV
+    // Antes estava invertida (3.2 para -4 EV). Agora está crescente.
+    // -4 EV = 0.1 (Muito escuro) ... +4 EV = 4.0 (Muito claro)
+    const brightnessFallback = [0.1, 0.2, 0.4, 0.7, 1.0, 1.5, 2.0, 3.0, 4.5];
+    
     const capturedBlobs: string[] = [];
 
+    // Lógica para detetar perfil
     let effectiveProfile = hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
     if (hdrProfile === 'interior') {
       try {
@@ -183,46 +183,52 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     setProcessingProgress(0);
 
     for (let i = 0; i < 9; i++) {
+        // Se a câmara suportar EV nativo, usa. Se não, usa o filtro de brilho corrigido.
         if (supportsEV) {
             const ev = Math.max(caps.exposureCompensation.min, Math.min(caps.exposureCompensation.max, evSequence[i]));
             try { await track.applyConstraints({ advanced: [{ exposureCompensation: ev }] } as any); } catch(e){}
         } else {
+            // Aplica o filtro de brilho correto para esta exposição
             ctx.filter = `brightness(${brightnessFallback[i]})`;
         }
 
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise(r => setTimeout(r, 120)); // Tempo para o sensor ajustar
         playShutterSound();
         setFlashVisual(true);
         setTimeout(() => setFlashVisual(false), 50);
 
         drawCroppedFrame(video, canvas, ctx);
-        ctx.filter = 'none';
+        ctx.filter = 'none'; // Limpa filtro para a próxima frame
 
-        const frameData = canvas.toDataURL('image/jpeg', 0.85);
+        const frameData = canvas.toDataURL('image/jpeg', 0.90);
         capturedBlobs.push(frameData);
         
         if (i % 2 === 0) setCapturedPreviews(prev => [...prev, { url: frameData, ev: `${evSequence[i]}` }]);
         setProcessingProgress(((i + 1) / 9) * 40);
     }
 
+    // Reset para normal
     if (supportsEV) try { await track.applyConstraints({ advanced: [{ exposureCompensation: 0 }] } as any); } catch(e){}
+    ctx.filter = 'none';
 
+    // Enviar as exposições críticas para a IA
+    // 0 (Darkest -4), 2 (-2), 4 (Base 0), 6 (+2), 8 (Brightest +4)
     const indicesToUse = [0, 2, 4, 6, 8]; 
     const fusionPayload = indicesToUse.map(i => capturedBlobs[i]);
 
-    setProcessingStep('A Processar IA...');
+    setProcessingStep('Fusão HDR (IA)...');
     setProcessingProgress(50);
 
     try {
         const finalImage = await enhanceImage(fusionPayload, effectiveProfile);
-        setProcessingStep('Salvo');
+        setProcessingStep('Concluído');
         setProcessingProgress(100);
         setLastSavedPhoto(finalImage);
 
         onPhotoCaptured({
             id: crypto.randomUUID(),
             url: finalImage,
-            originalUrl: capturedBlobs[4],
+            originalUrl: capturedBlobs[4], // Guarda a EV 0 como original
             name: `SNAP_FUSION_${Date.now()}`,
             timestamp: Date.now(),
             type: 'hdr'
@@ -263,29 +269,20 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                     </div>
                 )}
 
-                {/* --- NIVEL (CROSSHAIR) CENTRAL PEQUENO --- */}
+                {/* --- NIVEL (CROSSHAIR) --- */}
                 {hasSensorPermission && (
                     <div className="absolute inset-0 flex items-center justify-center">
-                        {/* Container da Cruz (Tamanho Fixo Menor) */}
                         <div className="relative w-48 h-48 flex items-center justify-center opacity-80">
-                            
-                            {/* Linha Horizontal (Roll) - Centralizada */}
-                            {/* Roda sobre o centro do container */}
                             <div 
                                 className={`absolute w-full h-[1px] transition-colors duration-300 shadow-sm
                                 ${isLevelRoll ? 'bg-[#00ff00] shadow-[0_0_4px_#00ff00]' : 'bg-white/60'}`}
                                 style={{ transform: `rotate(${roll}deg)` }}
                             />
-
-                            {/* Linha Vertical (Pitch) - Centralizada */}
-                            {/* A cor agora depende do isLevelPitch (margem 10 graus) */}
                             <div 
                                 className={`absolute h-full w-[1px] transition-colors duration-300 shadow-sm
                                 ${isLevelPitch ? 'bg-[#00ff00] shadow-[0_0_4px_#00ff00]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`}
                                 style={{ transform: `rotate(${-roll}deg)` }} 
                             />
-
-                            {/* Ponto Central Fixo */}
                             <div className="absolute w-1 h-1 bg-white rounded-full z-10"></div>
                         </div>
                     </div>
@@ -307,7 +304,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
       {/* --- BARRA DE CONTROLO --- */}
       <div className="bg-black flex md:flex-col items-center justify-between p-6 md:w-[140px] md:h-full h-[160px] z-30 flex-shrink-0">
-        
         <div className="flex md:flex-col gap-8 items-center justify-center order-1 md:order-1 w-1/3 md:w-auto">
             <button onClick={() => setShowGrid(!showGrid)} className={`transition-colors ${showGrid ? 'text-yellow-400' : 'text-white'}`}>
                 <Grid3X3 size={28} strokeWidth={1.5} />
