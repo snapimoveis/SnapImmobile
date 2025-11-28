@@ -51,39 +51,40 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   const processedImages = await Promise.all(rawImages.map(img => resizeForAI(img, 1280)));
 
   const contextMap: any = {
-      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário.",
+      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário. OBJETIVO: Réplica exata do estilo Nodalview.",
       'hp_hdr_exterior': "CONTEXTO: Fachada Exterior.",
       'hp_hdr_window': "CONTEXTO: Interior com janela."
   };
 
   const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
-  // PROMPT CALIBRADO V8 (FINAL CUT - SHARP & CLEAN)
-  // Foco: Menos amarelo, mais nitidez, brilho subtil, zero adições.
+  // PROMPT CALIBRADO V9 (NODALVIEW CLONE - SPLIT TONING)
+  // O segredo para o look "Perfeito": Paredes Brancas + Chão Quente + Nitidez Extrema.
   const prompt = `
-    SYSTEM: SNAP FUSION ENGINE (CLEAN & SHARP).
+    SYSTEM: SNAP FUSION ENGINE (PRO ARCHITECTURAL EDITING).
     ${contextInstruction}
     
     INPUT: 3 Bracketed Exposures.
+    REGRA DE OURO: NÃO ADICIONE OBJETOS. MANTENHA A GEOMETRIA 4:3.
+
+    TAREFA DE PROCESSAMENTO "SELECTIVE COLOR & POP":
     
-    REGRA CRÍTICA: NÃO ADICIONE NENHUM OBJETO, MÓVEL OU DECORAÇÃO À CENA. Mantenha tudo exatamente como está.
+    1. COR SELETIVA (O SEGREDO):
+       - PAREDES E TETO: Remova TOTALMENTE o amarelo/creme. Devem ser BRANCO PURO ou CINZA NEUTRO.
+       - CHÃO E MADEIRAS: Mantenha e realce os tons QUENTES (Laranja/Dourado). Não deixe o chão ficar pálido.
+       - Crie separação de cor: Paredes frias/neutras vs Chão quente.
 
-    TAREFA DE PROCESSAMENTO FINAL:
-    
-    1. COR (NEUTRALIZAÇÃO DE AMARELO):
-       - A imagem está demasiado amarela/quente. REDUZA DRASTICAMENTE este tom.
-       - As paredes e teto devem ser BRANCO PURO/NEUTRO.
-       - A madeira do chão deve manter a sua cor natural, mas sem o banho de luz amarela.
+    2. TEXTURA E NITIDEZ ("CROCANTE"):
+       - A imagem de referência tem uma nitidez tátil. APLIQUE "CLARITY" e "STRUCTURE" FORTES.
+       - Quero ver a textura do chão, os fios do tapete, o grão da madeira.
+       - A imagem deve parecer ultra-definida (High Res).
 
-    2. NITIDEZ (CORREÇÃO DE DESFOQUE):
-       - A imagem parece desfocada. APLIQUE NITIDEZ (Sharpening/Clarity) agressiva em toda a cena.
-       - Quero ver detalhes nítidos nas arestas dos móveis, nos veios da madeira e nas texturas dos tecidos.
+    3. LUMINOSIDADE (BRILHO VIBRANTE):
+       - Exposição: +0.8 EV (Brilhante mas com corpo).
+       - Sombras: Iluminadas, mas mantenha o contraste preto nos pontos de contacto dos móveis (Ambient Occlusion).
+       - Não deixe a imagem ficar "lavada" (flat). Precisa de contraste ("Pop").
 
-    3. ILUMINAÇÃO (BRILHO SUBTIL):
-       - Aumente o brilho geral de forma SUBTIL (+0.5 EV). A imagem deve ficar mais viva, mas sem perder contraste ou parecer lavada.
-       - Mantenha sombras suaves para volume.
-
-    RESULTADO: Uma imagem imobiliária nítida, com cores neutras e limpas, e um brilho natural.
+    RESULTADO: Uma imagem com impacto visual, paredes limpas e texturas ricas.
     RETORNA APENAS A IMAGEM FINAL EM 4:3.
   `;
 
@@ -92,7 +93,7 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
         inlineData: { data: cleanBase64(img), mimeType: getMimeType(img) }
     }));
 
-    console.log(`[Snap AI] A enviar ${imageParts.length} imagens para fusão V8 (Final Cut)...`);
+    console.log(`[Snap AI] A enviar ${imageParts.length} imagens para fusão V9 (Nodalview Clone)...`);
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
@@ -119,7 +120,6 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   }
 };
 
-// ... (Resto do ficheiro mantém-se igual) ...
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
     if (!apiKey) throw new Error("Chave de API não configurada.");
     const sys = mode === 'ERASE' 
