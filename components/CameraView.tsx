@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { X, Grid3X3, Image as ImageIcon, Settings2, Compass, CheckCircle } from 'lucide-react';
+import { X, Grid3X3, CheckCircle } from 'lucide-react';
 import { enhanceImage } from '../services/geminiService';
 import { Photo } from '../types';
 
@@ -26,12 +26,12 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   // Sensores
   const [tilt, setTilt] = useState({ beta: 0, gamma: 0 });
+  // Removido hasSensorPermission button (mas mantemos a lógica se já tiver permissão)
   const [hasSensorPermission, setHasSensorPermission] = useState(false);
   
   const [capturedPreviews, setCapturedPreviews] = useState<{ url: string; ev: string }[]>([]);
   const [lastSavedPhoto, setLastSavedPhoto] = useState<string | null>(null);
   
-  // NOVO ESTADO: Preview da Imagem Final
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,7 +45,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   useEffect(() => { startCamera(); return () => stopCamera(); }, []);
 
-  // Handler de Orientação
   useEffect(() => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
       if (event.beta !== null && event.gamma !== null) {
@@ -60,21 +59,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     return () => window.removeEventListener('deviceorientation', handleOrientation);
   }, []);
 
-  const requestSensorAccess = async () => {
-    // @ts-ignore
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        try {
-            // @ts-ignore
-            const permissionState = await DeviceOrientationEvent.requestPermission();
-            if (permissionState === 'granted') {
-                setHasSensorPermission(true);
-            } else {
-                alert("Permissão de sensores negada.");
-            }
-        } catch (e) { console.error(e); }
-    }
-  };
-
+  // Lógica de Nivelamento (Crosshair)
   const roll = isLandscape ? tilt.beta : tilt.gamma; 
   const pitch = isLandscape ? tilt.gamma : tilt.beta; 
   const pitchOffset = isLandscape ? 0 : 90; 
@@ -161,6 +146,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const supportsEV = !!caps.exposureCompensation;
 
     const evSequence = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
+    // Digital Bracketing para garantir contraste
     const brightnessValues = [0.1, 0.3, 0.5, 0.8, 1.0, 1.5, 2.5, 4.0, 6.0];
     
     const capturedBlobs: string[] = [];
@@ -210,7 +196,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const indicesToUse = [0, 2, 4, 6, 8]; 
     const fusionPayload = indicesToUse.map(i => capturedBlobs[i]);
 
-    setProcessingStep('A Fundir Exposições...');
+    setProcessingStep('Fusão IA...');
     setProcessingProgress(50);
 
     try {
@@ -218,8 +204,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         setProcessingStep('Concluído');
         setProcessingProgress(100);
         setLastSavedPhoto(finalImage);
-        
-        // --- MOSTRAR PREVIEW AQUI ---
         setPreviewImage(finalImage);
 
         onPhotoCaptured({
@@ -241,40 +225,35 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   };
 
   return (
-    <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-col md:flex-row text-white touch-none">
+    <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-row text-white touch-none">
       
-      {/* --- PREVIEW FULL SCREEN (OVERLAY) --- */}
-      {previewImage && (
-        <div className="absolute inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
-            {/* Imagem Resultado */}
-            <img src={previewImage} className="max-w-full max-h-full object-contain" alt="Resultado HDR" />
-            
-            {/* Topo: Botão Fechar */}
-            <div className="absolute top-6 right-6">
-                <button 
-                    onClick={() => setPreviewImage(null)} 
-                    className="p-3 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-black/70 transition-all border border-white/20 shadow-lg"
-                >
-                    <X size={28} />
-                </button>
-            </div>
+      {/* --- BARRA ESQUERDA (Settings) - Menor --- */}
+      {/* Em Portrait: Topo. Em Landscape: Esquerda. */}
+      <div className={`bg-black z-30 flex ${isLandscape ? 'flex-col w-16 h-full border-r border-white/10 py-6' : 'flex-row h-16 w-full border-b border-white/10 px-6'} items-center justify-between`}>
+         {/* Botão Fechar (agora à esquerda/topo) */}
+         <button onClick={onClose} className="p-2 text-white/80 hover:text-white rounded-full bg-gray-800/50">
+            <X size={24} />
+         </button>
 
-            {/* Fundo: Mensagem de Sucesso */}
-            <div className="absolute bottom-10 bg-green-500/90 backdrop-blur-sm text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-xl">
-                <CheckCircle size={24} className="text-white" />
-                <span className="font-bold text-sm tracking-wide">FOTO GUARDADA</span>
-            </div>
-        </div>
-      )}
+         {/* Grid Toggle */}
+         <button onClick={() => setShowGrid(!showGrid)} className={`p-2 rounded-full transition-colors ${showGrid ? 'text-yellow-400 bg-yellow-400/10' : 'text-white/60 hover:text-white'}`}>
+            <Grid3X3 size={24} />
+         </button>
 
-      {/* --- VISOR 4:3 --- */}
-      <div className="flex-1 relative bg-[#000] overflow-hidden flex items-center justify-center">
-        <div className="relative w-full max-w-full aspect-[3/4] md:aspect-[4/3] overflow-hidden bg-black shadow-2xl">
+         {/* Spacer para equilíbrio se necessário */}
+         <div className="w-6 h-6"></div>
+      </div>
+
+      {/* --- ÁREA CENTRAL (Viewfinder) --- */}
+      <div className="flex-1 relative bg-[#121212] overflow-hidden flex items-center justify-center">
+        {/* Container 4:3 Fixo */}
+        <div className="relative w-full max-w-full aspect-[4/3] overflow-hidden bg-black shadow-2xl">
             <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
             <canvas ref={canvasRef} className="hidden" />
             
             <div className={`absolute inset-0 bg-white transition-opacity duration-75 pointer-events-none ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
 
+            {/* Overlays (Grid & Level) */}
             <div className="absolute inset-0 pointer-events-none">
                 {showGrid && (
                     <div className="w-full h-full grid grid-cols-3 grid-rows-3 opacity-40">
@@ -291,11 +270,12 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 )}
 
                 {hasSensorPermission && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="relative w-48 h-48 flex items-center justify-center opacity-80">
+                    <div className="absolute inset-0 flex items-center justify-center opacity-80">
+                        {/* Cruz Central - Estilo Fino */}
+                        <div className="relative w-32 h-32 flex items-center justify-center">
                             <div 
                                 className={`absolute w-full h-[1px] transition-colors duration-300 shadow-sm
-                                ${isLevelRoll ? 'bg-[#00ff00] shadow-[0_0_4px_#00ff00]' : 'bg-white/60'}`}
+                                ${isLevelRoll ? 'bg-[#00ff00] shadow-[0_0_4px_#00ff00]' : 'bg-white/50'}`}
                                 style={{ transform: `rotate(${roll}deg)` }}
                             />
                             <div 
@@ -303,70 +283,66 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                                 ${isLevelPitch ? 'bg-[#00ff00] shadow-[0_0_4px_#00ff00]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`}
                                 style={{ transform: `rotate(${-roll}deg)` }} 
                             />
-                            <div className="absolute w-1 h-1 bg-white rounded-full z-10"></div>
                         </div>
                     </div>
                 )}
             </div>
 
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-6 z-20 pointer-events-auto">
-                <button onClick={() => setHdrProfile('interior')} 
-                    className={`px-6 py-1.5 rounded-full text-xs font-bold tracking-widest transition-all ${hdrProfile === 'interior' ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20' : 'bg-black/40 text-white/80 border border-white/20'}`}>
+            {/* --- BOTÕES INTERIOR/EXTERIOR --- */}
+            {/* Posicionados na parte inferior da imagem 4:3 */}
+            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-8 z-20">
+                 <button onClick={() => setHdrProfile('interior')} 
+                    className={`text-xs font-bold tracking-widest transition-all px-2 py-1 ${hdrProfile === 'interior' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/70 hover:text-white'}`}>
                     INTERIOR
                 </button>
                 <button onClick={() => setHdrProfile('exterior')} 
-                    className={`px-6 py-1.5 rounded-full text-xs font-bold tracking-widest transition-all ${hdrProfile === 'exterior' ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20' : 'bg-black/40 text-white/80 border border-white/20'}`}>
+                    className={`text-xs font-bold tracking-widest transition-all px-2 py-1 ${hdrProfile === 'exterior' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/70 hover:text-white'}`}>
                     EXTERIOR
                 </button>
             </div>
         </div>
       </div>
 
-      {/* --- BARRA DE CONTROLO --- */}
-      <div className="bg-black flex md:flex-col items-center justify-between p-6 md:w-[140px] md:h-full h-[160px] z-30 flex-shrink-0">
+      {/* --- BARRA DIREITA (Controles) - Maior --- */}
+      {/* Em Portrait: Fundo. Em Landscape: Direita. */}
+      <div className={`bg-black z-30 flex ${isLandscape ? 'flex-col w-32 h-full border-l border-white/10' : 'flex-row h-32 w-full border-t border-white/10'} items-center justify-center relative`}>
         
-        <div className="flex md:flex-col gap-8 items-center justify-center order-1 md:order-1 w-1/3 md:w-auto">
-            <button onClick={() => setShowGrid(!showGrid)} className={`transition-colors ${showGrid ? 'text-yellow-400' : 'text-white'}`}>
-                <Grid3X3 size={28} strokeWidth={1.5} />
-            </button>
-            
-            {!hasSensorPermission && (
-                <button onClick={requestSensorAccess} className="text-red-400 animate-pulse" title="Ativar Nível">
-                    <Compass size={28} strokeWidth={1.5} />
-                </button>
-            )}
+        {/* Zoom - Vertical em Landscape, Horizontal em Portrait */}
+        <div className={`flex ${isLandscape ? 'flex-col gap-6 mb-8' : 'flex-row gap-6 mr-8'} items-center justify-center`}>
+            <button onClick={() => handleZoom(1)} className={`font-medium transition-all ${zoom === 1 ? 'text-yellow-400 text-base scale-110' : 'text-white/50 text-sm'}`}>1x</button>
+            <button onClick={() => handleZoom(0.5)} className={`font-medium transition-all ${zoom === 0.5 ? 'text-yellow-400 text-base scale-110' : 'text-white/50 text-sm'}`}>0.5x</button>
         </div>
 
-        <div className="flex flex-col items-center gap-6 order-2 md:order-2 w-1/3 md:w-auto justify-center">
-            <div className="flex flex-col gap-3 text-sm font-bold items-center">
-                <button onClick={() => handleZoom(1)} className={`transition-all ${zoom === 1 ? 'text-yellow-400 text-base scale-110' : 'text-white/60'}`}>1x</button>
-                <button onClick={() => handleZoom(0.5)} className={`transition-all ${zoom === 0.5 ? 'text-yellow-400 text-base scale-110' : 'text-white/60'}`}>0.5x</button>
-            </div>
-
-            <button 
-                onClick={initiateCapture} 
-                disabled={isProcessing} 
-                className="relative w-[72px] h-[72px] rounded-full border-[4px] border-white flex items-center justify-center transition-transform active:scale-95 shadow-lg"
-            >
-                <div className={`w-[60px] h-[60px] rounded-full bg-white transition-all duration-200 ${isProcessing ? 'scale-75 bg-gray-400' : ''}`} />
-            </button>
-        </div>
-
-        <div className="flex md:flex-col gap-8 items-center justify-center order-3 md:order-3 w-1/3 md:w-auto">
-            <div className="w-12 h-12 bg-gray-800 rounded-lg overflow-hidden border border-white/20 relative">
-                {lastSavedPhoto ? (
-                    <img src={lastSavedPhoto} className="w-full h-full object-cover opacity-80" />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white/30"><ImageIcon size={20}/></div>
-                )}
-            </div>
-            
-            <button onClick={onClose} className="p-2 text-white/50 hover:text-white border border-white/20 rounded-lg">
-                <X size={24} />
-            </button>
-        </div>
+        {/* Botão Disparo */}
+        <button 
+            onClick={initiateCapture} 
+            disabled={isProcessing} 
+            className="relative w-[72px] h-[72px] rounded-full border-[4px] border-white flex items-center justify-center transition-transform active:scale-95 shadow-lg"
+        >
+            <div className={`w-[60px] h-[60px] rounded-full bg-white transition-all duration-200 ${isProcessing ? 'scale-75 bg-gray-400' : ''}`} />
+        </button>
+        
+        {/* Espaço vazio onde antes estava a galeria */}
+        {/* Se quiser recentrar o botão, podemos ajustar margens aqui */}
       </div>
 
+      {/* Preview Overlay */}
+      {previewImage && (
+        <div className="absolute inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
+            <img src={previewImage} className="max-w-full max-h-full object-contain" alt="Resultado" />
+            <div className="absolute top-6 right-6">
+                <button onClick={() => setPreviewImage(null)} className="p-3 bg-black/50 backdrop-blur-md rounded-full text-white border border-white/20">
+                    <X size={28} />
+                </button>
+            </div>
+            <div className="absolute bottom-10 bg-green-500/90 backdrop-blur-sm text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-xl">
+                <CheckCircle size={24} />
+                <span className="font-bold text-sm">GUARDADO</span>
+            </div>
+        </div>
+      )}
+
+      {/* Loading Overlay */}
       {isProcessing && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
             <div className="flex flex-col items-center">
