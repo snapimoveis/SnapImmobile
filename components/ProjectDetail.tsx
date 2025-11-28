@@ -1,275 +1,253 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  Pencil, 
-  MoreHorizontal, 
-  CheckSquare, 
-  ArrowUpDown, 
-  Upload, 
-  Download, 
-  ExternalLink, 
-  Image as ImageIcon,
-  Play
-} from 'lucide-react';
+
+import React, { useState } from 'react';
 import { Project, Photo } from '../types';
+import { ArrowLeft, Camera, Video, Image, Box, LayoutTemplate, MoreHorizontal, CheckCircle, Circle, Download, X as XIcon, CheckSquare } from 'lucide-react';
+import JSZip from 'jszip';
+import { WatermarkModal } from './WatermarkModal'; // Kept if needed for single photo or future expansion
+import { getCurrentUser } from '../services/storage';
 
 interface ProjectDetailProps {
-  initialProject: Project;
+  project: Project;
   onBack: () => void;
-  onAddPhoto: () => void;
   onEditPhoto: (photo: Photo) => void;
-  onUpdateProject: (project: Project) => void;
+  onAddPhoto: () => void;
+  onUpdateProject: (updatedProject: Project) => void;
   onViewTour: () => void;
 }
 
-// CORREÇÃO: Nome da constante alterado para ProjectDetail (singular)
 export const ProjectDetail: React.FC<ProjectDetailProps> = ({ 
-  initialProject, 
+  project, 
   onBack, 
-  onAddPhoto, 
-  onEditPhoto,
-  onUpdateProject,
-  onViewTour
+  onEditPhoto, 
+  onAddPhoto
 }) => {
-  const [project, setProject] = useState<Project>(initialProject);
-  const [activeTab, setActiveTab] = useState<'content' | 'contacts'>('content');
-  const [mediaType, setMediaType] = useState<'photos' | 'videos'>('photos');
+  const [activeTab, setActiveTab] = useState<'360' | 'photo' | 'video' | 'planta'>('photo');
+  
+  // Selection State
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDownloading, setIsDownloading] = useState(false);
 
-  useEffect(() => {
-    setProject(initialProject);
-  }, [initialProject]);
+  const toggleSelectionMode = () => {
+      setIsSelectionMode(!isSelectionMode);
+      setSelectedIds([]);
+  };
 
-  const displayPhotos = project.photos || [];
+  const handlePhotoClick = (photo: Photo) => {
+      if (isSelectionMode) {
+          setSelectedIds(prev => 
+              prev.includes(photo.id) 
+                  ? prev.filter(id => id !== photo.id) 
+                  : [...prev, photo.id]
+          );
+      } else {
+          onEditPhoto(photo);
+      }
+  };
 
+  const handleSelectAll = () => {
+      if (activeTab === 'photo') {
+          if (selectedIds.length === project.photos.length) {
+              setSelectedIds([]);
+          } else {
+              setSelectedIds(project.photos.map(p => p.id));
+          }
+      }
+  };
+
+  const handleBatchDownload = async () => {
+      if (selectedIds.length === 0) return;
+      setIsDownloading(true);
+
+      try {
+          const zip = new JSZip();
+          const folder = zip.folder(project.title) || zip;
+
+          const photosToDownload = project.photos.filter(p => selectedIds.includes(p.id));
+
+          const downloadPromises = photosToDownload.map(async (photo) => {
+              try {
+                  const response = await fetch(photo.url, { mode: 'cors' });
+                  const blob = await response.blob();
+                  const fileName = `${photo.name || 'photo'}.jpg`;
+                  folder.file(fileName, blob);
+              } catch (e) {
+                  console.error(`Failed to download ${photo.id}`, e);
+              }
+          });
+
+          await Promise.all(downloadPromises);
+
+          const content = await zip.generateAsync({ type: "blob" });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(content);
+          link.download = `${project.title}_photos.zip`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          setIsSelectionMode(false);
+          setSelectedIds([]);
+      } catch (error) {
+          console.error("Batch download failed", error);
+          alert("Erro ao criar ficheiro ZIP.");
+      } finally {
+          setIsDownloading(false);
+      }
+  };
+  
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col animate-in fade-in duration-300">
-      {/* --- HEADER SUPERIOR --- */}
-      <header className="bg-white border-b border-gray-200 pt-6 px-6 pb-0 shadow-sm z-10">
-        <button 
-          onClick={onBack}
-          className="flex items-center text-sm text-blue-600 hover:text-blue-800 mb-4 transition-colors font-medium"
-        >
-          <ArrowLeft size={16} className="mr-1" />
-          Voltar a todos os imóveis
-        </button>
-
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-12 bg-gray-200 rounded overflow-hidden border border-gray-100 flex-shrink-0">
-               {project.coverImage ? (
-                   <img 
-                     src={project.coverImage} 
-                     alt="Capa" 
-                     className="w-full h-full object-cover"
-                   />
-               ) : (
-                   <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
-                       <ImageIcon size={20} />
-                   </div>
-               )}
-            </div>
-            
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-gray-900 leading-tight">
-                  {project.title}
-                </h1>
-                <button className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100 transition-colors">
-                  <Pencil size={14} />
-                </button>
+    <div className="min-h-screen bg-[#121212] text-white font-sans flex flex-col">
+      
+      {/* Header */}
+      <div className="sticky top-0 z-20 bg-[#121212] px-4 py-3 border-b border-white/5 flex justify-between items-center transition-all">
+          {isSelectionMode ? (
+              <div className="flex items-center gap-4 w-full justify-between animate-in fade-in">
+                  <div className="flex items-center gap-4">
+                      <button onClick={toggleSelectionMode} className="text-white/70 hover:text-white">
+                          <XIcon className="w-6 h-6" />
+                      </button>
+                      <span className="font-bold text-lg">{selectedIds.length} selecionados</span>
+                  </div>
+                  <div className="flex gap-3">
+                      <button onClick={handleSelectAll} className="p-2 text-white/80 hover:text-white" title="Selecionar Todos">
+                          <CheckSquare className="w-6 h-6" />
+                      </button>
+                      {selectedIds.length > 0 && (
+                          <button 
+                            onClick={handleBatchDownload} 
+                            disabled={isDownloading}
+                            className="text-blue-400 font-bold text-sm flex items-center gap-2 bg-blue-500/10 px-3 py-1.5 rounded-lg hover:bg-blue-500/20"
+                          >
+                              {isDownloading ? 'A Baixar...' : 'Download'}
+                              <Download className="w-4 h-4" />
+                          </button>
+                      )}
+                  </div>
               </div>
-              <p className="text-sm text-gray-500 mt-0.5">{project.address}</p>
-            </div>
-          </div>
-
-          <div className="flex gap-2 w-full md:w-auto">
-             <button 
-                onClick={onViewTour}
-                className="flex-1 md:flex-none justify-center px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 flex items-center gap-2 transition-all shadow-sm hover:shadow-md"
-             >
-                <Play size={16} fill="currentColor" /> Ver Tour Virtual
-             </button>
-             <button className="p-2 hover:bg-gray-100 rounded-full border border-gray-200 transition-colors">
-                <MoreHorizontal size={20} className="text-gray-500" />
-             </button>
-          </div>
-        </div>
-
-        {/* --- ABAS (TABS) --- */}
-        <div className="flex gap-8 overflow-x-auto no-scrollbar">
-          <button 
-            onClick={() => setActiveTab('content')}
-            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'content' 
-                ? 'border-blue-600 text-blue-600' 
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Conteúdo
-          </button>
-          <button 
-            onClick={() => setActiveTab('contacts')}
-            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'contacts' 
-                ? 'border-blue-600 text-blue-600' 
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Contactos
-          </button>
-        </div>
-      </header>
-
-      {/* --- CONTEÚDO PRINCIPAL --- */}
-      <div className="flex flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 gap-6">
-        
-        {/* --- SIDEBAR ESQUERDA (Desktop) --- */}
-        <aside className="w-64 flex-shrink-0 hidden lg:block">
-          <nav className="space-y-1">
-            <button 
-              onClick={() => setMediaType('photos')}
-              className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                mediaType === 'photos' 
-                  ? 'bg-blue-50 text-blue-700' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <div className="flex items-center">
-                <span className="truncate">Fotografias</span>
-              </div>
-              <span className={`ml-3 py-0.5 px-2.5 rounded-full text-xs font-medium ${
-                mediaType === 'photos' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
-              }`}>
-                {displayPhotos.length}
-              </span>
-            </button>
-
-            <button 
-              onClick={() => setMediaType('videos')}
-              className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                mediaType === 'videos' 
-                  ? 'bg-blue-50 text-blue-700' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <div className="flex items-center">
-                <span className="truncate">Videos</span>
-              </div>
-              <span className="ml-3 py-0.5 px-2.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                0
-              </span>
-            </button>
-          </nav>
-        </aside>
-
-        {/* --- GALERIA DIREITA --- */}
-        <main className="flex-1 min-w-0">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-            <h2 className="text-gray-700 font-medium">
-              {displayPhotos.length} fotos
-            </h2>
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-              <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-                <CheckSquare size={16} />
-                <span className="hidden sm:inline">Selecionar todos</span>
-              </button>
-              <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-                <ArrowUpDown size={16} />
-                <span className="hidden sm:inline">Reordenar</span>
-              </button>
-              <button 
-                onClick={onAddPhoto}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-              >
-                <Upload size={16} />
-                <span className="whitespace-nowrap">Importar fotos</span>
-              </button>
-            </div>
-          </div>
-
-          {displayPhotos.length === 0 ? (
-             <div className="text-center py-20 bg-white rounded-xl border-2 border-dashed border-gray-200 hover:border-blue-300 transition-colors">
-                <div className="mx-auto h-16 w-16 text-gray-400 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                   <ImageIcon size={32} strokeWidth={1.5} />
-                </div>
-                <h3 className="text-base font-semibold text-gray-900">Sem fotografias</h3>
-                <p className="mt-1 text-sm text-gray-500 max-w-sm mx-auto">Este projeto ainda não tem imagens. Comece por importar as fotos do imóvel.</p>
-                <div className="mt-6">
-                  <button 
-                    onClick={onAddPhoto}
-                    className="inline-flex items-center px-6 py-3 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all"
-                  >
-                    <Upload className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-                    Carregar Fotografias
-                  </button>
-                </div>
-             </div>
           ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-10">
-                
-                {displayPhotos.map((photo: Photo, index: number) => (
-                  <React.Fragment key={photo.id || index}>
-                    {index === 3 && (
-                      <div className="aspect-[4/3] bg-gradient-to-br from-purple-50 to-white rounded-xl border border-purple-100 flex flex-col items-center justify-center p-6 text-center group hover:shadow-lg hover:border-purple-200 transition-all relative overflow-hidden">
-                        <div className="relative z-10 grid grid-cols-2 gap-2 mb-4 w-24 opacity-80 group-hover:scale-105 transition-transform">
-                           <div className="h-8 bg-purple-200 rounded animate-pulse"></div>
-                           <div className="h-8 bg-purple-300 rounded animate-pulse delay-75"></div>
-                           <div className="h-8 bg-purple-300 rounded animate-pulse delay-100"></div>
-                           <div className="h-8 bg-purple-200 rounded animate-pulse delay-150"></div>
-                        </div>
-                        <h3 className="relative z-10 text-sm font-bold text-gray-900 mb-1">
-                          Vídeo com IA
-                        </h3>
-                        <p className="relative z-10 text-xs text-gray-500 mb-4 px-2 leading-relaxed">Transforme estas fotos num tour virtual profissional em segundos.</p>
-                        <button className="relative z-10 px-5 py-2 bg-purple-600 text-white text-xs font-bold uppercase tracking-wide rounded-lg hover:bg-purple-700 transition-colors shadow-md hover:shadow-lg">
-                          Experimentar
-                        </button>
-                      </div>
-                    )}
-
-                    <div 
-                        onClick={() => onEditPhoto(photo)}
-                        className="group relative aspect-[4/3] bg-gray-100 rounded-xl overflow-hidden border border-gray-200 hover:shadow-lg hover:border-blue-200 transition-all cursor-pointer"
-                    >
-                      <img 
-                        src={photo.url} 
-                        alt={photo.name} 
-                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-
-                      <div className="absolute top-3 left-3 z-10 opacity-0 group-hover:opacity-100 transition-all duration-200" onClick={e => e.stopPropagation()}>
-                        <div className="bg-white rounded-md border border-gray-300 w-6 h-6 flex items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 shadow-sm">
-                        </div>
-                      </div>
-
-                      <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-10" onClick={e => e.stopPropagation()}>
-                        <a 
-                            href={photo.url} 
-                            download 
-                            className="p-1.5 bg-white/90 backdrop-blur-sm text-gray-600 rounded-md border border-gray-200 hover:text-blue-600 hover:bg-white shadow-sm transition-colors"
-                            title="Download"
-                            target="_blank"
-                            rel="noreferrer"
-                        >
-                          <Download size={14} />
-                        </a>
-                        <button className="p-1.5 bg-white/90 backdrop-blur-sm text-gray-600 rounded-md border border-gray-200 hover:text-blue-600 hover:bg-white shadow-sm transition-colors" title="Mais Opções">
-                          <MoreHorizontal size={14} />
-                        </button>
-                      </div>
+              <div className="flex items-center gap-4 w-full justify-between animate-in fade-in">
+                  <div className="flex items-center gap-4">
+                      <button onClick={onBack} className="text-white hover:text-gray-300">
+                          <ArrowLeft className="w-6 h-6" />
+                      </button>
                       
-                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent p-4 pt-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <p className="text-white text-xs truncate font-medium drop-shadow-sm">{photo.name}</p>
+                      <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-[#2a2a2a] flex items-center justify-center text-gray-300 font-bold text-sm border border-white/10 relative">
+                              {project.title.charAt(0).toUpperCase()}
+                              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-[#121212]"></div>
+                          </div>
+                          <div>
+                              <h1 className="font-bold text-base leading-tight text-white truncate max-w-[150px]">{project.title}</h1>
+                              <p className="text-xs text-gray-400">
+                                  {new Date(project.createdAt).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' })}
+                              </p>
+                          </div>
                       </div>
-                    </div>
-                  </React.Fragment>
-                ))}
+                  </div>
+
+                  <button onClick={toggleSelectionMode} className="p-2 text-white hover:bg-white/10 rounded-full transition-colors">
+                      {/* Using CheckSquare as 'Select' icon */}
+                      <CheckSquare className="w-6 h-6" />
+                  </button>
               </div>
           )}
-        </main>
       </div>
+
+      {/* Media Tabs */}
+      <div className="flex items-center justify-around px-2 py-4 border-b border-white/5 bg-[#121212]">
+          <button 
+            onClick={() => setActiveTab('360')}
+            className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${activeTab === '360' ? 'text-blue-500' : 'text-gray-500'}`}
+          >
+              <div className={`p-2 rounded-lg ${activeTab === '360' ? 'bg-blue-500/10' : 'bg-gray-800'}`}>
+                  <Box className="w-5 h-5" />
+              </div>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('photo')}
+            className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all relative ${activeTab === 'photo' ? 'text-blue-500' : 'text-gray-500'}`}
+          >
+              <div className={`p-2 rounded-lg ${activeTab === 'photo' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'bg-gray-800'}`}>
+                  <Image className="w-5 h-5" />
+              </div>
+              <span className="absolute -top-1 -right-1 bg-gray-700 text-white text-[10px] px-1.5 rounded-full border border-[#121212]">
+                  {project.photos.length}
+              </span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('video')}
+            className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${activeTab === 'video' ? 'text-blue-500' : 'text-gray-500'}`}
+          >
+              <div className={`p-2 rounded-lg ${activeTab === 'video' ? 'bg-blue-500/10' : 'bg-gray-800'}`}>
+                  <Video className="w-5 h-5" />
+              </div>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('planta')}
+            className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${activeTab === 'planta' ? 'text-blue-500' : 'text-gray-500'}`}
+          >
+              <div className={`p-2 rounded-lg ${activeTab === 'planta' ? 'bg-blue-500/10' : 'bg-gray-800'}`}>
+                  <LayoutTemplate className="w-5 h-5" />
+              </div>
+          </button>
+      </div>
+
+      {/* Grid Content */}
+      <div className="p-1 pb-32">
+          {activeTab === 'photo' && (
+              <div className="grid grid-cols-3 gap-1">
+                  {project.photos.map((photo) => {
+                      const isSelected = selectedIds.includes(photo.id);
+                      return (
+                          <div 
+                            key={photo.id} 
+                            className={`aspect-square bg-gray-800 overflow-hidden relative cursor-pointer group ${isSelectionMode && isSelected ? 'ring-2 ring-inset ring-blue-500' : ''}`}
+                            onClick={() => handlePhotoClick(photo)}
+                          >
+                              <img 
+                                src={photo.url} 
+                                className={`w-full h-full object-cover transition-transform duration-300 ${isSelectionMode && isSelected ? 'scale-90' : ''}`} 
+                                alt={photo.name} 
+                              />
+                              
+                              {/* Selection Overlay */}
+                              {isSelectionMode && (
+                                  <div className={`absolute top-2 right-2 rounded-full bg-black/20 backdrop-blur-sm p-1 transition-all ${isSelected ? 'text-blue-500 bg-white' : 'text-white/50 border border-white/50'}`}>
+                                      {isSelected ? (
+                                          <CheckCircle className="w-5 h-5 fill-current" />
+                                      ) : (
+                                          <Circle className="w-5 h-5" />
+                                      )}
+                                  </div>
+                              )}
+                          </div>
+                      );
+                  })}
+                  {project.photos.length === 0 && (
+                      <div className="col-span-3 py-20 text-center text-gray-500 text-sm">
+                          Nenhuma foto. Inicie a captura.
+                      </div>
+                  )}
+              </div>
+          )}
+      </div>
+
+      {/* Floating Capture Button (Hidden during selection) */}
+      {!isSelectionMode && (
+          <div className="fixed bottom-8 left-0 right-0 flex justify-center z-30 pointer-events-none">
+              <button 
+                onClick={onAddPhoto}
+                className="pointer-events-auto bg-[#1f1f1f] text-white px-8 py-4 rounded-full flex items-center gap-3 shadow-2xl border border-white/10 hover:bg-[#333] transition-transform active:scale-95"
+              >
+                  <Camera className="w-5 h-5" />
+                  <span className="font-medium text-sm">Iniciar captura</span>
+              </button>
+          </div>
+      )}
     </div>
   );
 };
