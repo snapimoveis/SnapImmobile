@@ -33,6 +33,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   useEffect(() => {
     const checkOrientation = () => {
+      // Usamos a dimensão da janela para determinar a orientação
       setIsLandscape(window.innerWidth > window.innerHeight);
     };
     checkOrientation();
@@ -58,9 +59,11 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   }, []);
 
   const requestSensorAccess = async () => {
-    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+    // @ts-ignore - DeviceOrientationEvent.requestPermission é específico do iOS
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
         try {
-            const permissionState = await (DeviceOrientationEvent as any).requestPermission();
+            // @ts-ignore
+            const permissionState = await DeviceOrientationEvent.requestPermission();
             if (permissionState === 'granted') {
                 setHasSensorPermission(true);
             } else {
@@ -132,7 +135,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
       if (currentRatio > targetRatio) {
           w = videoHeight * targetRatio;
-          sx = (video.videoWidth - w) / 2;
+          sx = (videoWidth - w) / 2;
       } else {
           h = videoWidth / targetRatio;
           sy = (videoHeight - h) / 2;
@@ -151,15 +154,15 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // --- FORÇAR BRILHO DIGITAL (DIGITAL BRACKETING) ---
-    // Ignoramos o hardware EV para garantir que temos imagens REALMENTE brilhantes e escuras
-    // para a IA processar, independentemente da limitação do sensor do telemóvel.
-    
-    // EV Sequence: -4 a +4
+    const track = (video.srcObject as MediaStream).getVideoTracks()[0];
+    const caps: any = track.getCapabilities?.() || {};
+    const supportsEV = !!caps.exposureCompensation;
+
     const evSequence = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
     
-    // Tabela de Brilho CSS (Multiplicador)
-    // 1.0 = Normal. 0.1 = Muito Escuro. 6.0 = Extremamente Brilhante (High Key)
+    // --- LÓGICA DE BRILHO DIGITAL (DIGITAL BRACKETING) ---
+    // Usamos um filtro de brilho CSS para forçar a exposição, garantindo que
+    // temos dados claros e escuros para a IA processar.
     const brightnessValues = [0.1, 0.3, 0.5, 0.8, 1.0, 1.5, 2.5, 4.0, 6.0];
     
     const capturedBlobs: string[] = [];
@@ -182,15 +185,22 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     setProcessingProgress(0);
 
     for (let i = 0; i < 9; i++) {
-        // APLICAÇÃO DO FILTRO DIGITAL (Forçado)
-        ctx.filter = `brightness(${brightnessValues[i]}) saturate(1.1)`; // Ligeiro boost de saturação
+        // Tenta usar EV nativo se disponível, senão usa filtro digital
+        if (supportsEV) {
+            const ev = Math.max(caps.exposureCompensation.min, Math.min(caps.exposureCompensation.max, evSequence[i]));
+            try { await track.applyConstraints({ advanced: [{ exposureCompensation: ev }] } as any); } catch(e){}
+        } 
+        
+        // Aplica o filtro de brilho SEMPRE para garantir o efeito dramático necessário para o HDR
+        // (Mesmo com EV nativo, os telemóveis costumam ser conservadores)
+        ctx.filter = `brightness(${brightnessValues[i]}) saturate(1.1)`; 
 
         playShutterSound();
         setFlashVisual(true);
         setTimeout(() => setFlashVisual(false), 50);
 
         drawCroppedFrame(video, canvas, ctx);
-        ctx.filter = 'none'; // Reset para não afetar outras operações
+        ctx.filter = 'none'; // Limpa filtro
 
         const frameData = canvas.toDataURL('image/jpeg', 0.92);
         capturedBlobs.push(frameData);
@@ -198,11 +208,13 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         if (i % 2 === 0) setCapturedPreviews(prev => [...prev, { url: frameData, ev: `${evSequence[i]}` }]);
         setProcessingProgress(((i + 1) / 9) * 40);
         
-        // Pequena pausa para garantir renderização
+        // Pausa para renderização
         await new Promise(r => setTimeout(r, 80));
     }
 
-    // Indices críticos para a fusão: -4 (Janelas), -2, 0 (Base), +2, +4 (Sombras Profundas)
+    // Reset EV
+    if (supportsEV) try { await track.applyConstraints({ advanced: [{ exposureCompensation: 0 }] } as any); } catch(e){}
+
     const indicesToUse = [0, 2, 4, 6, 8]; 
     const fusionPayload = indicesToUse.map(i => capturedBlobs[i]);
 
@@ -218,7 +230,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         onPhotoCaptured({
             id: crypto.randomUUID(),
             url: finalImage,
-            originalUrl: capturedBlobs[4], // Guarda a EV 0 (Normal) como backup
+            originalUrl: capturedBlobs[4],
             name: `SNAP_FUSION_${Date.now()}`,
             timestamp: Date.now(),
             type: 'hdr'
@@ -349,6 +361,3 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     </div>
   );
 };
-```
-
-Agora, com o **bracketing digital forçado**, a IA receberá uma foto garantidamente muito clara e uma muito escura, o que lhe permitirá, finalmente, montar um HDR "Nodalview" com brilho real.
