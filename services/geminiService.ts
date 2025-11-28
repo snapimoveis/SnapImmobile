@@ -33,7 +33,7 @@ const resizeForAI = async (base64Str: string, maxWidth = 1280): Promise<string> 
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                resolve(canvas.toDataURL('image/jpeg', 0.92)); // Qualidade ligeiramente maior
+                resolve(canvas.toDataURL('image/jpeg', 0.92)); 
             } else {
                 resolve(base64Str);
             }
@@ -51,44 +51,39 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   const processedImages = await Promise.all(rawImages.map(img => resizeForAI(img, 1280)));
 
   const contextMap: any = {
-      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário. OBJETIVO: Look Rico e Acolhedor (Nodalview).",
+      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário.",
       'hp_hdr_exterior': "CONTEXTO: Fachada Exterior.",
       'hp_hdr_window': "CONTEXTO: Interior com janela."
   };
 
   const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
-  // PROMPT CALIBRADO V6 (RICH & COZY - Estilo Nodalview Fiel)
-  // Menos brilho nuclear, mais contraste e cor.
+  // PROMPT CALIBRADO V8 (FINAL CUT - SHARP & CLEAN)
+  // Foco: Menos amarelo, mais nitidez, brilho subtil, zero adições.
   const prompt = `
-    SYSTEM: SNAP FUSION ENGINE (PRO ARCHITECTURAL).
+    SYSTEM: SNAP FUSION ENGINE (CLEAN & SHARP).
     ${contextInstruction}
     
     INPUT: 3 Bracketed Exposures.
-    ESTRITAMENTE PROIBIDO: MUDAR O FORMATO (4:3). NUNCA RECORTAR.
-
-    TAREFA DE PROCESSAMENTO "RICH DEPTH LOOK":
     
-    1. COR E AMBIENTE (WARMTH):
-       - A imagem anterior ficou demasiado fria/pálida. CORRIJA.
-       - Mantenha os tons QUENTES e DOURADOS da madeira e da luz ambiente.
-       - A sala deve parecer "aconchegante" (Cozy), não clínica.
-       - Saturação vibrante mas natural.
+    REGRA CRÍTICA: NÃO ADICIONE NENHUM OBJETO, MÓVEL OU DECORAÇÃO À CENA. Mantenha tudo exatamente como está.
 
-    2. CONTRASTE E PROFUNDIDADE (CRUCIAL):
-       - NÃO levante demasiado as sombras. Mantenha os pretos ricos e profundos.
-       - O contraste deve ser forte (S-Curve) para dar volume aos móveis.
-       - A imagem não deve parecer "lavada" (flat).
+    TAREFA DE PROCESSAMENTO FINAL:
+    
+    1. COR (NEUTRALIZAÇÃO DE AMARELO):
+       - A imagem está demasiado amarela/quente. REDUZA DRASTICAMENTE este tom.
+       - As paredes e teto devem ser BRANCO PURO/NEUTRO.
+       - A madeira do chão deve manter a sua cor natural, mas sem o banho de luz amarela.
 
-    3. TEXTURA (MICRO-CONTRASTE):
-       - Aplique "Structure" agressivo no chão de madeira. Quero ver os veios.
-       - Nitidez cristalina em toda a imagem.
+    2. NITIDEZ (CORREÇÃO DE DESFOQUE):
+       - A imagem parece desfocada. APLIQUE NITIDEZ (Sharpening/Clarity) agressiva em toda a cena.
+       - Quero ver detalhes nítidos nas arestas dos móveis, nos veios da madeira e nas texturas dos tecidos.
 
-    4. ILUMINAÇÃO:
-       - Controle os "Highlights" das luzes do teto (recupere o detalhe), mas deixe-as brilhar.
-       - Exposição equilibrada (+0.3 EV apenas), não exagerada.
+    3. ILUMINAÇÃO (BRILHO SUBTIL):
+       - Aumente o brilho geral de forma SUBTIL (+0.5 EV). A imagem deve ficar mais viva, mas sem perder contraste ou parecer lavada.
+       - Mantenha sombras suaves para volume.
 
-    RESULTADO: Uma imagem rica, com contraste, cores quentes e textura tátil.
+    RESULTADO: Uma imagem imobiliária nítida, com cores neutras e limpas, e um brilho natural.
     RETORNA APENAS A IMAGEM FINAL EM 4:3.
   `;
 
@@ -97,7 +92,7 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
         inlineData: { data: cleanBase64(img), mimeType: getMimeType(img) }
     }));
 
-    console.log(`[Snap AI] A enviar ${imageParts.length} imagens para fusão V6 (Rich)...`);
+    console.log(`[Snap AI] A enviar ${imageParts.length} imagens para fusão V8 (Final Cut)...`);
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
@@ -124,6 +119,7 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   }
 };
 
+// ... (Resto do ficheiro mantém-se igual) ...
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
     if (!apiKey) throw new Error("Chave de API não configurada.");
     const sys = mode === 'ERASE' 
