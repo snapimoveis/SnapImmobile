@@ -1,12 +1,13 @@
 import React from 'react';
 
 interface LogoProps {
-  variant?: 'default' | 'white';
+  variant?: 'default' | 'white'; // 'default' usa o colorido, 'white' usa o branco
   className?: string;
 }
 
 export const Logo: React.FC<LogoProps> = ({ variant = 'default', className = '' }) => {
-  // Caminhos fixos - NÃO ALTERAR A ESTRUTURA DE FICHEIROS
+  // Mapeamento estrito dos arquivos na pasta public
+  // Nota: Em Vite/Next/React, arquivos em /public/static são acessados via /static
   const logoSrc = variant === 'white' 
     ? '/static/brand/logo_branco.png' 
     : '/static/brand/logo_color.png';
@@ -16,10 +17,10 @@ export const Logo: React.FC<LogoProps> = ({ variant = 'default', className = '' 
       src={logoSrc} 
       alt="Snap Immobile" 
       className={`object-contain ${className}`}
+      // Adiciona prevenção de erro para debug visual
       onError={(e) => {
-        // Fallback silencioso para evitar quebra de layout
-        console.warn(`Asset missing: ${logoSrc}`);
-        e.currentTarget.style.display = 'none'; 
+        console.error(`ERRO: A imagem não foi encontrada em: ${logoSrc}`);
+        e.currentTarget.style.display = 'none'; // Esconde se falhar
       }}
     />
   );

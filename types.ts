@@ -1,3 +1,4 @@
+
 export enum AppRoute {
   LANDING = 'LANDING',
   LOGIN = 'LOGIN',
@@ -45,11 +46,10 @@ export interface Project {
 }
 
 export interface UserPreferences {
-  // Tornamos os campos opcionais (?) para permitir atualizações parciais sem erros
   language: 'pt-PT' | 'pt-BR' | 'en-US';
-  notifications?: boolean;
-  marketing?: boolean;
-  theme?: 'light' | 'dark';
+  notifications: boolean;
+  marketing: boolean;
+  theme: 'light' | 'dark';
 }
 
 export interface UserProfile {
@@ -61,34 +61,24 @@ export interface UserProfile {
   password?: string;
   phone: string;
   cpf: string;
-  
-  // Campos da Empresa / Cartão de Visita
-  company?: string; 
-  companyId?: string; 
-  
-  // Adicionados para compatibilidade com ProfileTab
-  businessName?: string;  // Nome exibido no cartão
-  businessEmail?: string; // Email profissional
-  website?: string;       // Site profissional
-  businessLogo?: string;  // Logo específico do cartão (pode ser diferente do businessImage)
-  
+  company?: string; // Name of company
+  companyId?: string; // ID linking to CompanySettings
   avatar?: string; // Base64 avatar image
-  businessImage?: string; // Imagem do negócio (Legacy ou uso geral)
-  watermarkUrl?: string; 
-  
+  businessImage?: string; // Imagem do negócio
+  watermarkUrl?: string; // URL for the user's watermark PNG
   preferences?: UserPreferences;
   createdAt: number;
   deviceId?: string;
   status?: 'Active' | 'Blocked' | 'Pending';
   lastActive?: number;
-  deviceModel?: string; 
+  deviceModel?: string; // e.g. "iPhone 14"
 }
 
 export interface Device {
   id: string;
   userId: string;
   userName: string;
-  name: string; 
+  name: string; // e.g., "iPhone 14 Pro"
   type: 'Mobile' | 'Desktop' | 'Tablet';
   lastAccess: number;
   status: 'Active' | 'Blocked';
@@ -114,7 +104,7 @@ export interface CompanySettings {
   backgroundColor: string;
   allowUserWatermark: boolean;
   watermarkUrl?: string;
-  virtualTourDays?: string[]; 
+  virtualTourDays?: string[]; // ['SEG', 'TER', 'QUA'...]
   ownerId: string;
 }
 
