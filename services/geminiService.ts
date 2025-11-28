@@ -18,61 +18,81 @@ const getApiKey = () => {
 const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
 
+// --- FUNÇÃO AUXILIAR DE REDIMENSIONAMENTO ---
+// Mantemos o resize para garantir velocidade e evitar erros de memória
+const resizeForAI = async (base64Str: string, maxWidth = 1280): Promise<string> => {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.src = base64Str;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const scale = maxWidth / img.width;
+            if (scale >= 1) { resolve(base64Str); return; }
+            
+            canvas.width = maxWidth;
+            canvas.height = img.height * scale;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.90)); 
+            } else {
+                resolve(base64Str);
+            }
+        };
+        img.onerror = () => resolve(base64Str);
+    });
+};
+
 export const enhanceImage = async (base64Images: string | string[], profile: string = 'hp_hdr_interior'): Promise<string> => {
   if (!apiKey) throw new Error("Chave de API não configurada.");
 
-  // Usa as imagens originais sem redimensionar
-  const images = Array.isArray(base64Images) ? base64Images : [base64Images];
+  const rawImages = Array.isArray(base64Images) ? base64Images : [base64Images];
+
+  // Otimização de tamanho
+  const processedImages = await Promise.all(rawImages.map(img => resizeForAI(img, 1280)));
 
   const contextMap: any = {
-      'hp_hdr_interior': "CONTEXTO: Interior muito escuro com luz artificial quente.",
+      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário com iluminação mista.",
       'hp_hdr_exterior': "CONTEXTO: Fachada Exterior.",
-      'hp_hdr_window': "CONTEXTO: Interior com contra-luz."
+      'hp_hdr_window': "CONTEXTO: Interior com janela."
   };
 
   const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
-  // PROMPT CALIBRADO V3 (RELIGHTING TOTAL / DAYLIGHT SIMULATION)
-  // Focado em simular luz do dia e eliminar a escuridão/amarelo.
+  // PROMPT CALIBRADO V4 (BALANCED PRO LOOK)
+  // Menos agressivo que a V3, focado em naturalidade e textura.
   const prompt = `
-    SYSTEM: SNAP FUSION ENGINE (DAYLIGHT SIMULATION MODE).
+    SYSTEM: EXPERT REAL ESTATE RETOUCHER.
     ${contextInstruction}
     
-    INPUT: Bracketed exposures (Dark to Bright).
-    ESTRITAMENTE PROIBIDO: MUDAR O FORMATO DA IMAGEM (4:3). NUNCA RECORTAR.
-
-    TAREFA DE PROCESSAMENTO "SNAP FUSION DAYLIGHT LOOK" (V3 - NUCLEAR):
+    INPUT: 3 Bracketed Exposures (Dark, Normal, Bright).
     
-    ATENÇÃO: A cena está inaceitavelmente escura e amarela.
-    A sua tarefa é RE-ILUMINAR a cena completamente usando a informação de todas as exposições.
+    TAREFA: CRIAR UMA FUSÃO HDR NATURAL E ELEGANTE (Estilo Editorial).
+    
+    1. ILUMINAÇÃO (EQUILÍBRIO):
+       - Aumente a exposição em +1.0 EV (Brilhante, mas não exagerado).
+       - Levante as sombras suavemente para revelar detalhes, mas mantenha os pretos ricos (não lavados).
+       - A imagem deve ter contraste local vibrante.
 
-    1. ILUMINAÇÃO (SIMULAÇÃO DE DIA):
-       - IGNORE a iluminação atual. Simule um ambiente de DIA CLARO com muita luz natural.
-       - Aumente a exposição dramaticamente (+2.0 EV). A imagem final deve ser MUITO BRILHANTE, quase "high-key".
-       - Use as exposições mais claras para iluminar tudo. Não quero ver sombras escuras no chão.
+    2. COR (NEUTRALIDADE QUENTE):
+       - Corrija o excesso de amarelo das luzes artificiais, mas NÃO deixe a imagem fria/azul.
+       - Mantenha uma temperatura acolhedora e neutra. Paredes brancas devem parecer brancas naturais.
 
-    2. COR E TEMPERATURA (ELIMINAR O AMARELO):
-       - Elimine TOTALMENTE a tonalidade amarela/quente das luzes artificiais.
-       - A luz deve ser BRANCA PURA e NEUTRA (5500K). Paredes brancas devem ser brancas, não cremes.
+    3. TEXTURA (DEFINIÇÃO):
+       - Aplique "Structure" no piso e tecidos para realçar a qualidade dos materiais.
+       - A imagem deve ser nítida e cristalina.
 
-    3. TEXTURA E CLARIDADE:
-       - Com tanta luz, a textura deve ser super nítida (High Structure) no chão e móveis.
-       - A imagem deve parecer limpa, cristalina e arejada.
+    4. GEOMETRIA:
+       - Mantenha o formato 4:3. Não corte nem distorça.
 
-    4. JANELAS:
-       - Use as exposições escuras para garantir que as janelas não estão "estouradas" e que se vê o exterior.
-
-    RESULTADO: Uma transformação total para uma imagem de dia, brilhante e branca.
-    RETORNA APENAS A IMAGEM FINAL EM 4:3.
+    RESULTADO: Uma imagem imobiliária profissional, equilibrada e realista.
+    RETORNA APENAS A IMAGEM FINAL.
   `;
 
   try {
-    // Mapeia diretamente as imagens originais
-    const imageParts = images.map(img => ({
+    const imageParts = processedImages.map(img => ({
         inlineData: { data: cleanBase64(img), mimeType: getMimeType(img) }
     }));
-
-    console.log(`[Snap AI] A enviar ${imageParts.length} imagens em FULL RESOLUTION para fusão...`);
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
@@ -88,20 +108,19 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
       const parts = response.candidates?.[0]?.content?.parts || [];
       for (const part of parts) {
           if (part.inlineData && part.inlineData.data) {
-              console.log("[Snap AI] Sucesso! Imagem gerada.");
               return `data:image/png;base64,${part.inlineData.data}`;
           }
       }
       
-      console.warn("[Snap AI] IA não retornou imagem. Usando fallback.");
-      return images[Math.floor(images.length / 2)];
+      // Fallback
+      return rawImages[Math.floor(rawImages.length / 2)]; 
   } catch (error) {
-    console.error("[Snap AI] Falha Crítica (Possível Timeout/Payload Size):", error);
-    // Fallback para a imagem do meio em caso de erro da API
-    return images[Math.floor(images.length / 2)];
+    console.error("[Snap AI] Erro:", error);
+    return rawImages[Math.floor(rawImages.length / 2)];
   }
 };
 
+// ... (Resto das funções editImageWithPrompt e generateDescription mantêm-se iguais) ...
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
     if (!apiKey) throw new Error("Chave de API não configurada.");
     const sys = mode === 'ERASE' 
