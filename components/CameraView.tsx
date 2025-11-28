@@ -33,7 +33,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   useEffect(() => {
     const checkOrientation = () => {
-      // Usamos a dimensão da janela para determinar a orientação
       setIsLandscape(window.innerWidth > window.innerHeight);
     };
     checkOrientation();
@@ -59,7 +58,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   }, []);
 
   const requestSensorAccess = async () => {
-    // @ts-ignore - DeviceOrientationEvent.requestPermission é específico do iOS
+    // @ts-ignore
     if (typeof DeviceOrientationEvent.requestPermission === 'function') {
         try {
             // @ts-ignore
@@ -158,16 +157,16 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const caps: any = track.getCapabilities?.() || {};
     const supportsEV = !!caps.exposureCompensation;
 
+    // EV Sequence: -4 to +4
     const evSequence = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
     
-    // --- LÓGICA DE BRILHO DIGITAL (DIGITAL BRACKETING) ---
-    // Usamos um filtro de brilho CSS para forçar a exposição, garantindo que
-    // temos dados claros e escuros para a IA processar.
+    // Tabela de Brilho Digital (Extreme Range)
+    // 0.1 = Muito Escuro (Janelas) | 6.0 = Muito Claro (Sombras)
     const brightnessValues = [0.1, 0.3, 0.5, 0.8, 1.0, 1.5, 2.5, 4.0, 6.0];
     
     const capturedBlobs: string[] = [];
 
-    // Detetar perfil para a IA
+    // Detetar perfil
     let effectiveProfile = hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
     if (hdrProfile === 'interior') {
       try {
@@ -185,14 +184,12 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     setProcessingProgress(0);
 
     for (let i = 0; i < 9; i++) {
-        // Tenta usar EV nativo se disponível, senão usa filtro digital
         if (supportsEV) {
             const ev = Math.max(caps.exposureCompensation.min, Math.min(caps.exposureCompensation.max, evSequence[i]));
             try { await track.applyConstraints({ advanced: [{ exposureCompensation: ev }] } as any); } catch(e){}
         } 
         
-        // Aplica o filtro de brilho SEMPRE para garantir o efeito dramático necessário para o HDR
-        // (Mesmo com EV nativo, os telemóveis costumam ser conservadores)
+        // Aplica sempre o brilho digital para garantir contraste
         ctx.filter = `brightness(${brightnessValues[i]}) saturate(1.1)`; 
 
         playShutterSound();
@@ -200,25 +197,26 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         setTimeout(() => setFlashVisual(false), 50);
 
         drawCroppedFrame(video, canvas, ctx);
-        ctx.filter = 'none'; // Limpa filtro
+        ctx.filter = 'none';
 
-        const frameData = canvas.toDataURL('image/jpeg', 0.92);
+        const frameData = canvas.toDataURL('image/jpeg', 0.90);
         capturedBlobs.push(frameData);
         
         if (i % 2 === 0) setCapturedPreviews(prev => [...prev, { url: frameData, ev: `${evSequence[i]}` }]);
         setProcessingProgress(((i + 1) / 9) * 40);
         
-        // Pausa para renderização
         await new Promise(r => setTimeout(r, 80));
     }
 
-    // Reset EV
     if (supportsEV) try { await track.applyConstraints({ advanced: [{ exposureCompensation: 0 }] } as any); } catch(e){}
 
-    const indicesToUse = [0, 2, 4, 6, 8]; 
+    // --- CORREÇÃO: ENVIAR APENAS 3 FOTOS ---
+    // Envia apenas as essenciais para garantir sucesso e rapidez
+    // Index 1 (Escura/Janelas), Index 4 (Normal), Index 7 (Clara/Sombras)
+    const indicesToUse = [1, 4, 7]; 
     const fusionPayload = indicesToUse.map(i => capturedBlobs[i]);
 
-    setProcessingStep('A Fundir Exposições...');
+    setProcessingStep('A Fundir HDR (IA)...');
     setProcessingProgress(50);
 
     try {
@@ -248,7 +246,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   return (
     <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-col md:flex-row text-white touch-none">
       
-      {/* --- VISOR 4:3 (Centralizado) --- */}
+      {/* --- VISOR 4:3 --- */}
       <div className="flex-1 relative bg-[#000] overflow-hidden flex items-center justify-center">
         <div className="relative w-full max-w-full aspect-[3/4] md:aspect-[4/3] overflow-hidden bg-black shadow-2xl">
             <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
