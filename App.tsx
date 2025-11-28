@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { HashRouter, useNavigate, useLocation } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import { Header } from './components/Header';
 import { ProjectList } from './components/ProjectList';
 import { CameraView } from './components/CameraView';
 import { Editor } from './components/Editor';
-// Ajuste do import para o ficheiro correto que criámos
-import { ProjectDetails } from './pages/ProjectDetails'; 
+
+// --- CORREÇÃO AQUI ---
+// Mudámos de './pages/ProjectDetails' para './components/ProjectDetails'
+// Certifique-se de salvar o código do ProjectDetails que lhe dei antes 
+// dentro da pasta 'components' com o nome 'ProjectDetails.tsx'.
+import { ProjectDetails } from './components/ProjectDetails'; 
+
 import { TourViewer } from './components/TourViewer';
 import { NewProjectModal } from './components/NewProjectModal';
 import { LandingScreen } from './components/LandingScreen';
@@ -67,7 +72,7 @@ function App() {
             cpf: data.cpf,
             company: data.company,
             createdAt: Date.now(),
-            password: data.password, // Nota: Em produção, nunca salve senhas em texto plano
+            password: data.password,
             preferences: {
                 language: 'pt-PT',
                 notifications: true,
@@ -88,7 +93,6 @@ function App() {
             setCurrentRoute(AppRoute.LOGIN);
             return;
         } 
-        
         console.error("Erro no registo:", e);
         alert("Erro ao criar conta: " + (e.message || "Tente novamente."));
     }
@@ -203,7 +207,6 @@ function App() {
 
   const navigateToProject = (project: Project) => {
       setActiveProject(project);
-      // Aqui poderíamos usar navigate(`/project/${project.id}`) se usássemos rotas reais
       setCurrentRoute(AppRoute.PROJECT_DETAILS);
   };
 
@@ -290,15 +293,9 @@ function App() {
         return activePhoto ? <Editor photo={activePhoto} onSave={handleSaveEditedPhoto} onCancel={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : <div>Erro: Nenhuma foto</div>;
       case AppRoute.PROJECT_DETAILS:
         if (!activeProject) return <div>Erro: Nenhum projeto selecionado</div>;
-        
-        // NOTA IMPORTANTE: Se o ProjectDetails espera ler o ID do URL (useParams),
-        // ele vai falhar aqui porque não estamos mudando o URL real.
-        // O ideal é passar o projeto como prop, ou garantir que ProjectDetails sabe lidar com isso.
-        // Abaixo, assumo que você adaptou o ProjectDetails para aceitar a prop 'project' OU 'initialProject'.
         return (
-            // @ts-ignore - Ignore se o ProjectDetails ainda não aceita props, mas deveria.
+            // @ts-ignore
             <ProjectDetails 
-                // Passamos o objeto inteiro para evitar novo fetch
                 initialProject={activeProject} 
                 onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} 
                 onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} 
