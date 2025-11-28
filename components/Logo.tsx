@@ -12,8 +12,8 @@ export const Logo: React.FC<LogoProps> = ({
 
   const src =
     variant === 'white'
-      ? '/static/brand/logo_branco.svg'
-      : '/static/brand/logo_color.svg';
+      ? '/static/brand/logo_branco.png'
+      : '/static/brand/logo_color.png';
 
   return (
     <img 
