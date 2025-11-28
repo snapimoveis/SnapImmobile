@@ -24,41 +24,40 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   const images = Array.isArray(base64Images) ? base64Images : [base64Images];
 
   const contextMap: any = {
-      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário. PROBLEMA: A imagem está muito escura/pesada.",
-      'hp_hdr_exterior': "CONTEXTO: Fachada Exterior. Foco: Céu azul vibrante e sombras recuperadas.",
-      'hp_hdr_window': "CONTEXTO: Contra-luz Intenso. Foco: Igualar a luz interior com a exterior."
+      'hp_hdr_interior': "CONTEXTO: Interior muito escuro com luz artificial quente.",
+      'hp_hdr_exterior': "CONTEXTO: Fachada Exterior.",
+      'hp_hdr_window': "CONTEXTO: Interior com contra-luz."
   };
 
   const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
-  // PROMPT CALIBRADO V3 (Brilho + Midtones + Marca Própria)
+  // PROMPT CALIBRADO V3 (RELIGHTING TOTAL / DAYLIGHT SIMULATION)
+  // Este prompt é muito mais agressivo para forçar a saída da "escuridão".
   const prompt = `
-    SYSTEM: SNAP FUSION ENGINE (HIGH KEY & TEXTURE).
+    SYSTEM: SNAP FUSION ENGINE (DAYLIGHT SIMULATION MODE).
     ${contextInstruction}
     
-    ESTRITAMENTE PROIBIDO: MUDAR O FORMATO DA IMAGEM.
-    A SAÍDA DEVE SER EXATAMENTE 4:3.
-    NUNCA CONVERTER PARA 16:9. NUNCA RECORTAR.
+    ESTRITAMENTE PROIBIDO: MUDAR O FORMATO DA IMAGEM (4:3). NUNCA RECORTAR.
 
-    TAREFA DE PROCESSAMENTO "SNAP FUSION BRIGHT LOOK" (V2 - MAIS BRILHO):
+    TAREFA DE PROCESSAMENTO "SNAP FUSION DAYLIGHT LOOK" (V3 - NUCLEAR):
     
-    1. ILUMINAÇÃO (PRIORIDADE ABSOLUTA):
-       - AUMENTE A EXPOSIÇÃO GLOBAL PARA +1.0 EV. A imagem tem de ser MUITO CLARA e LUMINOSA, quase "high-key".
-       - LEVANTE OS TONS MÉDIOS (MIDTONE LIFT) EXTREMAMENTE. Paredes, sofás e móveis devem parecer vibrantes e cheios de luz.
-       - ABRA AS SOMBRAS PROFUNDAMENTE, mas mantenha o contraste local para evitar um aspecto "lavado".
+    ATENÇÃO: A imagem de entrada está inaceitavelmente escura e amarela.
+    A sua tarefa é RE-ILUMINAR a cena completamente.
 
-    2. TEXTURA E NITIDEZ:
-       - Mantenha a textura do piso "crocante" (High Clarity/Structure).
-       - Aplique nitidez inteligente (Smart Sharpening) para definir arestas.
+    1. ILUMINAÇÃO (SIMULAÇÃO DE DIA):
+       - IGNORE a iluminação atual. Simule um ambiente de DIA CLARO com muita luz natural.
+       - Aumente a exposição dramaticamente (+2.0 EV). A imagem final deve ser MUITO BRILHANTE, quase "high-key".
+       - Não quero ver sombras escuras no primeiro plano (chão). Ilumine tudo.
 
-    3. CONTROLO DE LUZES:
-       - Recupere o detalhe DENTRO das luzes do teto (não deixe ser apenas uma mancha branca).
-       - Elimine o "nevoeiro" (Dehaze) para que a imagem fique cristalina.
+    2. COR E TEMPERATURA (ELIMINAR O AMARELO):
+       - Elimine TOTALMENTE a tonalidade amarela/quente das luzes artificiais.
+       - A luz deve ser BRANCA PURA e NEUTRA (5500K). Paredes brancas devem ser brancas, não cremes.
 
-    4. COR:
-       - Remova qualquer tonalidade amarelada/esverdeada. Procure um branco puro e neutro.
+    3. TEXTURA E CLARIDADE:
+       - Com tanta luz, a textura deve ser super nítida (High Structure).
+       - A imagem deve parecer limpa, cristalina e arejada.
 
-    RESULTADO: Uma imagem HDR brilhante, aberta, nítida e convidativa.
+    RESULTADO: Uma transformação total para uma imagem de dia, brilhante e branca.
     RETORNA APENAS A IMAGEM FINAL.
   `;
 
