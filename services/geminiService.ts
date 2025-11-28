@@ -19,7 +19,6 @@ const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
 
 // --- FUNÇÃO AUXILIAR DE REDIMENSIONAMENTO ---
-// Mantemos o resize para garantir velocidade e evitar erros de memória
 const resizeForAI = async (base64Str: string, maxWidth = 1280): Promise<string> => {
     return new Promise((resolve) => {
         const img = new Image();
@@ -52,47 +51,51 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   const processedImages = await Promise.all(rawImages.map(img => resizeForAI(img, 1280)));
 
   const contextMap: any = {
-      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário com iluminação mista.",
+      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário. Foco: Equilíbrio e Naturalidade.",
       'hp_hdr_exterior': "CONTEXTO: Fachada Exterior.",
       'hp_hdr_window': "CONTEXTO: Interior com janela."
   };
 
   const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
-  // PROMPT CALIBRADO V4 (BALANCED PRO LOOK)
-  // Menos agressivo que a V3, focado em naturalidade e textura.
+  // PROMPT CALIBRADO V4 (NATURAL PRO BALANCE)
+  // Menos agressivo que o V3, mais luminoso que o V2. O ponto ideal.
   const prompt = `
-    SYSTEM: EXPERT REAL ESTATE RETOUCHER.
+    SYSTEM: SNAP FUSION ENGINE (BALANCED PRO).
     ${contextInstruction}
     
-    INPUT: 3 Bracketed Exposures (Dark, Normal, Bright).
+    INPUT: 3 Bracketed Exposures.
+    ESTRITAMENTE PROIBIDO: MUDAR O FORMATO (4:3). NUNCA RECORTAR.
+
+    TAREFA DE PROCESSAMENTO "NATURAL BRIGHT LOOK":
     
-    TAREFA: CRIAR UMA FUSÃO HDR NATURAL E ELEGANTE (Estilo Editorial).
-    
-    1. ILUMINAÇÃO (EQUILÍBRIO):
-       - Aumente a exposição em +1.0 EV (Brilhante, mas não exagerado).
-       - Levante as sombras suavemente para revelar detalhes, mas mantenha os pretos ricos (não lavados).
-       - A imagem deve ter contraste local vibrante.
+    1. ILUMINAÇÃO (EQUILIBRADA):
+       - Aumente a exposição em +1.3 EV. A imagem deve ser clara, mas NÃO "queimada".
+       - Levante os tons médios para ver detalhes, mas MANTENHA SOMBRAS SUAVES debaixo dos móveis para dar volume 3D.
+       - A sala deve parecer iluminada por luz natural suave, não por um flash nuclear.
 
-    2. COR (NEUTRALIDADE QUENTE):
-       - Corrija o excesso de amarelo das luzes artificiais, mas NÃO deixe a imagem fria/azul.
-       - Mantenha uma temperatura acolhedora e neutra. Paredes brancas devem parecer brancas naturais.
+    2. COR (BRANCOS LIMPOS, MADEIRA QUENTE):
+       - As paredes e teto devem ser NEUTROS (Branco/Cinzento Claro). Remova o amarelo APENAS das paredes.
+       - MANTENHA o tom quente e rico da madeira no chão. Não deixe o chão cinzento.
+       - O resultado deve ser acolhedor ("Cozy") mas limpo.
 
-    3. TEXTURA (DEFINIÇÃO):
-       - Aplique "Structure" no piso e tecidos para realçar a qualidade dos materiais.
-       - A imagem deve ser nítida e cristalina.
+    3. TEXTURA:
+       - Aplique nitidez ("Structure") no chão e nos tecidos do sofá/cadeira.
+       - A imagem deve ter definição, sem parecer artificial.
 
-    4. GEOMETRIA:
-       - Mantenha o formato 4:3. Não corte nem distorça.
+    4. JANELAS:
+       - Recupere a vista da janela usando a exposição escura.
 
-    RESULTADO: Uma imagem imobiliária profissional, equilibrada e realista.
-    RETORNA APENAS A IMAGEM FINAL.
+    RESULTADO: Uma imagem imobiliária profissional, luminosa e realista.
+    RETORNA APENAS A IMAGEM FINAL EM 4:3.
   `;
 
   try {
     const imageParts = processedImages.map(img => ({
         inlineData: { data: cleanBase64(img), mimeType: getMimeType(img) }
     }));
+
+    console.log(`[Snap AI] A enviar ${imageParts.length} imagens para fusão equilibrada...`);
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
@@ -112,7 +115,6 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
           }
       }
       
-      // Fallback
       return rawImages[Math.floor(rawImages.length / 2)]; 
   } catch (error) {
     console.error("[Snap AI] Erro:", error);
@@ -120,7 +122,6 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   }
 };
 
-// ... (Resto das funções editImageWithPrompt e generateDescription mantêm-se iguais) ...
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
     if (!apiKey) throw new Error("Chave de API não configurada.");
     const sys = mode === 'ERASE' 
