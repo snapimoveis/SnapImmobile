@@ -42,7 +42,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   useEffect(() => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
       if (event.beta !== null && event.gamma !== null) {
-        // Suavização simples para evitar tremores excessivos na UI
         setTilt(prev => ({
             beta: prev.beta * 0.8 + event.beta! * 0.2,
             gamma: prev.gamma * 0.8 + event.gamma! * 0.2
@@ -53,14 +52,10 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     return () => window.removeEventListener('deviceorientation', handleOrientation);
   }, []);
 
-  // Lógica de Nivelamento (Crosshair)
-  // Beta: Inclinação frente/trás (-180 a 180). Gamma: Esquerda/Direita (-90 a 90).
-  // Ajuste para landscape/portrait
   const horizontalTilt = isLandscape ? tilt.beta : tilt.gamma;
-  const verticalTilt = isLandscape ? tilt.gamma : tilt.beta; // Aproximação simplificada
+  const verticalTilt = isLandscape ? tilt.gamma : tilt.beta;
   
   const isLevelH = Math.abs(horizontalTilt) < 2;
-  const isLevelV = Math.abs(verticalTilt - (isLandscape ? 0 : 90)) < 5; // Ajuste conforme a posição de segurar
 
   const startCamera = async () => {
     try {
@@ -137,10 +132,26 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const caps: any = track.getCapabilities?.() || {};
     const supportsEV = !!caps.exposureCompensation;
 
-    // Sequência HDR
     const evSequence = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
     const brightnessFallback = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.2];
     const capturedBlobs: string[] = [];
+
+    // Determina o perfil efetivo (incluindo deteção de janela)
+    let effectiveProfile = hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
+    
+    if (hdrProfile === 'interior') {
+      try {
+        drawCroppedFrame(video, canvas, ctx);
+        const topHeight = Math.floor(canvas.height * 0.35);
+        const topData = ctx.getImageData(0, 0, canvas.width, topHeight);
+        let whites = 0;
+        let total = topData.data.length / 4;
+        for (let i = 0; i < topData.data.length; i += 16) {
+            if (topData.data[i] > 240) whites++;
+        }
+        if (whites / (total/4) > 0.15) effectiveProfile = 'hp_hdr_window';
+      } catch (e) {}
+    }
 
     setProcessingStep('Snap Fusion (9)...');
     setProcessingProgress(0);
@@ -153,7 +164,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             ctx.filter = `brightness(${brightnessFallback[i]})`;
         }
 
-        await new Promise(r => setTimeout(r, 100)); // Rápido para UX fluida
+        await new Promise(r => setTimeout(r, 100));
         playShutterSound();
         setFlashVisual(true);
         setTimeout(() => setFlashVisual(false), 50);
@@ -164,14 +175,12 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         const frameData = canvas.toDataURL('image/jpeg', 0.85);
         capturedBlobs.push(frameData);
         
-        // Apenas mostra algumas previews para não poluir
         if (i % 2 === 0) setCapturedPreviews(prev => [...prev, { url: frameData, ev: `${evSequence[i]}` }]);
         setProcessingProgress(((i + 1) / 9) * 40);
     }
 
     if (supportsEV) try { await track.applyConstraints({ advanced: [{ exposureCompensation: 0 }] } as any); } catch(e){}
 
-    // Fusão IA
     const indicesToUse = [0, 2, 4, 6, 8]; 
     const fusionPayload = indicesToUse.map(i => capturedBlobs[i]);
 
@@ -179,7 +188,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     setProcessingProgress(50);
 
     try {
-        const finalImage = await enhanceImage(fusionPayload, hdrProfile);
+        // CORREÇÃO: Usamos effectiveProfile aqui, que foi calculado acima
+        const finalImage = await enhanceImage(fusionPayload, effectiveProfile);
         setProcessingStep('Concluído');
         setProcessingProgress(100);
         setLastSavedPhoto(finalImage);
@@ -207,17 +217,13 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       
       {/* --- VISOR (ESQUERDA/TOPO) --- */}
       <div className="flex-1 relative bg-[#121212] overflow-hidden flex items-center justify-center">
-        {/* Vídeo com Aspect Ratio forçado 4:3 */}
         <div className="relative w-full max-w-[100%] aspect-[3/4] md:aspect-[4/3] overflow-hidden bg-black shadow-2xl">
             <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
             <canvas ref={canvasRef} className="hidden" />
             
-            {/* Flash Effect */}
             <div className={`absolute inset-0 bg-white transition-opacity duration-75 pointer-events-none ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
 
-            {/* GUIDES OVERLAY (Grid + Level) */}
             <div className="absolute inset-0 pointer-events-none">
-                {/* Rule of Thirds Grid */}
                 {showGrid && (
                     <div className="w-full h-full grid grid-cols-3 grid-rows-3 opacity-30">
                         <div className="border-r border-b border-white"></div>
@@ -232,24 +238,18 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                     </div>
                 )}
 
-                {/* Level Crosshair (Igual ao Anexo) */}
-                {/* Linha Horizontal (Verde quando nivelada) */}
                 <div className={`absolute top-1/2 left-1/4 right-1/4 h-[1px] transition-colors duration-300 ${isLevelH ? 'bg-green-500 shadow-[0_0_4px_#22c55e]' : 'bg-white/50'}`} 
                      style={{ transform: `rotate(${horizontalTilt}deg)` }} />
                 
-                {/* Linha Vertical (Vermelha/Verde quando nivelada) */}
-                {/* Nota: No anexo a vertical é vermelha se desalinhada. Vamos simular isso. */}
                 <div className={`absolute left-1/2 top-1/4 bottom-1/4 w-[1px] transition-colors duration-300 ${isLevelH ? 'bg-green-500 shadow-[0_0_4px_#22c55e]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} 
                      style={{ transform: `rotate(${horizontalTilt * -1}deg)` }} />
                 
-                {/* Centro Cruz */}
                 <div className="absolute top-1/2 left-1/2 w-4 h-4 -mt-2 -ml-2">
                     <div className="w-full h-[1px] bg-white absolute top-1/2"></div>
                     <div className="h-full w-[1px] bg-white absolute left-1/2"></div>
                 </div>
             </div>
 
-            {/* Botões Interior/Exterior Flutuantes no Visor (Como pedido) */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4 z-20">
                 <button onClick={() => setHdrProfile('interior')} 
                     className={`px-4 py-1 rounded-full text-xs font-bold tracking-wide backdrop-blur-md border transition-all ${hdrProfile === 'interior' ? 'bg-yellow-400/20 border-yellow-400 text-yellow-300' : 'bg-black/30 border-white/30 text-white/70'}`}>
@@ -263,30 +263,23 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         </div>
       </div>
 
-      {/* --- BARRA DE CONTROLO LATERAL (DIREITA em Landscape / BAIXO em Portrait) --- */}
+      {/* --- BARRA DE CONTROLO LATERAL --- */}
       <div className="bg-black flex md:flex-col items-center justify-between p-6 md:w-32 md:h-full h-32 md:border-l border-white/10 z-30">
-        
-        {/* Topo da Barra: Botões Auxiliares */}
         <div className="flex md:flex-col gap-6 items-center order-1 md:order-1">
             <button onClick={() => setShowGrid(!showGrid)} className={`p-2 rounded-full ${showGrid ? 'text-yellow-400' : 'text-gray-400'}`}>
                 <Grid3X3 size={24} />
             </button>
-            {/* Fechar está aqui no anexo */}
             <button onClick={onClose} className="p-2 text-white/80 hover:text-white md:hidden">
                 <X size={28} />
             </button>
         </div>
 
-        {/* Centro da Barra: Disparo e Zoom */}
         <div className="flex md:flex-col items-center gap-6 order-2 md:order-2 flex-1 justify-center">
-            
-            {/* Zoom Controls (Texto vertical simples como no anexo) */}
             <div className="flex md:flex-col gap-4 text-sm font-medium text-gray-400">
                 <button onClick={() => handleZoom(1)} className={`transition-colors ${zoom === 1 ? 'text-yellow-400 font-bold scale-110' : 'hover:text-white'}`}>1x</button>
                 <button onClick={() => handleZoom(0.5)} className={`transition-colors ${zoom === 0.5 ? 'text-yellow-400 font-bold scale-110' : 'hover:text-white'}`}>0.5x</button>
             </div>
 
-            {/* Shutter Button (Grande Branco) */}
             <button 
                 onClick={initiateCapture} 
                 disabled={isProcessing} 
@@ -296,9 +289,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             </button>
         </div>
 
-        {/* Fundo da Barra: Galeria e Close (Desktop) */}
         <div className="flex md:flex-col gap-6 items-center order-3 md:order-3">
-            {/* Gallery Thumbnail */}
             <div className="w-10 h-10 md:w-12 md:h-12 bg-gray-800 rounded-md overflow-hidden border border-white/20 relative">
                 {lastSavedPhoto ? (
                     <img src={lastSavedPhoto} className="w-full h-full object-cover" />
@@ -313,7 +304,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         </div>
       </div>
 
-      {/* Processing Overlay (Global) */}
       {isProcessing && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
             <div className="flex flex-col items-center">
