@@ -1,10 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { UserProfile } from '../../types';
+import { UserProfile, UserPreferences } from '../../types';
 import { Upload, Loader2, Save } from 'lucide-react';
 
 interface Props {
-    // Definimos que currentUser pode ter qualquer propriedade extra para evitar erros de leitura
-    currentUser: UserProfile & { [key: string]: any };
+    currentUser: UserProfile;
     onUpdateUser: (u: UserProfile) => void;
     onSave?: () => Promise<void>;
 }
@@ -19,8 +18,7 @@ export const ProfileTab: React.FC<Props> = ({ currentUser, onUpdateUser, onSave 
         if (file) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                // Cast para 'any' para permitir campos dinâmicos que não estão no tipo base
-                onUpdateUser({ ...currentUser, [field]: reader.result as string } as any);
+                onUpdateUser({ ...currentUser, [field]: reader.result as string });
             };
             reader.readAsDataURL(file);
         }
@@ -36,6 +34,24 @@ export const ProfileTab: React.FC<Props> = ({ currentUser, onUpdateUser, onSave 
         } finally {
             setIsSaving(false);
         }
+    };
+
+    // Helper para atualizar preferências de forma segura
+    const updatePreference = (key: keyof UserPreferences, value: any) => {
+        const currentPrefs = currentUser.preferences || {
+            language: 'pt-PT',
+            notifications: true,
+            marketing: false,
+            theme: 'light'
+        };
+
+        onUpdateUser({
+            ...currentUser,
+            preferences: {
+                ...currentPrefs,
+                [key]: value
+            }
+        });
     };
 
     return (
@@ -80,17 +96,10 @@ export const ProfileTab: React.FC<Props> = ({ currentUser, onUpdateUser, onSave 
                     <select 
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white transition-all"
                         value={currentUser.preferences?.language || 'pt-PT'}
-                        onChange={(e) => {
-                            // CORREÇÃO TS2322: Forçamos o valor a ser tratado como o tipo correto
-                            // Adicionei pt-BR pois o erro indicava que ele faz parte do tipo esperado
-                            const lang = e.target.value as "pt-PT" | "pt-BR" | "en-US";
-                            onUpdateUser({
-                                ...currentUser, 
-                                preferences: { ...currentUser.preferences, language: lang }
-                            });
-                        }}
+                        onChange={(e) => updatePreference('language', e.target.value)}
                     >
-                        <option value="pt-PT">Português</option>
+                        <option value="pt-PT">Português (PT)</option>
+                        <option value="pt-BR">Português (BR)</option>
                         <option value="en-US">English</option>
                     </select>
                 </div>
@@ -203,24 +212,22 @@ export const ProfileTab: React.FC<Props> = ({ currentUser, onUpdateUser, onSave 
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-bold text-gray-900 mb-2">Nome da Empresa (opcional)</label>
-                        {/* CORREÇÃO TS2353: Cast para 'any' para permitir a propriedade businessName */}
                         <input 
                             type="text" 
                             className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-teal-500 transition-all" 
                             value={currentUser.businessName || ''}
-                            onChange={(e) => onUpdateUser({...currentUser, businessName: e.target.value} as any)}
+                            onChange={(e) => onUpdateUser({...currentUser, businessName: e.target.value})}
                             placeholder="Ex: Imobiliária Central"
                         />
                     </div>
 
                     <div>
                         <label className="block text-sm font-bold text-gray-900 mb-2">Correio electrónico profissional</label>
-                        {/* CORREÇÃO TS2353: Cast para 'any' para permitir a propriedade businessEmail */}
                         <input 
                             type="email" 
                             className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-teal-500 transition-all" 
                             value={currentUser.businessEmail || ''}
-                            onChange={(e) => onUpdateUser({...currentUser, businessEmail: e.target.value} as any)}
+                            onChange={(e) => onUpdateUser({...currentUser, businessEmail: e.target.value})}
                             placeholder={currentUser.email}
                         />
                         <p className="text-xs text-gray-400 mt-1">Se deixar em branco, será usado o e-mail da conta.</p>
@@ -228,12 +235,11 @@ export const ProfileTab: React.FC<Props> = ({ currentUser, onUpdateUser, onSave 
 
                     <div>
                         <label className="block text-sm font-bold text-gray-900 mb-2">URL do site</label>
-                        {/* CORREÇÃO TS2353: Cast para 'any' para permitir a propriedade website */}
                         <input 
                             type="text" 
                             className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-teal-500 transition-all" 
                             value={currentUser.website || ''}
-                            onChange={(e) => onUpdateUser({...currentUser, website: e.target.value} as any)}
+                            onChange={(e) => onUpdateUser({...currentUser, website: e.target.value})}
                             placeholder="www.oseusite.com"
                         />
                         <p className="text-xs text-gray-400 mt-1">Se deixar em branco, o site não aparecerá no cartão.</p>
@@ -252,9 +258,8 @@ export const ProfileTab: React.FC<Props> = ({ currentUser, onUpdateUser, onSave 
                             {currentUser.businessLogo && (
                                 <span className="text-xs text-green-600 font-medium flex items-center gap-1">
                                     ✓ Carregado
-                                    {/* CORREÇÃO TS2353: Cast para 'any' para permitir remover a propriedade businessLogo */}
                                     <button 
-                                        onClick={() => onUpdateUser({...currentUser, businessLogo: undefined} as any)}
+                                        onClick={() => onUpdateUser({...currentUser, businessLogo: undefined})}
                                         className="text-red-400 hover:text-red-600 ml-2 underline"
                                     >
                                         Remover
@@ -277,7 +282,7 @@ export const ProfileTab: React.FC<Props> = ({ currentUser, onUpdateUser, onSave 
                     <button 
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="bg-blue-50 text-blue-700 font-bold px-8 py-3 rounded-lg text-sm hover:bg-blue-100 transition-colors flex items-center gap-2"
+                        className="bg-blue-50 text-blue-700 font-bold px-8 py-3 rounded-lg text-sm hover:bg-blue-100 transition-colors flex items-center gap-2 disabled:opacity-50"
                     >
                          {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
                         Guardar Cartão
