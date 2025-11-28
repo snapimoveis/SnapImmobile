@@ -33,7 +33,7 @@ const resizeForAI = async (base64Str: string, maxWidth = 1280): Promise<string> 
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                resolve(canvas.toDataURL('image/jpeg', 0.90)); 
+                resolve(canvas.toDataURL('image/jpeg', 0.92)); // Qualidade ligeiramente maior
             } else {
                 resolve(base64Str);
             }
@@ -51,42 +51,44 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   const processedImages = await Promise.all(rawImages.map(img => resizeForAI(img, 1280)));
 
   const contextMap: any = {
-      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário. Foco: Equilíbrio e Naturalidade.",
+      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário. OBJETIVO: Look Rico e Acolhedor (Nodalview).",
       'hp_hdr_exterior': "CONTEXTO: Fachada Exterior.",
       'hp_hdr_window': "CONTEXTO: Interior com janela."
   };
 
   const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
-  // PROMPT CALIBRADO V4 (NATURAL PRO BALANCE)
-  // Menos agressivo que o V3, mais luminoso que o V2. O ponto ideal.
+  // PROMPT CALIBRADO V6 (RICH & COZY - Estilo Nodalview Fiel)
+  // Menos brilho nuclear, mais contraste e cor.
   const prompt = `
-    SYSTEM: SNAP FUSION ENGINE (BALANCED PRO).
+    SYSTEM: SNAP FUSION ENGINE (PRO ARCHITECTURAL).
     ${contextInstruction}
     
     INPUT: 3 Bracketed Exposures.
     ESTRITAMENTE PROIBIDO: MUDAR O FORMATO (4:3). NUNCA RECORTAR.
 
-    TAREFA DE PROCESSAMENTO "NATURAL BRIGHT LOOK":
+    TAREFA DE PROCESSAMENTO "RICH DEPTH LOOK":
     
-    1. ILUMINAÇÃO (EQUILIBRADA):
-       - Aumente a exposição em +1.3 EV. A imagem deve ser clara, mas NÃO "queimada".
-       - Levante os tons médios para ver detalhes, mas MANTENHA SOMBRAS SUAVES debaixo dos móveis para dar volume 3D.
-       - A sala deve parecer iluminada por luz natural suave, não por um flash nuclear.
+    1. COR E AMBIENTE (WARMTH):
+       - A imagem anterior ficou demasiado fria/pálida. CORRIJA.
+       - Mantenha os tons QUENTES e DOURADOS da madeira e da luz ambiente.
+       - A sala deve parecer "aconchegante" (Cozy), não clínica.
+       - Saturação vibrante mas natural.
 
-    2. COR (BRANCOS LIMPOS, MADEIRA QUENTE):
-       - As paredes e teto devem ser NEUTROS (Branco/Cinzento Claro). Remova o amarelo APENAS das paredes.
-       - MANTENHA o tom quente e rico da madeira no chão. Não deixe o chão cinzento.
-       - O resultado deve ser acolhedor ("Cozy") mas limpo.
+    2. CONTRASTE E PROFUNDIDADE (CRUCIAL):
+       - NÃO levante demasiado as sombras. Mantenha os pretos ricos e profundos.
+       - O contraste deve ser forte (S-Curve) para dar volume aos móveis.
+       - A imagem não deve parecer "lavada" (flat).
 
-    3. TEXTURA:
-       - Aplique nitidez ("Structure") no chão e nos tecidos do sofá/cadeira.
-       - A imagem deve ter definição, sem parecer artificial.
+    3. TEXTURA (MICRO-CONTRASTE):
+       - Aplique "Structure" agressivo no chão de madeira. Quero ver os veios.
+       - Nitidez cristalina em toda a imagem.
 
-    4. JANELAS:
-       - Recupere a vista da janela usando a exposição escura.
+    4. ILUMINAÇÃO:
+       - Controle os "Highlights" das luzes do teto (recupere o detalhe), mas deixe-as brilhar.
+       - Exposição equilibrada (+0.3 EV apenas), não exagerada.
 
-    RESULTADO: Uma imagem imobiliária profissional, luminosa e realista.
+    RESULTADO: Uma imagem rica, com contraste, cores quentes e textura tátil.
     RETORNA APENAS A IMAGEM FINAL EM 4:3.
   `;
 
@@ -95,7 +97,7 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
         inlineData: { data: cleanBase64(img), mimeType: getMimeType(img) }
     }));
 
-    console.log(`[Snap AI] A enviar ${imageParts.length} imagens para fusão equilibrada...`);
+    console.log(`[Snap AI] A enviar ${imageParts.length} imagens para fusão V6 (Rich)...`);
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
