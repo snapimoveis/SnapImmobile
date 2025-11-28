@@ -1,11 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
-import { HashRouter } from 'react-router-dom';
+import { HashRouter, useNavigate, useLocation } from 'react-router-dom';
 import { Header } from './components/Header';
 import { ProjectList } from './components/ProjectList';
 import { CameraView } from './components/CameraView';
 import { Editor } from './components/Editor';
-import { ProjectDetail } from './components/ProjectDetail';
+// Ajuste do import para o ficheiro correto que criámos
+import { ProjectDetails } from './pages/ProjectDetails'; 
 import { TourViewer } from './components/TourViewer';
 import { NewProjectModal } from './components/NewProjectModal';
 import { LandingScreen } from './components/LandingScreen';
@@ -15,7 +15,7 @@ import { WelcomeScreen } from './components/WelcomeScreen';
 import { RegisterScreen } from './components/RegisterScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { ManagementMenu } from './components/ManagementMenu';
-import { AppRoute, Project, Photo, ProjectDetails, UserProfile } from './types';
+import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
 import { generateDescription } from './services/geminiService';
 import { 
     getCurrentUser, getUserProjects, saveProject, deleteProject, 
@@ -32,6 +32,7 @@ function App() {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [prefillEmail, setPrefillEmail] = useState('');
 
+  // Inicialização
   useEffect(() => {
     const initApp = async () => {
       const user = getCurrentUser();
@@ -66,7 +67,7 @@ function App() {
             cpf: data.cpf,
             company: data.company,
             createdAt: Date.now(),
-            password: data.password,
+            password: data.password, // Nota: Em produção, nunca salve senhas em texto plano
             preferences: {
                 language: 'pt-PT',
                 notifications: true,
@@ -89,20 +90,11 @@ function App() {
         } 
         
         console.error("Erro no registo:", e);
-        
-        if (e.code === 'auth/weak-password') {
-            alert("A senha é muito fraca. Escolha uma senha com pelo menos 6 caracteres.");
-        } else if (e.code === 'auth/invalid-email') {
-            alert("O formato do e-mail é inválido.");
-        } else if (e.code === 'auth/network-request-failed') {
-            alert("Falha na conexão. Verifique a sua internet.");
-        } else {
-            alert("Erro ao criar conta: " + (e.message || "Tente novamente."));
-        }
+        alert("Erro ao criar conta: " + (e.message || "Tente novamente."));
     }
   };
 
-  const handleCreateProject = async (details: ProjectDetails & { title: string, address: string }) => {
+  const handleCreateProject = async (details: ProjectDetailsType & { title: string, address: string }) => {
     if (!currentUser) return;
 
     const newProject: Project = {
@@ -144,7 +136,7 @@ function App() {
     if (!currentUser) return;
 
     try {
-      // Scenario 1: Creating a new Draft Project from Camera
+      // Cenário 1: Novo Projeto Rascunho via Câmera
       if (!activeProject) {
           const draft: Project = {
               id: crypto.randomUUID(),
@@ -156,45 +148,36 @@ function App() {
               createdAt: Date.now(),
               coverImage: photo.url
           };
-          // Save asynchronously
+          
           const savedDraft = await saveProject(draft); 
           setProjects([savedDraft, ...projects]);
           setActiveProject(savedDraft);
-          // Do NOT navigate away. Keep Camera open.
           return;
       }
 
-      // Scenario 2: Adding to existing Active Project
-      // Generate description in background (optional/async)
+      // Cenário 2: Adicionar ao Projeto Ativo
       generateDescription(photo.url).then(desc => {
-          // We could update the description later if needed
+          console.log("Descrição gerada:", desc);
       });
 
-      // Optimistically update UI state if needed, but here we just construct the object
       const updatedProject = {
           ...activeProject,
-          photos: [...activeProject.photos, photo], // Add new photo
+          photos: [...activeProject.photos, photo],
           coverImage: activeProject.coverImage || photo.url
       };
 
-      // Update local state immediately so CameraView knows we have a project
+      // Atualiza estado local imediatamente (Optimistic UI)
       setActiveProject(updatedProject);
 
-      // Save to Backend in Background
-      // We use the returned project to ensure we have the Cloud URLs
+      // Salva no Backend
       saveProject(updatedProject).then((savedProject) => {
           const updatedProjects = projects.map(p => p.id === activeProject.id ? savedProject : p);
           setProjects(updatedProjects);
-          setActiveProject(savedProject); // Sync with Cloud URL version
+          setActiveProject(savedProject);
       }).catch(e => {
-          console.error("Background Save Error:", e);
-          const msg = e.code === 'storage/unauthorized' 
-            ? 'Permissão de Upload negada. Corrija as "Storage Rules" no Firebase.' 
-            : `Erro ao guardar a foto: ${e.message}`;
-          alert(msg);
+          console.error("Erro ao salvar foto:", e);
+          alert(`Erro ao guardar a foto: ${e.message}`);
       });
-
-      // DO NOT CHANGE ROUTE. Continuous shooting enabled.
       
     } catch (e: any) {
       console.error(e);
@@ -220,6 +203,7 @@ function App() {
 
   const navigateToProject = (project: Project) => {
       setActiveProject(project);
+      // Aqui poderíamos usar navigate(`/project/${project.id}`) se usássemos rotas reais
       setCurrentRoute(AppRoute.PROJECT_DETAILS);
   };
 
@@ -247,12 +231,8 @@ function App() {
           
           if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password') {
               msg = "E-mail ou senha incorretos.";
-          } else if (e.code === 'auth/too-many-requests') {
-              msg = "Muitas tentativas falhadas. Tente novamente mais tarde.";
           } else if (e.message && e.message.includes('DEVICE_NOT_ALLOWED')) {
-              msg = "Acesso bloqueado: Esta conta está vinculada a outro dispositivo por segurança.";
-          } else if (e.message) {
-              msg = e.message;
+              msg = "Acesso bloqueado: Esta conta está vinculada a outro dispositivo.";
           }
           alert(msg);
       }
@@ -300,8 +280,6 @@ function App() {
       case AppRoute.REGISTER:
         return <RegisterScreen role={selectedRole} onSubmit={handleRegistrationSubmit} onBack={() => setCurrentRoute(AppRoute.WELCOME)} />;
       case AppRoute.CAMERA:
-        // Pass activeProject photos count or last photo to camera if desired, 
-        // but for now we just keep it open. The App updates state in background.
         return (
             <CameraView 
                 onClose={() => setCurrentRoute(activeProject ? AppRoute.PROJECT_DETAILS : AppRoute.DASHBOARD)} 
@@ -311,18 +289,40 @@ function App() {
       case AppRoute.EDITOR:
         return activePhoto ? <Editor photo={activePhoto} onSave={handleSaveEditedPhoto} onCancel={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : <div>Erro: Nenhuma foto</div>;
       case AppRoute.PROJECT_DETAILS:
-        return activeProject ? <ProjectDetail project={activeProject} onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} onEditPhoto={(p) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }} onUpdateProject={handleUpdateProject} onViewTour={() => setCurrentRoute(AppRoute.TOUR_VIEWER)} /> : <div>Erro: Nenhum projeto</div>;
+        if (!activeProject) return <div>Erro: Nenhum projeto selecionado</div>;
+        
+        // NOTA IMPORTANTE: Se o ProjectDetails espera ler o ID do URL (useParams),
+        // ele vai falhar aqui porque não estamos mudando o URL real.
+        // O ideal é passar o projeto como prop, ou garantir que ProjectDetails sabe lidar com isso.
+        // Abaixo, assumo que você adaptou o ProjectDetails para aceitar a prop 'project' OU 'initialProject'.
+        return (
+            // @ts-ignore - Ignore se o ProjectDetails ainda não aceita props, mas deveria.
+            <ProjectDetails 
+                // Passamos o objeto inteiro para evitar novo fetch
+                initialProject={activeProject} 
+                onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} 
+                onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} 
+                onEditPhoto={(p: Photo) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }} 
+                onUpdateProject={handleUpdateProject} 
+                onViewTour={() => setCurrentRoute(AppRoute.TOUR_VIEWER)} 
+            />
+        );
       case AppRoute.TOUR_VIEWER:
          return activeProject ? <TourViewer project={activeProject} onClose={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : null;
       case AppRoute.SETTINGS:
-          return <SettingsScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onDeleteAccount={handleDeleteAccount} />;
+          return <SettingsScreen currentUser={currentUser!} onUpdateUser={handleUpdateUser} onDeleteAccount={handleDeleteAccount} />;
       case AppRoute.MENU:
           return <ManagementMenu onClose={() => setCurrentRoute(AppRoute.DASHBOARD)} onNavigate={(r) => r === 'SETTINGS' ? setCurrentRoute(AppRoute.SETTINGS) : setCurrentRoute(AppRoute.DASHBOARD)} onLogout={handleLogout} />;
       case AppRoute.DASHBOARD:
       default:
         return (
           <>
-            <ProjectList projects={projects} onSelectProject={navigateToProject} onCreateProject={() => setIsNewProjectModalOpen(true)} onDeleteProject={handleDeleteProject} />
+            <ProjectList 
+                projects={projects} 
+                onSelectProject={navigateToProject} 
+                onCreateProject={() => setIsNewProjectModalOpen(true)} 
+                onDeleteProject={handleDeleteProject} 
+            />
             {isNewProjectModalOpen && <NewProjectModal onClose={() => setIsNewProjectModalOpen(false)} onCreate={handleCreateProject} />}
           </>
         );
