@@ -1,60 +1,69 @@
 import { GoogleGenAI } from "@google/genai";
 import { cleanBase64, getMimeType } from "../utils/helpers";
 
-// Detecção segura da API Key (Compatível com Vite e Node)
 const getApiKey = () => {
   // @ts-ignore
   if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
     // @ts-ignore
     return import.meta.env.VITE_API_KEY;
   }
-  // Fallback para process.env caso esteja num ambiente Node/Functions
+  // @ts-ignore
   if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    // @ts-ignore
     return process.env.API_KEY;
   }
-  console.error("CRITICAL: API Key not found. Check .env file (VITE_API_KEY)");
   return "";
 };
 
 const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
 
-// --- MÉTODOS DE SERVIÇO ---
-
-export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interior' | 'hp_hdr_exterior' | 'hp_hdr_window' = 'hp_hdr_interior'): Promise<string> => {
+// --- CORREÇÃO AQUI: Aceita string OU array de strings ---
+export const enhanceImage = async (base64Images: string | string[], profile: string = 'hp_hdr_interior'): Promise<string> => {
   if (!apiKey) throw new Error("Chave de API não configurada.");
 
-  const contextMap = {
-      'hp_hdr_interior': "CONTEXTO: Interior de Imóvel. Prioridade: Profundidade e Iluminação Natural.",
-      'hp_hdr_exterior': "CONTEXTO: Exterior/Fachada. Prioridade: Recuperação de Céu e Sombras.",
-      'hp_hdr_window': "CONTEXTO: Interior com Alto Contraste. Prioridade: Recuperação total da vista da janela."
+  // Garante que é sempre um array para processamento
+  const images = Array.isArray(base64Images) ? base64Images : [base64Images];
+
+  const contextMap: any = {
+      'hp_hdr_interior': "CONTEXTO: Interior. Foco: Janelas perfeitas e luz natural.",
+      'hp_hdr_exterior': "CONTEXTO: Fachada. Foco: Céu azul e sombras detalhadas.",
+      'hp_hdr_window': "CONTEXTO: Contra-luz. Foco: Recuperação total da vista."
   };
 
-  const contextInstruction = contextMap[profile];
+  const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
+  // Prompt estrito para 4:3 e Nodalview Style
   const prompt = `
-    SYSTEM / BUILD (ENGINE HDR PRO)
-    Tu és o motor de processamento de imagem do Snap Immobile.
+    SYSTEM: SNAP FUSION ENGINE (Multi-Exposure Logic).
     ${contextInstruction}
+    
+    ESTRITAMENTE PROIBIDO: MUDAR O FORMATO DA IMAGEM.
+    A SAÍDA DEVE SER EXATAMENTE 4:3 (ASPECT RATIO ORIGINAL).
+    NUNCA CONVERTER PARA 16:9. NUNCA RECORTAR (CROP).
 
-    REGRAS DE GEOMETRIA (ABSOLUTAS):
-    1. A imagem de entrada é 4:3. A SAÍDA DEVE SER 4:3.
-    2. PROIBIDO CORTAR (CROP). PROIBIDO ESTICAR (STRETCH).
-    3. PROIBIDO MUDAR A DISTÂNCIA FOCAL (FOV).
+    TAREFA (HDR IMOBILIÁRIO PROFISSIONAL):
+    1. Geometria: Mantém 100% da geometria e aparência real. Não alterar FOV, distância focal ou perspetiva.
+    2. Fusão: Combina as exposições para criar um dynamic range real.
+       - Exposições negativas (-4, -2): Recupera 100% dos detalhes nas janelas/luzes.
+       - Exposições positivas (+2, +4): Ilumina sombras sem ruído e sem "lavar" a imagem.
+    3. Profundidade: Aplica microcontraste subtil no piso e texturas para dar sensação de espaço.
+    4. Cor: Balanço de brancos natural. Zero filtros "artísticos".
     
-    PROCESSAMENTO HDR:
-    1. Highlight Mapping Inteligente: Recupera brancos estourados.
-    2. Shadow Recovery Natural: Ilumina sombras sem ruído.
-    
-    OBRIGATÓRIO: Retornar APENAS a imagem processada.
+    RESULTADO FINAL: Uma imagem HDR 4:3 pura, luminosa e nítida.
+    RETORNA APENAS A IMAGEM FINAL.
   `;
 
   try {
+    const imageParts = images.map(img => ({
+        inlineData: { data: cleanBase64(img), mimeType: getMimeType(img) }
+    }));
+
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
         contents: {
           parts: [
-            { inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } },
+            ...imageParts,
             { text: prompt },
           ],
         },
@@ -67,82 +76,47 @@ export const enhanceImage = async (base64Image: string, profile: 'hp_hdr_interio
               return `data:image/png;base64,${part.inlineData.data}`;
           }
       }
-      console.warn("A IA retornou, mas sem imagem gerada.");
-      return base64Image;
+      // Fallback: retorna a imagem do meio se falhar a geração
+      return images[Math.floor(images.length / 2)];
   } catch (error) {
-    console.error("[Snap AI] Falha no Melhoramento:", error);
+    console.error("[Snap AI] Falha na Fusão HDR:", error);
     throw error;
   }
 };
 
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
     if (!apiKey) throw new Error("Chave de API não configurada.");
-    
     const sys = mode === 'ERASE' 
-        ? `TASK: MAGIC ERASER / INPAINTING.
-           INPUT: An image with translucent RED STROKES marking objects to remove.
-           ACTION: 
-           1. Detect pixels covered by red strokes.
-           2. Remove the objects under the strokes.
-           3. Inpaint the background realistically to match the surroundings.
-           4. RETURN ONLY THE CLEAN IMAGE (No red marks).`
-        : `TASK: VIRTUAL STAGING. Add furniture: "${prompt}". Match perspective, lighting, and shadows. MAINTAIN ASPECT RATIO.`;
+        ? `TASK: INPAINTING. Remove objects marked by RED STROKES. Input image HAS red strokes on it. Output: Clean image without strokes.`
+        : `TASK: VIRTUAL STAGING. Add: "${prompt}". Maintain aspect ratio.`;
 
     try {
-        console.log(`[Snap AI] Iniciando edição modo: ${mode} com modelo gemini-2.5-flash-image-preview...`);
-        
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image-preview',
             contents: {
               parts: [
                 { inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } },
-                { text: sys + "\n\nUser Instruction: " + prompt },
+                { text: sys + " " + prompt },
               ],
             },
-            config: { responseModalities: ['IMAGE', 'TEXT'] },
+            config: { responseModalities: ['IMAGE'] },
           });
-          
           const parts = response.candidates?.[0]?.content?.parts || [];
-          
-          for (const part of parts) {
-              if (part.inlineData && part.inlineData.data) {
-                  console.log("[Snap AI] Imagem gerada com sucesso.");
-                  return `data:image/png;base64,${part.inlineData.data}`;
-              }
-          }
-          
-          const textPart = parts.find(p => p.text);
-          if (textPart) {
-              console.warn("[Snap AI] Resposta de texto da IA (sem imagem):", textPart.text);
-              throw new Error("A IA respondeu com texto em vez de imagem: " + textPart.text);
-          }
-
-          throw new Error("A IA não gerou uma imagem de retorno.");
-    } catch (error: any) {
-        console.error("[Snap AI] Falha na Edição:", error);
-        if (error.message?.includes('SAFETY')) {
-            throw new Error("A edição foi bloqueada por filtros de segurança.");
-        }
-        throw error;
-    }
+          const imagePart = parts.find(p => p.inlineData && p.inlineData.data);
+          if (imagePart && imagePart.inlineData) return `data:image/png;base64,${imagePart.inlineData.data}`;
+          throw new Error("Erro na IA");
+    } catch (error: any) { throw error; }
 };
 
 export const generateDescription = async (base64Image: string): Promise<string> => {
-    if (!apiKey) return "Imóvel (Chave API em falta)";
-    
+    if (!apiKey) return "Imóvel";
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: {
-                parts: [
-                    { inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } },
-                    { text: "Descreva esta divisão imobiliária numa frase curta e profissional em PT-PT." }
-                ]
+                parts: [{ inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } }, { text: "Descrição curta do imóvel." }]
             }
         });
         return response.text ? response.text.trim() : "Imóvel";
-    } catch (e) { 
-        console.warn("[Snap AI] Falha na descrição:", e);
-        return "Imóvel"; 
-    }
+    } catch (e) { return "Imóvel"; }
 };
