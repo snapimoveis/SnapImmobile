@@ -1,7 +1,8 @@
 // === PERFIL DO UTILIZADOR ===
 export interface UserProfile {
   id: string;
-  role: 'admin' | 'editor' | 'viewer';
+  // Adicionado suporte para os nomes em Português que os seus componentes estão a usar
+  role: 'admin' | 'editor' | 'viewer' | 'Administrador' | 'Fotografo'; 
   firstName: string;
   lastName: string;
   email: string;
@@ -67,20 +68,22 @@ export interface Project {
 }
 
 // === EDITOR ===
-// FIX: Alterado de 'type' para 'enum' para permitir usar como valor (ToolMode.CROP)
 export enum ToolMode {
   CROP = 'crop',
   FILTER = 'filter',
   ADJUST = 'adjust',
   TEXT = 'text',
   DRAW = 'draw',
-  WATERMARK = 'watermark'
+  WATERMARK = 'watermark',
+  // ADICIONADO: As opções que faltavam para o componente Editor
+  MAGIC_ERASE = 'magic_erase',
+  VIRTUAL_STAGING = 'virtual_staging'
 }
 
 // === CONFIGURAÇÕES E FATURAÇÃO ===
 export interface Invoice {
   id: string;
-  number: string; // FIX: Adicionado número
+  number: string;
   date: string;
   amount: number;
   status: 'paid' | 'pending' | 'failed';
@@ -93,13 +96,14 @@ export interface Device {
   userId?: string;
   name: string;
   type: string;
-  model?: string; // FIX: Adicionado modelo
-  userName?: string; // FIX: Adicionado nome do utilizador
-  lastAccess?: number; // FIX: Alias para lastActive
+  model?: string;
+  userName?: string;
+  lastAccess?: number;
   lastActive: number;
   current?: boolean;
   ip?: string;
-  status?: 'active' | 'inactive'; // FIX: Adicionado status
+  // Adicionado suporte para maiúsculas/minúsculas para evitar erros de comparação
+  status?: 'active' | 'inactive' | 'Active' | 'Blocked'; 
 }
 
 export interface CompanySettings {
@@ -115,7 +119,7 @@ export interface CompanySettings {
   backgroundColor?: string;
   allowUserWatermark?: boolean;
   virtualTourDays?: number;
-  // FIX: Permite aceder a propriedades dinamicamente (como 'includes')
+  // Permite propriedades dinâmicas para evitar erros em loops
   [key: string]: any; 
 }
 
