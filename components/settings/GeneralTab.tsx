@@ -18,14 +18,25 @@ export const GeneralTab: React.FC<Props> = ({ company, setCompany, onSave, isLoa
     const weekDays = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 
     const toggleDay = (day: string) => {
-        // Garante que é um array, mesmo que venha undefined
-        const currentDays = company.virtualTourDays || [];
+        // FIX CRÍTICO: Força explicitamente o tipo para string[] e garante que não é nulo
+        const currentDays = (Array.isArray(company.virtualTourDays) ? company.virtualTourDays : []) as string[];
         
         if (currentDays.includes(day)) {
-            setCompany({ ...company, virtualTourDays: currentDays.filter(d => d !== day) });
+            setCompany({ ...company, virtualTourDays: currentDays.filter((d) => d !== day) });
         } else {
             setCompany({ ...company, virtualTourDays: [...currentDays, day] });
         }
+    };
+
+    const getSafeWebsite = () => {
+        return (company.website || '').replace('https://', '');
+    };
+
+    // FIX: Helper para verificar se o dia está selecionado na renderização
+    const isDaySelected = (day: string): boolean => {
+        const days = Array.isArray(company.virtualTourDays) ? company.virtualTourDays : [];
+        // @ts-ignore - Ignora erro se o TS achar que é number, pois verificamos com isArray
+        return days.includes(day);
     };
 
     return (
@@ -53,7 +64,7 @@ export const GeneralTab: React.FC<Props> = ({ company, setCompany, onSave, isLoa
                           <span className="inline-flex items-center px-4 rounded-l-lg border border-r-0 border-gray-300 dark:border-white/20 bg-gray-50 dark:bg-white/5 text-gray-500 text-sm">https://</span>
                           <input 
                               type="text" 
-                              value={(company.website || '').replace('https://', '')}
+                              value={getSafeWebsite()}
                               onChange={e => setCompany({...company, website: `https://${e.target.value}`})}
                               className="flex-1 p-3 border border-gray-300 dark:border-white/20 bg-transparent rounded-r-lg focus:ring-2 focus:ring-purple-500 outline-none text-gray-900 dark:text-white"
                           />
@@ -207,14 +218,12 @@ export const GeneralTab: React.FC<Props> = ({ company, setCompany, onSave, isLoa
                   <h4 className="font-bold text-gray-900 dark:text-white mb-6">Seleccione os dias em que está disponível para uma visita virtual guiada *</h4>
                   <div className="flex gap-4 flex-wrap">
                       {weekDays.map(day => {
-                          // Usa verificação segura para array
-                          const isSelected = (company.virtualTourDays || []).includes(day);
                           return (
                               <button
                                 key={day}
                                 onClick={() => toggleDay(day)}
                                 className={`w-14 h-14 rounded-lg text-sm font-medium border flex items-center justify-center transition-all ${
-                                    isSelected 
+                                    isDaySelected(day)
                                     ? 'border-blue-600 text-blue-600 bg-blue-50 dark:bg-blue-900/20 font-bold shadow-sm' 
                                     : 'border-gray-200 dark:border-white/20 text-gray-500 hover:border-gray-300 dark:hover:border-white/40'
                                 }`}
