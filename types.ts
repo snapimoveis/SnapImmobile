@@ -1,3 +1,4 @@
+// === PERFIL DO UTILIZADOR ===
 export interface UserProfile {
   id: string;
   role: 'admin' | 'editor' | 'viewer';
@@ -8,8 +9,8 @@ export interface UserProfile {
   cpf?: string;
   company?: string;
   createdAt: number;
-  password?: string;
-  avatar?: string; // Added avatar
+  password?: string; // Opcional, usado apenas no registo
+  avatar?: string;   // Adicionado para resolver erro no ProfileTab
   preferences: {
     language: string;
     notifications: boolean;
@@ -18,29 +19,35 @@ export interface UserProfile {
   };
 }
 
+// === FOTOS E MEDIA ===
 export interface Photo {
   id: string;
   url: string;
   name: string;
-  type?: string;
+  type?: string;        // ex: 'hdr', 'wide', etc.
   createdAt?: number;
-  originalUrl?: string; // Added originalUrl
-  linkedTo?: string;    // Added linkedTo (for tours)
+  originalUrl?: string; // Adicionado para resolver erro no CameraView
+  linkedTo?: string;    // Adicionado para resolver erro no TourViewer (link entre fotos)
 }
 
+// === CONTACTOS ===
 export interface Contact {
   id: string;
   name: string;
   email: string;
   phone: string;
   role: string;
+  notes?: string;
 }
 
+// === PROJETOS ===
 export interface ProjectDetails {
   rooms?: number;
   area?: number;
   price?: number;
   description?: string;
+  bathrooms?: number;
+  year?: number;
 }
 
 export interface Project {
@@ -51,41 +58,44 @@ export interface Project {
   details?: ProjectDetails;
   status: 'In Progress' | 'Completed' | 'Archived';
   photos: Photo[];
+  contacts?: Contact[]; // Adicionado para resolver erro no ProjectContacts
   createdAt: number;
   coverImage?: string;
-  contacts?: Contact[]; // Added contacts array
 }
 
-// Editor Tools
+// === EDITOR ===
 export type ToolMode = 'crop' | 'filter' | 'adjust' | 'text' | 'draw' | 'watermark';
 
-// Billing Types
+// === CONFIGURAÇÕES E FATURAÇÃO ===
 export interface Invoice {
   id: string;
   date: string;
   amount: number;
   status: 'paid' | 'pending' | 'failed';
   url?: string;
+  items?: string[];
 }
 
-// Device Management
 export interface Device {
   id: string;
   name: string;
+  type: string;
   lastActive: number;
   current?: boolean;
+  ip?: string;
 }
 
-// Company Settings
 export interface CompanySettings {
   name: string;
   logoUrl?: string;
   taxId?: string;
   address?: string;
   website?: string;
+  email?: string;
+  phone?: string;
 }
 
-// App Routes
+// === ROTAS DA APP ===
 export enum AppRoute {
   LANDING = 'LANDING',
   LOGIN = 'LOGIN',
