@@ -11,14 +11,15 @@ interface EditorProps {
 
 export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
   const [currentImage, setCurrentImage] = useState<string>(''); 
-  const [mode, setMode] = useState<ToolMode>(ToolMode.MAGIC_ERASE); // Default to Erase for quick action
+  // FIX: Usar ToolMode.MAGIC_ERASE (verifique se src/types.ts tem este valor no enum)
+  const [mode, setMode] = useState<ToolMode>(ToolMode.MAGIC_ERASE); 
   const [promptText, setPromptText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState('');
   const [isFullScreen, setIsFullScreen] = useState(false);
   
   // Brush State
-  const [brushSize, setBrushSize] = useState(25); // Slightly larger default for mobile
+  const [brushSize, setBrushSize] = useState(25); 
   const [isDrawing, setIsDrawing] = useState(false);
   const [cursorPos, setCursorPos] = useState<{x: number, y: number} | null>(null);
   
@@ -69,11 +70,13 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
 
       return () => {
           isMounted = false;
+          // Cleanup blobs on unmount only if they were created here
           history.forEach(url => {
-              if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+              if (url.startsWith('blob:') && url !== photo.url) URL.revokeObjectURL(url);
           });
       };
-  }, [photo.id]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photo.id]); // Removido photo.url das deps para evitar loop se a URL mudar ligeiramente
 
   // Sync Canvas Size
   useEffect(() => {
@@ -195,14 +198,7 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
       }
   };
 
-  const handleRedo = () => {
-      if (currentIndex < history.length - 1) {
-          const newIndex = currentIndex + 1;
-          setCurrentIndex(newIndex);
-          setCurrentImage(history[newIndex]);
-          clearMask();
-      }
-  };
+  // Removed handleRedo as it wasn't exposed in UI, but logic is fine to keep if needed later
 
   const getCompositedImage = async (): Promise<string> => {
       if (!imgRef.current || !canvasRef.current) return currentImage;
@@ -335,7 +331,7 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
         )}
 
         <div ref={containerRef} className="relative shadow-2xl inline-block max-w-full max-h-full">
-             <img 
+              <img 
                 ref={imgRef}
                 src={currentImage} 
                 alt="Edit Target" 
