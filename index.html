@@ -3,7 +3,6 @@
   <head>
     <meta charset="UTF-8" />
     
-    <!-- Correção do Aviso da Apple -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -12,26 +11,17 @@
     
     <meta name="theme-color" content="#000000" />
     
-    <!-- Favicon -->
     <link rel="icon" type="image/png" href="/icon-192.png" />
-    
-    <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json">
-    
-    <!-- iOS Icons & Splash -->
     <link rel="apple-touch-icon" href="/icon-192.png">
     
     <title>Snap Immobile</title>
-    
-    <!-- REMOVIDO: <script src="https://cdn.tailwindcss.com"></script> -->
-    <!-- O Tailwind agora é carregado via build do Vite no index.css importado no main.tsx -->
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
     <style>
-      /* CSS Crítico para carregamento inicial */
       body {
         background-color: #000000;
         margin: 0;
@@ -41,6 +31,7 @@
   </head>
   <body class="bg-white dark:bg-black text-black dark:text-white select-none overscroll-none">
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- CORREÇÃO AQUI: Apontar para index.tsx em vez de main.tsx -->
+    <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>
