@@ -52,7 +52,7 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate }) => {
 
     const updatedProject = {
       ...project,
-      contacts: contacts.filter(c => c.id !== contactId)
+      contacts: contacts.filter((c: Contact) => c.id !== contactId)
     };
 
     try {
@@ -143,7 +143,7 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate }) => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {contacts.map(contact => (
+        {contacts.map((contact: Contact) => (
           <div key={contact.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all group relative">
             <button onClick={() => handleDeleteContact(contact.id)} className="absolute top-4 right-4 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
               <Trash2 size={16} />
