@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { X, Grid3X3, Image as ImageIcon, CheckCircle, Timer } from 'lucide-react';
+import { X, Grid3X3, CheckCircle } from 'lucide-react';
 import { enhanceImage } from '../services/geminiService';
 import { Photo } from '../types';
 
@@ -21,8 +21,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const [flashVisual, setFlashVisual] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [isLandscape, setIsLandscape] = useState(false);
-  
-  // Estados para o Timer
   const [countdown, setCountdown] = useState<number | null>(null);
   
   const [showGrid, setShowGrid] = useState(true);
@@ -30,7 +28,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const [lastSavedPhoto, setLastSavedPhoto] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  // Orientação
   useEffect(() => {
     const checkOrientation = () => {
       setIsLandscape(window.innerWidth > window.innerHeight);
@@ -40,21 +37,18 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     return () => window.removeEventListener('resize', checkOrientation);
   }, []);
 
-  // Inicializar Câmara
   useEffect(() => { startCamera(); return () => stopCamera(); }, []);
 
   const startCamera = async () => {
     try {
-      // Tenta 4K 4:3 primeiro, depois 1080p
       const constraints = {
         video: { 
             facingMode: 'environment', 
-            aspectRatio: { exact: 1.333333 },
+            aspectRatio: { exact: 1.333333 }, // 4:3
             width: { ideal: 4032 },
             height: { ideal: 3024 }
         }
       };
-
       const constraintsFallback = {
         video: { 
             facingMode: 'environment', 
@@ -63,15 +57,12 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             height: { ideal: 1440 }
         }
       };
-
       let stream;
       try {
           stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (e) {
-          console.warn("4K falhou, tentando HD...", e);
           stream = await navigator.mediaDevices.getUserMedia(constraintsFallback);
       }
-
       if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => setIsStreaming(true);
@@ -106,13 +97,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     } catch (e) {}
   };
 
-  // --- LÓGICA DE DISPARO COM TIMER ---
   const handleShutterClick = () => {
       if (isProcessing) return;
-      
-      // Inicia contagem decrescente de 3 segundos
       setCountdown(3);
-      
       let count = 3;
       const timer = setInterval(() => {
           count--;
@@ -121,7 +108,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           } else {
               clearInterval(timer);
               setCountdown(null);
-              capturePhotoSequence(); // Dispara após o timer
+              capturePhotoSequence();
           }
       }, 1000);
   };
@@ -131,11 +118,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       const videoHeight = video.videoHeight;
       const targetRatio = 4 / 3;
       const currentRatio = videoWidth / videoHeight;
-      
-      let w = videoWidth;
-      let h = videoHeight;
-      let sx = 0;
-      let sy = 0;
+      let w = videoWidth, h = videoHeight, sx = 0, sy = 0;
 
       if (currentRatio > targetRatio) {
           w = videoHeight * targetRatio;
@@ -144,7 +127,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
           h = videoWidth / targetRatio;
           sy = (videoHeight - h) / 2;
       }
-      
       canvas.width = w; 
       canvas.height = h;
       ctx.imageSmoothingEnabled = true;
@@ -183,7 +165,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       } catch (e) {}
     }
 
-    setProcessingStep('A Capturar (9)...');
+    setProcessingStep('Capturando...');
     setProcessingProgress(0);
 
     for (let i = 0; i < 9; i++) {
@@ -191,32 +173,29 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             const ev = Math.max(caps.exposureCompensation.min, Math.min(caps.exposureCompensation.max, evSequence[i]));
             try { await track.applyConstraints({ advanced: [{ exposureCompensation: ev }] } as any); } catch(e){}
         } 
-        
         ctx.filter = `brightness(${brightnessValues[i]}) saturate(1.1)`; 
-
         playShutterSound();
         setFlashVisual(true);
         setTimeout(() => setFlashVisual(false), 50);
-
         drawCroppedFrame(video, canvas, ctx);
         ctx.filter = 'none';
-
         const frameData = canvas.toDataURL('image/jpeg', 0.95);
         capturedBlobs.push(frameData);
-        
-        // Mostra preview das fotos sendo tiradas (efeito visual interessante)
-        // Filtramos para mostrar apenas algumas (ex: 1, 3, 5, 7, 9) para não encher a tela
         if (i % 2 === 0) {
             setCapturedPreviews(prev => [...prev, { url: frameData, ev: `${evSequence[i]}` }]);
         }
-        
         setProcessingProgress(((i + 1) / 9) * 40);
-        await new Promise(r => setTimeout(r, 80));
+        await new Promise(r => setTimeout(r, 60)); // Reduzi o delay para 60ms para reduzir tremor
     }
 
     if (supportsEV) try { await track.applyConstraints({ advanced: [{ exposureCompensation: 0 }] } as any); } catch(e){}
 
-    const indicesToUse = [0, 2, 4, 6, 8]; 
+    // --- CORREÇÃO CRÍTICA PARA NITIDEZ ---
+    // Usamos apenas 3 fotos para minimizar o "Ghosting" (tremor entre frames)
+    // 1: Muito Escura (Detalhes Janela)
+    // 4: Normal (Base de Nitidez)
+    // 7: Muito Clara (Detalhes Sombra)
+    const indicesToUse = [1, 4, 7]; 
     const fusionPayload = indicesToUse.map(i => capturedBlobs[i]);
 
     setProcessingStep('A Fundir IA...');
@@ -226,10 +205,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         const finalImage = await enhanceImage(fusionPayload, effectiveProfile);
         setProcessingStep('Concluído');
         setProcessingProgress(100);
-        
         setLastSavedPhoto(finalImage);
-        setPreviewImage(finalImage); // Abre o preview
-
+        setPreviewImage(finalImage);
         onPhotoCaptured({
             id: crypto.randomUUID(),
             url: finalImage,
@@ -248,24 +225,16 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     }
   };
 
-  // Se houver uma imagem de preview, mostra o overlay de aprovação
   if (previewImage) {
       return (
         <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-[100] flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300 touch-none">
             <div className="relative w-full h-full flex items-center justify-center bg-[#121212]">
                 <img src={previewImage} className="max-w-full max-h-full object-contain" alt="Resultado HDR" />
-                
-                {/* Top Controls */}
                 <div className="absolute top-0 left-0 right-0 p-6 flex justify-end bg-gradient-to-b from-black/60 to-transparent">
-                    <button 
-                        onClick={() => setPreviewImage(null)} 
-                        className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-white/20 border border-white/20 shadow-lg"
-                    >
+                    <button onClick={() => setPreviewImage(null)} className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-white/20 border border-white/20 shadow-lg">
                         <X size={28} />
                     </button>
                 </div>
-
-                {/* Bottom Message */}
                 <div className="absolute bottom-10 bg-green-600/90 backdrop-blur-md text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl border border-green-400/30 animate-in slide-in-from-bottom-4">
                     <CheckCircle size={24} className="text-white" />
                     <span className="font-bold text-base tracking-wide">FOTO GUARDADA</span>
@@ -277,69 +246,40 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   return (
     <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-col md:flex-row text-white touch-none">
-      
-      {/* === BARRA ESQUERDA/SUPERIOR (Ferramentas) === */}
-      <div className={`bg-black z-30 flex items-center justify-between px-6
-        ${isLandscape 
-            ? 'flex-col w-20 h-full border-r border-white/10 py-8' 
-            : 'flex-row h-20 w-full border-b border-white/10'
-        }`}>
-         
-         <button onClick={onClose} className="p-3 text-white/80 hover:text-white bg-gray-800/50 rounded-full backdrop-blur-sm">
-            <X size={24} />
-         </button>
-
-         <button onClick={() => setShowGrid(!showGrid)} className={`p-3 rounded-full transition-colors ${showGrid ? 'text-yellow-400 bg-yellow-400/10' : 'text-white/60 hover:text-white'}`}>
-            <Grid3X3 size={24} />
-         </button>
-
+      <div className={`bg-black z-30 flex items-center justify-between px-6 ${isLandscape ? 'flex-col w-20 h-full border-r border-white/10 py-8' : 'flex-row h-20 w-full border-b border-white/10'}`}>
+         <button onClick={onClose} className="p-3 text-white/80 hover:text-white bg-gray-800/50 rounded-full backdrop-blur-sm"><X size={24} /></button>
+         <button onClick={() => setShowGrid(!showGrid)} className={`p-3 rounded-full transition-colors ${showGrid ? 'text-yellow-400 bg-yellow-400/10' : 'text-white/60 hover:text-white'}`}><Grid3X3 size={24} /></button>
          {isLandscape && <div className="w-6 h-6"></div>}
       </div>
 
-      {/* === VISOR CENTRAL (4:3) === */}
       <div className="flex-1 relative bg-[#050505] overflow-hidden flex items-center justify-center p-2">
-        {/* Container 4:3 Fixo */}
         <div className="relative w-full max-w-full aspect-[3/4] md:aspect-[4/3] overflow-hidden bg-black shadow-2xl rounded-lg md:rounded-none">
             <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
             <canvas ref={canvasRef} className="hidden" />
-            
-            {/* Flash */}
             <div className={`absolute inset-0 bg-white transition-opacity duration-75 pointer-events-none ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
-
-            {/* Countdown Overlay */}
             {countdown !== null && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
-                    <span className="text-[120px] font-black text-white drop-shadow-2xl animate-ping">
-                        {countdown}
-                    </span>
+                    <span className="text-[120px] font-black text-white drop-shadow-2xl animate-ping">{countdown}</span>
                 </div>
             )}
-
-            {/* Grid Overlay */}
             {showGrid && (
                 <div className="absolute inset-0 w-full h-full grid grid-cols-3 grid-rows-3 opacity-30 pointer-events-none">
-                    <div className="border-r border-b border-white"></div>
-                    <div className="border-r border-b border-white"></div>
-                    <div className="border-b border-white"></div>
-                    <div className="border-r border-b border-white"></div>
-                    <div className="border-r border-b border-white"></div>
-                    <div className="border-b border-white"></div>
-                    <div className="border-r border-white"></div>
-                    <div className="border-r border-white"></div>
-                    <div></div>
+                    <div className="border-r border-b border-white"></div><div className="border-r border-b border-white"></div><div className="border-b border-white"></div>
+                    <div className="border-r border-b border-white"></div><div className="border-r border-b border-white"></div><div className="border-b border-white"></div>
+                    <div className="border-r border-white"></div><div className="border-r border-white"></div><div></div>
                 </div>
             )}
             
-            {/* Crosshair Central (Simples) */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-60">
-                <div className="w-4 h-4 relative">
-                     <div className="absolute top-1/2 left-0 w-full h-[1px] bg-white/80"></div>
-                     <div className="absolute left-1/2 top-0 h-full w-[1px] bg-white/80"></div>
-                </div>
+            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-6 z-20 pointer-events-auto">
+                 <button onClick={() => setHdrProfile('interior')} className={`text-xs font-bold tracking-widest transition-all px-4 py-1.5 rounded-full shadow-lg border ${hdrProfile === 'interior' ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-black/50 text-white/90 border-white/30 backdrop-blur-md'}`}>INTERIOR</button>
+                <button onClick={() => setHdrProfile('exterior')} className={`text-xs font-bold tracking-widest transition-all px-4 py-1.5 rounded-full shadow-lg border ${hdrProfile === 'exterior' ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-black/50 text-white/90 border-white/30 backdrop-blur-md'}`}>EXTERIOR</button>
             </div>
 
-            {/* === PREVIEWS DAS FOTOS (Banda Lateral) === */}
-            {/* Aparece enquanto tira as fotos, mostrando as exposições escuras a claras */}
+            <div className={`absolute z-20 flex gap-3 p-1 bg-black/30 backdrop-blur-md rounded-full border border-white/10 ${isLandscape ? 'right-4 top-1/2 -translate-y-1/2 flex-col' : 'bottom-20 left-1/2 -translate-x-1/2 flex-row mb-2'}`}>
+                <button onClick={() => handleZoom(1)} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all ${zoom === 1 ? 'bg-yellow-400 text-black shadow-lg scale-105' : 'text-white hover:bg-white/20'}`}>1x</button>
+                <button onClick={() => handleZoom(0.5)} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all ${zoom === 0.5 ? 'bg-yellow-400 text-black shadow-lg scale-105' : 'text-white hover:bg-white/20'}`}>.5</button>
+            </div>
+
             {isProcessing && capturedPreviews.length > 0 && (
                 <div className="absolute top-4 left-4 bottom-4 w-16 flex flex-col gap-2 overflow-hidden animate-in slide-in-from-left-4 z-40">
                     {capturedPreviews.map((prev, idx) => (
@@ -349,53 +289,17 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                     ))}
                 </div>
             )}
-
-            {/* === BOTÕES INTERIOR/EXTERIOR (Fundo da Imagem) === */}
-            {/* Ajuste de CSS para garantir visibilidade em landscape */}
-            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-6 z-20 pointer-events-auto">
-                 <button onClick={() => setHdrProfile('interior')} 
-                    className={`text-xs font-bold tracking-widest transition-all px-4 py-1.5 rounded-full shadow-lg border ${hdrProfile === 'interior' ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-black/50 text-white/90 border-white/30 backdrop-blur-md'}`}>
-                    INTERIOR
-                </button>
-                <button onClick={() => setHdrProfile('exterior')} 
-                    className={`text-xs font-bold tracking-widest transition-all px-4 py-1.5 rounded-full shadow-lg border ${hdrProfile === 'exterior' ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-black/50 text-white/90 border-white/30 backdrop-blur-md'}`}>
-                    EXTERIOR
-                </button>
-            </div>
-
-            {/* Botões Zoom (Sobre a Imagem, Canto Inferior/Direito) */}
-            <div className={`absolute z-20 flex gap-3 p-1 bg-black/30 backdrop-blur-md rounded-full border border-white/10
-                ${isLandscape 
-                    ? 'right-4 top-1/2 -translate-y-1/2 flex-col' 
-                    : 'bottom-20 left-1/2 -translate-x-1/2 flex-row mb-2'
-                }`}>
-                <button onClick={() => handleZoom(1)} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all ${zoom === 1 ? 'bg-yellow-400 text-black shadow-lg scale-105' : 'text-white hover:bg-white/20'}`}>1x</button>
-                <button onClick={() => handleZoom(0.5)} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all ${zoom === 0.5 ? 'bg-yellow-400 text-black shadow-lg scale-105' : 'text-white hover:bg-white/20'}`}>.5</button>
-            </div>
-
         </div>
       </div>
 
-      {/* === BARRA DIREITA/INFERIOR (Disparo) === */}
-      <div className={`bg-black z-30 flex items-center justify-center relative
-        ${isLandscape 
-            ? 'flex-col w-32 h-full border-l border-white/10' 
-            : 'flex-row h-36 w-full border-t border-white/10 pb-6'
-        }`}>
-        
-        {/* Botão Disparo com Timer Icon */}
-        <button 
-            onClick={handleShutterClick} 
-            disabled={isProcessing || countdown !== null} 
-            className="relative w-20 h-20 rounded-full border-[4px] border-white flex items-center justify-center transition-transform active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.15)]"
-        >
+      <div className={`bg-black z-30 flex items-center justify-center relative ${isLandscape ? 'flex-col w-32 h-full border-l border-white/10' : 'flex-row h-36 w-full border-t border-white/10 pb-6'}`}>
+        <button onClick={handleShutterClick} disabled={isProcessing || countdown !== null} className="relative w-20 h-20 rounded-full border-[4px] border-white flex items-center justify-center transition-transform active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.15)]">
             <div className={`w-[68px] h-[68px] rounded-full bg-white transition-all duration-200 flex items-center justify-center ${isProcessing ? 'scale-75 bg-gray-400' : ''}`}>
                 {countdown && <span className="text-black font-bold text-2xl">{countdown}</span>}
             </div>
         </button>
       </div>
 
-      {/* Processing Overlay */}
       {isProcessing && !previewImage && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
             <div className="flex flex-col items-center">
