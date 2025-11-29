@@ -11,6 +11,8 @@ interface CameraViewProps {
 export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // FIX: Armazenar o stream separadamente para garantir limpeza correta mesmo se o elemento video sumir
+  const streamRef = useRef<MediaStream | null>(null); 
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -37,19 +39,29 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     return () => window.removeEventListener('resize', checkOrientation);
   }, []);
 
-  useEffect(() => { startCamera(); return () => stopCamera(); }, []);
+  // FIX: Adicionado 'previewImage' nas dependências.
+  // Se previewImage existir (estamos vendo a foto), a câmera para.
+  // Se previewImage for null (fechamos o preview), a câmera reinicia.
+  useEffect(() => {
+    if (!previewImage) {
+        startCamera();
+    }
+    return () => {
+        stopCamera();
+    };
+  }, [previewImage]);
 
   const startCamera = async () => {
+    // Se já estiver rodando, não inicia de novo para evitar conflito
+    if (streamRef.current) return;
+
     try {
-      // FIX: Usamos 'any' aqui para evitar erro de TS no Vercel
-      // O TS não reconhece 'whiteBalanceMode' nativamente, mas funciona no Chrome/Android
       const advancedConstraints: any = {
          whiteBalanceMode: 'manual', 
          exposureMode: 'continuous',
          focusMode: 'continuous'
       };
 
-      // Tenta 4K 4:3 primeiro
       const constraints: any = {
         video: { 
             facingMode: 'environment', 
@@ -72,21 +84,23 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
       let stream;
       try {
-          // Casting explícito para evitar erro de sobrecarga no getUserMedia
           stream = await navigator.mediaDevices.getUserMedia(constraints as MediaStreamConstraints);
       } catch (e) {
           console.warn("4K falhou, tentando HD...", e);
           stream = await navigator.mediaDevices.getUserMedia(constraintsFallback as MediaStreamConstraints);
       }
 
-      if (videoRef.current && stream) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => setIsStreaming(true);
+      if (stream) {
+        streamRef.current = stream; // Salva referência segura do stream
+
+        if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.onloadedmetadata = () => setIsStreaming(true);
+        }
         
         const track = stream.getVideoTracks()[0];
         const capabilities: any = track.getCapabilities?.() || {};
         
-        // Tenta aquecer a imagem via hardware (5500K-6000K)
         if (capabilities.colorTemperature) {
             try {
                 await track.applyConstraints({ advanced: [{ colorTemperature: 5500 }] } as any);
@@ -95,15 +109,23 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       }
     } catch (err) {
       console.error(err);
-      alert('Erro ao aceder à câmara.');
+      // Não mostramos alerta se for apenas uma troca rápida de componente, mas logamos o erro
     }
   };
 
   const stopCamera = () => {
-    if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
-      setIsStreaming(false);
+    // Para as trilhas usando a referência persistente
+    if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
     }
+    
+    // Limpa o srcObject do elemento de vídeo se ele ainda existir
+    if (videoRef.current) {
+        videoRef.current.srcObject = null;
+    }
+    
+    setIsStreaming(false);
   };
 
   const playShutterSound = () => {
@@ -114,8 +136,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   const handleZoom = async (level: number) => {
     setZoom(level);
-    if (!videoRef.current?.srcObject) return;
-    const track = (videoRef.current.srcObject as MediaStream).getVideoTracks()[0];
+    if (!streamRef.current) return; // Usa streamRef em vez de videoRef
+    const track = streamRef.current.getVideoTracks()[0];
     const caps: any = track.getCapabilities?.() || {};
     if (!caps.zoom) return;
     try {
@@ -167,7 +189,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   };
 
   const capturePhotoSequence = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current || !streamRef.current) return;
     setIsProcessing(true);
     setCapturedPreviews([]);
 
@@ -176,7 +198,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const track = (video.srcObject as MediaStream).getVideoTracks()[0];
+    // Usa streamRef para garantir acesso à trilha correta
+    const track = streamRef.current.getVideoTracks()[0];
     const caps: any = track.getCapabilities?.() || {};
     const supportsEV = !!caps.exposureCompensation;
 
@@ -209,7 +232,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             try { await track.applyConstraints({ advanced: [{ exposureCompensation: ev }] } as any); } catch(e){}
         } 
         
-        // Aplica o filtro corretivo (Quente + Roll-off de luzes)
         ctx.filter = `brightness(${brightnessValues[i]}) saturate(1.35) sepia(0.25) contrast(0.92)`; 
 
         playShutterSound();
