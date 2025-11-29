@@ -1,4 +1,4 @@
-// IMPORTAÇÃO CORRETA
+// CORRECT IMPORT
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { cleanBase64, getMimeType } from "../utils/helpers";
 
@@ -12,7 +12,7 @@ const getApiKey = () => {
 };
 
 const apiKey = getApiKey();
-// INICIALIZAÇÃO CORRETA
+// CORRECT INITIALIZATION
 const genAI = new GoogleGenerativeAI(apiKey);
 
 const resizeForAI = async (base64Str: string, maxWidth = 1920): Promise<string> => {
@@ -44,7 +44,6 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   if (!apiKey) throw new Error("Chave de API não configurada.");
 
   const rawImages = Array.isArray(base64Images) ? base64Images : [base64Images];
-  // Se não houver imagens, retorna string vazia ou lança erro
   if (rawImages.length === 0) return "";
 
   const processedImages = await Promise.all(rawImages.map(img => resizeForAI(img, 1920)));
@@ -56,7 +55,6 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
         inlineData: { data: cleanBase64(img), mimeType: getMimeType(img) }
     }));
 
-    // SINTAXE CORRETA DO MODELO
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
     const result = await model.generateContent([
@@ -67,7 +65,6 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
     const response = await result.response;
     const text = response.text();
     
-    // Como a API retorna texto por defeito, retornamos a imagem original processada
     return processedImages[Math.floor(processedImages.length / 2)]; 
   } catch (error) {
     console.error("[Snap AI] Erro:", error);
