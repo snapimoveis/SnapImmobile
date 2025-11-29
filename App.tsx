@@ -14,7 +14,8 @@ import { RegisterScreen } from './components/RegisterScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { ManagementMenu } from './components/ManagementMenu';
 import { UpdateNotification } from './components/UpdateNotification';
-import { AppLayout } from './components/AppLayout';
+// MUDANÇA: Importamos MainLayout (o novo nome)
+import { MainLayout } from './components/MainLayout';
 
 import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
 import { generateDescription } from './services/geminiService';
@@ -33,7 +34,6 @@ function App() {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [prefillEmail, setPrefillEmail] = useState('');
 
-  // MODO ESCURO AUTOMÁTICO
   useEffect(() => {
     const applyTheme = () => {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -222,7 +222,6 @@ function App() {
 
   const isAuthRoute = [AppRoute.LANDING, AppRoute.WELCOME, AppRoute.REGISTER, AppRoute.LOGIN].includes(currentRoute);
   const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
-  
   const header = null;
 
   const renderContent = () => {
@@ -284,7 +283,7 @@ function App() {
       {(isAuthRoute || isFullScreenTool) ? (
           <div className="h-screen w-full bg-black overflow-hidden">{renderContent()}</div>
       ) : (
-          <AppLayout 
+          <MainLayout 
              currentRoute={currentRoute} 
              onNavigate={setCurrentRoute} 
              onLogout={handleLogout}
@@ -292,7 +291,7 @@ function App() {
              headerComponent={header}
           >
              {renderContent()}
-          </AppLayout>
+          </MainLayout>
       )}
     </HashRouter>
   );
