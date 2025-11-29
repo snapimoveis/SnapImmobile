@@ -1,204 +1,92 @@
+import React from 'react';
+import { User, Bell, Moon, FileText, Shield, HelpCircle, LogOut, ChevronRight, Home, Camera, Settings as SettingsIcon } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 
-import React, { useState, useEffect } from 'react';
-import { UserProfile, Device, Invoice, CompanySettings, Project } from '../types';
-import { 
-    getCompanySettings, saveCompanySettings, getCompanyUsers, 
-    getCompanyDevices, getInvoices, toggleDeviceStatus, getUserProjects, updateUser 
-} from '../services/storage';
-import { GeneralTab } from './settings/GeneralTab';
-import { PropertiesTab } from './settings/PropertiesTab';
-import { UsersTab } from './settings/UsersTab';
-import { DevicesTab } from './settings/DevicesTab';
-import { BillingTab } from './settings/BillingTab';
-import { ProfileTab } from './settings/ProfileTab';
-
-interface SettingsScreenProps {
-  currentUser: UserProfile | null;
-  onUpdateUser: (updatedUser: UserProfile) => void;
-  onDeleteAccount: () => void;
-}
-
-// Added 'teams' and 'integrations' to match screenshot
-type Tab = 'general' | 'properties' | 'users' | 'teams' | 'integrations' | 'devices' | 'billing' | 'my_profile';
-
-export const SettingsScreen: React.FC<SettingsScreenProps> = ({ currentUser, onUpdateUser }) => {
-  const [activeTab, setActiveTab] = useState<Tab>('general');
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const [company, setCompany] = useState<CompanySettings | null>(null);
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-
-  // If we are in "My Profile" mode vs "Company" mode
-  const isProfileMode = activeTab === 'my_profile';
-
-  useEffect(() => {
-      if (!currentUser?.companyId) return;
-
-      const loadData = async () => {
-          setIsLoading(true);
-          try {
-              const settings = await getCompanySettings(currentUser.companyId!);
-              if (settings) {
-                  setCompany(settings);
-              } else {
-                  const def: CompanySettings = {
-                      id: currentUser.companyId!,
-                      name: currentUser.company || 'Minha Empresa',
-                      website: '',
-                      primaryColor: '#623aa2',
-                      backgroundColor: '#ffffff',
-                      allowUserWatermark: true,
-                      ownerId: currentUser.id,
-                      virtualTourDays: ['SEG', 'TER', 'QUA', 'QUI', 'SEX']
-                  };
-                  setCompany(def);
-              }
-
-              if (activeTab === 'users') setUsers(await getCompanyUsers(currentUser.companyId!));
-              if (activeTab === 'devices') setDevices(await getCompanyDevices(currentUser.companyId!));
-              if (activeTab === 'billing') setInvoices(await getInvoices(currentUser.companyId!));
-              if (activeTab === 'properties') setProjects(await getUserProjects(currentUser.id));
-
-          } catch (e) {
-              console.error(e);
-          } finally {
-              setIsLoading(false);
-          }
-      };
-      loadData();
-  }, [currentUser, activeTab]);
-
-  const handleSaveGeneral = async () => {
-      if (!company) return;
-      setIsLoading(true);
-      try {
-          await saveCompanySettings(company);
-          alert("Configurações guardadas com sucesso!");
-      } catch (e) {
-          alert("Erro ao guardar.");
-      } finally {
-          setIsLoading(false);
-      }
-  };
-
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file && company) {
-          setIsLoading(true);
-          try {
-              const updated = await saveCompanySettings(company, file);
-              setCompany(updated);
-          } catch (e) {
-              alert("Erro no upload.");
-          } finally {
-              setIsLoading(false);
-          }
-      }
-  };
-
-  const handleWatermarkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      // Placeholder for watermark upload logic
-      alert("Upload de marca d'água");
-  };
-
-  const handleBlockDevice = async (device: Device) => {
-      const newStatus = device.status === 'Active' ? 'Blocked' : 'Active';
-      await toggleDeviceStatus(device.userId, device.id, newStatus);
-      setDevices(prev => prev.map(d => d.id === device.id ? {...d, status: newStatus} : d));
-  };
-
+// Componente da Tela de Configurações
+export const SettingsScreen = () => {
   return (
-    <div className="min-h-screen bg-[#f9fafb] font-sans pb-20">
-      
-      {/* Dynamic Header */}
-      <div className="bg-white border-b border-gray-200 pt-8 px-8 pb-0">
-          <div className="flex justify-between items-center mb-6">
-             <h1 className="text-2xl font-bold text-gray-900">
-                 {activeTab === 'my_profile' ? 'A minha conta' : 'A minha organização'}
-             </h1>
-             {/* Simple Toggle for Demo Purposes to switch views */}
-             <div className="flex bg-gray-100 rounded-lg p-1">
-                 <button 
-                    onClick={() => setActiveTab('general')}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${activeTab !== 'my_profile' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
-                 >
-                    Empresa
-                 </button>
-                 <button 
-                    onClick={() => setActiveTab('my_profile')}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${activeTab === 'my_profile' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
-                 >
-                    Perfil
-                 </button>
-             </div>
+    <div className="flex flex-col h-full bg-gray-50 font-sans">
+      {/* Cabeçalho */}
+      <header className="bg-[#2A2142] p-6 text-white">
+        <h1 className="text-2xl font-bold">Configurações</h1>
+      </header>
+
+      {/* Conteúdo */}
+      <main className="flex-1 p-4 space-y-6 overflow-y-auto">
+        {/* Seção Geral */}
+        <section>
+          <h2 className="text-sm font-medium text-gray-500 uppercase mb-3 ml-1">Geral</h2>
+          <div className="bg-white rounded-xl shadow-sm divide-y divide-gray-100 overflow-hidden">
+            <LinkItem icon={User} label="Editar Perfil" to="/profile" />
+            <LinkItem icon={Bell} label="Notificações" to="/notifications" />
+            {/* Item do Tema Escuro */}
+            <div className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <Moon className="h-5 w-5 text-gray-500" />
+                <span className="text-gray-900 font-medium">Tema Escuro</span>
+              </div>
+              {/* Switch Toggle Simples (Visual) */}
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" value="" className="sr-only peer" />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
+            </div>
           </div>
+        </section>
 
-          {!isProfileMode ? (
-              <div className="flex overflow-x-auto no-scrollbar bg-white sticky top-0 z-20 gap-6">
-                  {[
-                      { id: 'general', label: 'Informações gerais' },
-                      { id: 'properties', label: 'Imóvel' },
-                      { id: 'users', label: 'Utilizadores' },
-                      { id: 'teams', label: 'Equipas' },
-                      { id: 'integrations', label: 'Integrações' },
-                      { id: 'devices', label: 'Dispositivos' },
-                      { id: 'billing', label: 'Faturação e Subscrição' }
-                  ].map(tab => (
-                      <button
-                          key={tab.id}
-                          onClick={() => setActiveTab(tab.id as Tab)}
-                          className={`pb-4 text-sm font-medium whitespace-nowrap transition-colors relative ${
-                              activeTab === tab.id ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'
-                          }`}
-                      >
-                          {tab.label}
-                      </button>
-                  ))}
-              </div>
-          ) : (
-              <div className="flex overflow-x-auto no-scrollbar bg-white sticky top-0 z-20 gap-6">
-                  <button className="pb-4 text-sm font-medium text-blue-600 border-b-2 border-blue-600">Informações gerais</button>
-                  <button className="pb-4 text-sm font-medium text-gray-500 hover:text-gray-700">Segurança</button>
-                  <button className="pb-4 text-sm font-medium text-gray-500 hover:text-gray-700">Preferências</button>
-                  <button className="pb-4 text-sm font-medium text-gray-500 hover:text-gray-700">Actividade</button>
-                  <button className="pb-4 text-sm font-medium text-gray-500 hover:text-gray-700">Cartão de visitas</button>
-              </div>
-          )}
-      </div>
+        {/* Seção Sobre */}
+        <section>
+          <h2 className="text-sm font-medium text-gray-500 uppercase mb-3 ml-1">Sobre</h2>
+          <div className="bg-white rounded-xl shadow-sm divide-y divide-gray-100 overflow-hidden">
+            <LinkItem icon={FileText} label="Termos de Uso" to="/terms-of-use" />
+            <LinkItem icon={Shield} label="Política de Privacidade" to="/privacy-policy" />
+            <LinkItem icon={HelpCircle} label="Ajuda e Suporte" to="/support" />
+          </div>
+        </section>
 
-      <div className="px-8 pt-8">
-          {/* Company Context */}
-          {!isProfileMode && (
-              <>
-                {activeTab === 'general' && company && (
-                    <GeneralTab 
-                        company={company} 
-                        setCompany={setCompany} 
-                        onSave={handleSaveGeneral} 
-                        isLoading={isLoading} 
-                        onLogoUpload={handleLogoUpload} 
-                        onWatermarkUpload={handleWatermarkUpload}
-                    />
-                )}
-                {activeTab === 'properties' && <PropertiesTab projects={projects} currentUser={currentUser} />}
-                {activeTab === 'users' && <UsersTab users={users} />}
-                {activeTab === 'devices' && <DevicesTab devices={devices} onBlockDevice={handleBlockDevice} />}
-                {activeTab === 'billing' && <BillingTab invoices={invoices} users={users} />}
-                {/* Placeholders for new tabs */}
-                {(activeTab === 'teams' || activeTab === 'integrations') && (
-                    <div className="text-center py-20 text-gray-500">Funcionalidade em desenvolvimento.</div>
-                )}
-              </>
-          )}
-
-          {/* User Context */}
-          {isProfileMode && currentUser && (
-              <ProfileTab currentUser={currentUser} onUpdateUser={onUpdateUser} />
-          )}
-      </div>
+        {/* Botão Sair */}
+        <div className="pt-4">
+            <button className="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white font-medium p-4 rounded-xl transition-colors">
+            <LogOut className="h-5 w-5" /> Sair
+            </button>
+        </div>
+      </main>
+      
+      {/* Barra de Navegação Inferior */}
+      <BottomNavigationBar />
     </div>
   );
 };
+
+// Componente auxiliar para os links de navegação da lista
+const LinkItem = ({ icon: Icon, label, to }: { icon: React.ElementType, label: string, to: string }) => (
+  <Link to={to} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+    <div className="flex items-center gap-3">
+      <Icon className="h-5 w-5 text-gray-500" />
+      <span className="text-gray-900 font-medium">{label}</span>
+    </div>
+    <ChevronRight className="h-5 w-5 text-gray-400" />
+  </Link>
+);
+
+// Componente da Barra de Navegação Inferior (Baseado na imagem de referência)
+const BottomNavigationBar = () => {
+  const location = useLocation();
+  
+  return (
+    <nav className="bg-white border-t border-gray-200 py-2 px-6 flex justify-around items-center">
+      {/* O link para "Imóveis" está ativo conforme a imagem de referência */}
+      <NavItem icon={Home} label="Imóveis" to="/imoveis" isActive={location.pathname === '/imoveis'} />
+      <NavItem icon={Camera} label="Câmera" to="/camera" isActive={location.pathname === '/camera'} />
+      <NavItem icon={SettingsIcon} label="Configurações" to="/settings" isActive={location.pathname === '/settings'} />
+    </nav>
+  );
+};
+
+// Componente auxiliar para os itens da barra de navegação
+const NavItem = ({ icon: Icon, label, to, isActive = false }: { icon: React.ElementType, label: string, to: string, isActive?: boolean }) => (
+  <Link to={to} className={`flex flex-col items-center gap-1 ${isActive ? 'text-purple-600' : 'text-gray-400 hover:text-gray-600'}`}>
+    <Icon className="h-6 w-6" />
+    <span className="text-xs font-medium">{label}</span>
+  </Link>
+);
