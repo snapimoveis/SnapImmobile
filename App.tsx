@@ -8,14 +8,13 @@ import { ProjectDetail } from './components/ProjectDetail';
 import { TourViewer } from './components/TourViewer';
 import { NewProjectModal } from './components/NewProjectModal';
 import { LandingScreen } from './components/LandingScreen';
-import { NavigationMenu } from './components/NavigationMenu';
 import { SettingsScreen } from './components/SettingsScreen';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { RegisterScreen } from './components/RegisterScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { ManagementMenu } from './components/ManagementMenu';
-// Importamos a notificação de update para corrigir o cache PWA
 import { UpdateNotification } from './components/UpdateNotification';
+import { AppLayout } from './components/AppLayout';
 
 import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
 import { generateDescription } from './services/geminiService';
@@ -33,6 +32,27 @@ function App() {
   const [activePhoto, setActivePhoto] = useState<Photo | null>(null);
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [prefillEmail, setPrefillEmail] = useState('');
+
+  // === 1. DETECÇÃO DE TEMA (Claro/Escuro) AUTOMÁTICA ===
+  useEffect(() => {
+    const applyTheme = () => {
+      // Verifica se o telemóvel está em modo escuro
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+
+    // Aplica ao iniciar
+    applyTheme();
+
+    // Ouve mudanças (se o utilizador trocar o tema nas configurações enquanto usa o app)
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', applyTheme);
+
+    return () => mediaQuery.removeEventListener('change', applyTheme);
+  }, []);
 
   // Inicialização
   useEffect(() => {
@@ -137,7 +157,6 @@ function App() {
     if (!currentUser) return;
 
     try {
-      // Cenário 1: Novo Projeto Rascunho via Câmera
       if (!activeProject) {
           const draft: Project = {
               id: crypto.randomUUID(),
@@ -156,8 +175,7 @@ function App() {
           return;
       }
 
-      // Cenário 2: Adicionar ao Projeto Ativo
-      generateDescription(photo.url).then(desc => {
+      generateDescription(photo.url).then((desc: string) => {
           console.log("Descrição gerada:", desc);
       });
 
@@ -167,15 +185,13 @@ function App() {
           coverImage: activeProject.coverImage || photo.url
       };
 
-      // Atualiza estado local imediatamente (Optimistic UI)
       setActiveProject(updatedProject);
 
-      // Salva no Backend
-      saveProject(updatedProject).then((savedProject) => {
+      saveProject(updatedProject).then((savedProject: Project) => {
           const updatedProjects = projects.map(p => p.id === activeProject.id ? savedProject : p);
           setProjects(updatedProjects);
           setActiveProject(savedProject);
-      }).catch(e => {
+      }).catch((e: any) => {
           console.error("Erro ao salvar foto:", e);
           alert(`Erro ao guardar a foto: ${e.message}`);
       });
@@ -267,7 +283,9 @@ function App() {
 
   const isAuthRoute = [AppRoute.LANDING, AppRoute.WELCOME, AppRoute.REGISTER, AppRoute.LOGIN].includes(currentRoute);
   const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
-  const showSidebar = !isAuthRoute && !isFullScreenTool;
+  
+  // Header removido do AppLayout padrão para o Dashboard, pois o ProjectList agora tem seu próprio Header personalizado
+  const header = null; 
 
   const renderContent = () => {
     switch (currentRoute) {
@@ -292,7 +310,6 @@ function App() {
         if (!activeProject) return <div>Erro: Nenhum projeto selecionado</div>;
         return (
             <ProjectDetail 
-                // CORREÇÃO: Usar 'initialProject' em vez de 'project' para combinar com a definição do componente
                 initialProject={activeProject} 
                 onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} 
                 onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} 
@@ -306,7 +323,7 @@ function App() {
       case AppRoute.SETTINGS:
           return <SettingsScreen currentUser={currentUser!} onUpdateUser={handleUpdateUser} onDeleteAccount={handleDeleteAccount} />;
       case AppRoute.MENU:
-          return <ManagementMenu onClose={() => setCurrentRoute(AppRoute.DASHBOARD)} onNavigate={(r) => r === 'SETTINGS' ? setCurrentRoute(AppRoute.SETTINGS) : setCurrentRoute(AppRoute.DASHBOARD)} onLogout={handleLogout} />;
+          return <ManagementMenu onClose={() => setCurrentRoute(AppRoute.DASHBOARD)} onNavigate={(r: string) => r === 'SETTINGS' ? setCurrentRoute(AppRoute.SETTINGS) : setCurrentRoute(AppRoute.DASHBOARD)} onLogout={handleLogout} />;
       case AppRoute.DASHBOARD:
       default:
         return (
@@ -326,13 +343,21 @@ function App() {
   return (
     <HashRouter>
       <UpdateNotification />
-      <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex">
-        {showSidebar && <div className="hidden md:block"><NavigationMenu currentRoute={currentRoute} onNavigate={setCurrentRoute} onLogout={handleLogout} /></div>}
-        <div className="flex-1 flex flex-col h-screen overflow-hidden">
-            {!isAuthRoute && !isFullScreenTool && <Header currentRoute={currentRoute} onNavigate={setCurrentRoute} title={activeProject && currentRoute === AppRoute.PROJECT_DETAILS ? activeProject.title : undefined} />}
-            <main className={`flex-1 overflow-y-auto ${!isAuthRoute && !isFullScreenTool ? 'pt-0' : ''}`}>{renderContent()}</main>
-        </div>
-      </div>
+      
+      {(isAuthRoute || isFullScreenTool) ? (
+          <div className="h-screen w-full bg-black overflow-hidden">
+              {renderContent()}
+          </div>
+      ) : (
+          <AppLayout 
+             currentRoute={currentRoute} 
+             onNavigate={setCurrentRoute} 
+             onLogout={handleLogout}
+             headerComponent={header}
+          >
+             {renderContent()}
+          </AppLayout>
+      )}
     </HashRouter>
   );
 }
