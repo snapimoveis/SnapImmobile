@@ -1,7 +1,7 @@
 // === PERFIL DO UTILIZADOR ===
 export interface UserProfile {
   id: string;
-  role: 'admin' | 'editor' | 'viewer' | 'Administrador' | 'Fotografo'; 
+  role: 'admin' | 'editor' | 'viewer' | 'Administrador' | 'Fotografo';
   firstName: string;
   lastName: string;
   email: string;
@@ -30,8 +30,7 @@ export interface Photo {
   createdAt?: number;
   originalUrl?: string;
   linkedTo?: string;
-  // Adicionado para resolver o erro no CameraView.tsx(312,13)
-  timestamp?: number; 
+  timestamp?: number;
 }
 
 export interface Contact {
@@ -78,7 +77,7 @@ export enum ToolMode {
 
 export interface Invoice {
   id: string;
-  number: string;
+  number: string; // ADICIONADO
   date: string;
   amount: number;
   status: 'paid' | 'pending' | 'failed';
@@ -97,6 +96,7 @@ export interface Device {
   lastActive: number;
   current?: boolean;
   ip?: string;
+  // ADICIONADO: Tipos literais exatos que você usa no código
   status?: 'active' | 'inactive' | 'Active' | 'Blocked'; 
 }
 
@@ -112,7 +112,8 @@ export interface CompanySettings {
   primaryColor?: string;
   backgroundColor?: string;
   allowUserWatermark?: boolean;
-  virtualTourDays?: number;
+  // CORREÇÃO CRÍTICA: virtualTourDays deve ser array de strings, não number
+  virtualTourDays?: string[]; 
   [key: string]: any; 
 }
 
