@@ -18,8 +18,8 @@ const getApiKey = () => {
 const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
 
-// --- FUNÇÃO AUXILIAR DE REDIMENSIONAMENTO ---
-const resizeForAI = async (base64Str: string, maxWidth = 1280): Promise<string> => {
+// --- FUNÇÃO AUXILIAR DE REDIMENSIONAMENTO (Max 1600px para nitidez) ---
+const resizeForAI = async (base64Str: string, maxWidth = 1600): Promise<string> => {
     return new Promise((resolve) => {
         const img = new Image();
         img.src = base64Str;
@@ -32,6 +32,9 @@ const resizeForAI = async (base64Str: string, maxWidth = 1280): Promise<string> 
             canvas.height = img.height * scale;
             const ctx = canvas.getContext('2d');
             if (ctx) {
+                // Algoritmo de suavização melhorado para downscaling
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 resolve(canvas.toDataURL('image/jpeg', 0.92)); 
             } else {
@@ -46,45 +49,45 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   if (!apiKey) throw new Error("Chave de API não configurada.");
 
   const rawImages = Array.isArray(base64Images) ? base64Images : [base64Images];
-
-  // Otimização de tamanho
-  const processedImages = await Promise.all(rawImages.map(img => resizeForAI(img, 1280)));
+  
+  // Usamos 1600px para dar mais dados de textura à IA
+  const processedImages = await Promise.all(rawImages.map(img => resizeForAI(img, 1600)));
 
   const contextMap: any = {
-      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário. OBJETIVO: Réplica exata do estilo Nodalview.",
+      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário.",
       'hp_hdr_exterior': "CONTEXTO: Fachada Exterior.",
       'hp_hdr_window': "CONTEXTO: Interior com janela."
   };
 
   const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
-  // PROMPT CALIBRADO V9 (NODALVIEW CLONE - SPLIT TONING)
-  // O segredo para o look "Perfeito": Paredes Brancas + Chão Quente + Nitidez Extrema.
+  // PROMPT V10 (AI RECONSTRUCTION & LOGICAL INPAINTING)
   const prompt = `
-    SYSTEM: SNAP FUSION ENGINE (PRO ARCHITECTURAL EDITING).
+    SYSTEM: SNAP FUSION ENGINE (AI RECONSTRUCTION MODE).
     ${contextInstruction}
     
-    INPUT: 3 Bracketed Exposures.
-    REGRA DE OURO: NÃO ADICIONE OBJETOS. MANTENHA A GEOMETRIA 4:3.
+    INPUT: 3 Exposures (Dark, Normal, Bright).
+    ESTRITAMENTE PROIBIDO: MUDAR O FORMATO (4:3). NUNCA RECORTAR.
 
-    TAREFA DE PROCESSAMENTO "SELECTIVE COLOR & POP":
+    PROBLEMA ATUAL: As imagens de entrada têm micro-tremor (desfoque) e luzes estouradas.
     
-    1. COR SELETIVA (O SEGREDO):
-       - PAREDES E TETO: Remova TOTALMENTE o amarelo/creme. Devem ser BRANCO PURO ou CINZA NEUTRO.
-       - CHÃO E MADEIRAS: Mantenha e realce os tons QUENTES (Laranja/Dourado). Não deixe o chão ficar pálido.
-       - Crie separação de cor: Paredes frias/neutras vs Chão quente.
+    TAREFA: NÃO APENAS FUNDIR. RECONSTRUIR A IMAGEM.
+    
+    1. RECONSTRUÇÃO DE TEXTURA (CRÍTICO):
+       - A imagem parece "soft" devido ao movimento. Use IA para RECONSTRUIR a nitidez perdida.
+       - O chão de madeira e os tecidos devem ter textura tátil e definida (micro-detalhe).
+       - Simule uma captura feita com tripé e lente prime nítida.
 
-    2. TEXTURA E NITIDEZ ("CROCANTE"):
-       - A imagem de referência tem uma nitidez tátil. APLIQUE "CLARITY" e "STRUCTURE" FORTES.
-       - Quero ver a textura do chão, os fios do tapete, o grão da madeira.
-       - A imagem deve parecer ultra-definida (High Res).
+    2. INPAINTING LÓGICO DE LUZES:
+       - As lâmpadas e janelas estão "brancas demais".
+       - Use a exposição ESCURA para ver o que está lá, e "pinte" (inpaint) os detalhes do filamento da lâmpada ou da vista da janela de volta na imagem final.
+       - Elimine o "nevoeiro" (glare) à volta das luzes.
 
-    3. LUMINOSIDADE (BRILHO VIBRANTE):
-       - Exposição: +0.8 EV (Brilhante mas com corpo).
-       - Sombras: Iluminadas, mas mantenha o contraste preto nos pontos de contacto dos móveis (Ambient Occlusion).
-       - Não deixe a imagem ficar "lavada" (flat). Precisa de contraste ("Pop").
+    3. COR E AMBIENTE:
+       - Mantenha o contraste rico e as cores quentes naturais (estilo Nodalview).
+       - A imagem deve ter "pop" e profundidade 3D.
 
-    RESULTADO: Uma imagem com impacto visual, paredes limpas e texturas ricas.
+    RESULTADO: Uma imagem reconstruída, perfeitamente nítida e focada.
     RETORNA APENAS A IMAGEM FINAL EM 4:3.
   `;
 
@@ -92,8 +95,6 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
     const imageParts = processedImages.map(img => ({
         inlineData: { data: cleanBase64(img), mimeType: getMimeType(img) }
     }));
-
-    console.log(`[Snap AI] A enviar ${imageParts.length} imagens para fusão V9 (Nodalview Clone)...`);
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
@@ -113,6 +114,7 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
           }
       }
       
+      // Fallback
       return rawImages[Math.floor(rawImages.length / 2)]; 
   } catch (error) {
     console.error("[Snap AI] Erro:", error);
@@ -120,6 +122,7 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   }
 };
 
+// ... (Resto das funções mantém-se igual)
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
     if (!apiKey) throw new Error("Chave de API não configurada.");
     const sys = mode === 'ERASE' 
