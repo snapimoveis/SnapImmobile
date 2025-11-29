@@ -1,6 +1,6 @@
 export interface UserProfile {
   id: string;
-  role: 'admin' | 'editor' | 'viewer'; // Ajuste conforme seus roles reais
+  role: 'admin' | 'editor' | 'viewer';
   firstName: string;
   lastName: string;
   email: string;
@@ -8,8 +8,8 @@ export interface UserProfile {
   cpf?: string;
   company?: string;
   createdAt: number;
-  password?: string; // Opcional, apenas para registro
-  avatar?: string; // <--- ADICIONADO: Propriedade avatar opcional
+  password?: string;
+  avatar?: string; // Added avatar
   preferences: {
     language: string;
     notifications: boolean;
@@ -22,8 +22,18 @@ export interface Photo {
   id: string;
   url: string;
   name: string;
-  type?: string; // ex: 'hdr', 'wide', etc.
+  type?: string;
   createdAt?: number;
+  originalUrl?: string; // Added originalUrl
+  linkedTo?: string;    // Added linkedTo (for tours)
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
 }
 
 export interface ProjectDetails {
@@ -31,7 +41,6 @@ export interface ProjectDetails {
   area?: number;
   price?: number;
   description?: string;
-  // Adicione outros campos específicos do seu projeto aqui
 }
 
 export interface Project {
@@ -44,9 +53,39 @@ export interface Project {
   photos: Photo[];
   createdAt: number;
   coverImage?: string;
+  contacts?: Contact[]; // Added contacts array
 }
 
-// Rotas da Aplicação
+// Editor Tools
+export type ToolMode = 'crop' | 'filter' | 'adjust' | 'text' | 'draw' | 'watermark';
+
+// Billing Types
+export interface Invoice {
+  id: string;
+  date: string;
+  amount: number;
+  status: 'paid' | 'pending' | 'failed';
+  url?: string;
+}
+
+// Device Management
+export interface Device {
+  id: string;
+  name: string;
+  lastActive: number;
+  current?: boolean;
+}
+
+// Company Settings
+export interface CompanySettings {
+  name: string;
+  logoUrl?: string;
+  taxId?: string;
+  address?: string;
+  website?: string;
+}
+
+// App Routes
 export enum AppRoute {
   LANDING = 'LANDING',
   LOGIN = 'LOGIN',
