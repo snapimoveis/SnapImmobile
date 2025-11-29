@@ -14,8 +14,7 @@ import { RegisterScreen } from './components/RegisterScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { ManagementMenu } from './components/ManagementMenu';
 import { UpdateNotification } from './components/UpdateNotification';
-// MUDANÇA: Importamos MainLayout (o novo nome)
-import { MainLayout } from './components/MainLayout';
+import { AppLayout } from './components/AppLayout';
 
 import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
 import { generateDescription } from './services/geminiService';
@@ -34,6 +33,7 @@ function App() {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [prefillEmail, setPrefillEmail] = useState('');
 
+  // === MODO ESCURO AUTOMÁTICO ===
   useEffect(() => {
     const applyTheme = () => {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -47,6 +47,7 @@ function App() {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   }, []);
 
+  // Inicialização
   useEffect(() => {
     const initApp = async () => {
       const user = getCurrentUser();
@@ -212,6 +213,7 @@ function App() {
 
   const handleLogout = async () => { await logoutUser(); setCurrentUser(null); setCurrentRoute(AppRoute.LANDING); };
 
+  // Função central para controlar a câmera
   const handleCentralCameraAction = () => {
       if (currentRoute === AppRoute.PROJECT_DETAILS && activeProject) {
           setCurrentRoute(AppRoute.CAMERA);
@@ -222,6 +224,8 @@ function App() {
 
   const isAuthRoute = [AppRoute.LANDING, AppRoute.WELCOME, AppRoute.REGISTER, AppRoute.LOGIN].includes(currentRoute);
   const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
+  
+  // Header removido do layout principal para evitar duplicação (agora cada tela gere seu header se precisar)
   const header = null;
 
   const renderContent = () => {
@@ -283,15 +287,16 @@ function App() {
       {(isAuthRoute || isFullScreenTool) ? (
           <div className="h-screen w-full bg-black overflow-hidden">{renderContent()}</div>
       ) : (
-          <MainLayout 
+          <AppLayout 
              currentRoute={currentRoute} 
              onNavigate={setCurrentRoute} 
              onLogout={handleLogout}
+             // ESTA LINHA É CRÍTICA: Garanta que ela existe no seu arquivo final
              onCameraAction={handleCentralCameraAction} 
              headerComponent={header}
           >
              {renderContent()}
-          </MainLayout>
+          </AppLayout>
       )}
     </HashRouter>
   );
