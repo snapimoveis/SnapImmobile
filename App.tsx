@@ -14,7 +14,8 @@ import { RegisterScreen } from './components/RegisterScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { ManagementMenu } from './components/ManagementMenu';
 import { UpdateNotification } from './components/UpdateNotification';
-import { AppLayout } from './components/AppLayout';
+// MUDANÇA: Importar MainLayout (o novo ficheiro) em vez de AppLayout
+import { MainLayout } from './components/MainLayout';
 
 import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
 import { generateDescription } from './services/geminiService';
@@ -285,7 +286,8 @@ function App() {
       {(isAuthRoute || isFullScreenTool) ? (
           <div className="h-screen w-full bg-black overflow-hidden">{renderContent()}</div>
       ) : (
-          <AppLayout 
+          // MUDANÇA: Usar MainLayout
+          <MainLayout 
              currentRoute={currentRoute} 
              onNavigate={setCurrentRoute} 
              onLogout={handleLogout}
@@ -293,7 +295,7 @@ function App() {
              headerComponent={header}
           >
              {renderContent()}
-          </AppLayout>
+          </MainLayout>
       )}
     </HashRouter>
   );
