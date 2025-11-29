@@ -7,6 +7,7 @@ interface AppLayoutProps {
   currentRoute: AppRoute;
   onNavigate: (route: AppRoute) => void;
   onLogout: () => void;
+  onCameraAction: () => void;
   headerComponent?: React.ReactNode;
 }
 
@@ -15,68 +16,61 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   currentRoute, 
   onNavigate, 
   onLogout,
+  onCameraAction,
   headerComponent
 }) => {
 
-  const navItems = [
-    { 
-      id: AppRoute.DASHBOARD, 
-      icon: Home, 
-      label: 'Início',
-      isActive: currentRoute === AppRoute.DASHBOARD || currentRoute === AppRoute.PROJECT_DETAILS 
-    },
-    { 
-      id: AppRoute.CAMERA, 
-      icon: Camera, 
-      label: 'Novo',
-      isAction: true 
-    },
-    { 
-      id: AppRoute.SETTINGS, 
-      icon: Settings, 
-      label: 'Ajustes',
-      isActive: currentRoute === AppRoute.SETTINGS
-    },
-  ];
+  const isProjectActive = currentRoute === AppRoute.PROJECT_DETAILS;
 
   return (
-    // DARK MODE: bg-gray-900 e text-white
-    <div className="flex flex-col md:flex-row h-screen-safe w-full bg-gray-900 text-white overflow-hidden">
+    // MODO PURO: bg-white (Claro) e bg-black (Escuro)
+    <div className="flex flex-col md:flex-row h-screen-safe w-full bg-white dark:bg-black text-black dark:text-white overflow-hidden font-sans transition-colors duration-300">
       
       {/* === SIDEBAR (Desktop) === */}
-      <aside className="hidden md:flex flex-col w-64 bg-black border-r border-white/10 h-full shrink-0 z-20">
+      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-black border-r border-gray-200 dark:border-white/10 h-full shrink-0 z-30 transition-colors duration-300">
         <div className="p-6 flex items-center gap-3">
-          <div className="w-8 h-8 bg-yellow-400 rounded-lg flex items-center justify-center font-bold text-black shadow-[0_0_15px_rgba(250,204,21,0.2)]">S</div>
-          <span className="font-bold text-xl tracking-tight text-white">SnapImmobile</span>
+          <div className="w-10 h-10 bg-[#623aa2] rounded-lg flex items-center justify-center font-bold text-white shadow-md">
+            S
+          </div>
+          <span className="font-bold text-xl tracking-tight">SnapImmobile</span>
         </div>
 
         <nav className="flex-1 px-4 py-4 flex flex-col gap-2">
-          {navItems.filter(i => !i.isAction).map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium
-                ${item.isActive 
-                  ? 'bg-yellow-400 text-black font-bold shadow-lg shadow-yellow-400/20' 
-                  : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                }`}
-            >
-              <item.icon size={20} />
-              <span>{item.label}</span>
-            </button>
-          ))}
+          <button
+            onClick={() => onNavigate(AppRoute.DASHBOARD)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium
+              ${currentRoute === AppRoute.DASHBOARD 
+                ? 'bg-[#623aa2] text-white shadow-md' 
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10'
+              }`}
+          >
+            <Home size={20} />
+            <span>Início</span>
+          </button>
+
+          <button
+            onClick={() => onNavigate(AppRoute.SETTINGS)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium
+              ${currentRoute === AppRoute.SETTINGS 
+                ? 'bg-[#623aa2] text-white shadow-md' 
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10'
+              }`}
+          >
+            <Settings size={20} />
+            <span>Configurações</span>
+          </button>
           
           <button 
-            onClick={() => onNavigate(AppRoute.CAMERA)}
-            className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 border border-white/10 text-white hover:bg-white/20 transition-colors shadow-lg"
+            onClick={onCameraAction}
+            className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors shadow-sm group"
           >
-            <Camera size={20} className="text-yellow-400" />
-            <span>Novo Imóvel</span>
+            <Camera size={20} className="text-[#623aa2]" />
+            <span>{isProjectActive ? 'Abrir Câmera' : 'Novo Imóvel'}</span>
           </button>
         </nav>
 
-        <div className="p-4 border-t border-white/10 mt-auto">
-           <button onClick={onLogout} className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors">
+        <div className="p-4 border-t border-gray-200 dark:border-white/10 mt-auto">
+           <button onClick={onLogout} className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/10 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-500 transition-colors">
               <LogOut size={20} />
               <span>Sair</span>
            </button>
@@ -86,25 +80,25 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       {/* === ÁREA PRINCIPAL === */}
       <div className="flex-1 flex flex-col h-full relative w-full overflow-hidden">
         
-        {/* Header Transparente */}
         {headerComponent && (
-            <div className="shrink-0 z-10 bg-gray-900/80 backdrop-blur-md sticky top-0 md:relative border-b border-white/5">
+            <div className="shrink-0 z-20 bg-white/90 dark:bg-black/90 backdrop-blur-md border-b border-gray-200 dark:border-white/10 sticky top-0 transition-colors duration-300">
                 {headerComponent}
             </div>
         )}
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 pb-24 md:pb-8 w-full bg-gray-900">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-0 w-full bg-white dark:bg-black">
             <div className="max-w-7xl mx-auto w-full">
                 {children}
             </div>
         </main>
 
         {/* === BOTTOM BAR (Mobile) === */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-xl border-t border-white/10 pb-[env(safe-area-inset-bottom)] z-50">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-black border-t border-gray-200 dark:border-white/10 pb-[env(safe-area-inset-bottom)] z-50 transition-colors duration-300">
             <div className="flex items-center justify-around h-16 px-2">
+                
                 <button 
                     onClick={() => onNavigate(AppRoute.DASHBOARD)}
-                    className={`flex flex-col items-center justify-center w-16 gap-1 transition-colors ${currentRoute === AppRoute.DASHBOARD ? 'text-yellow-400' : 'text-gray-500'}`}
+                    className={`flex flex-col items-center justify-center w-16 gap-1 transition-colors ${currentRoute === AppRoute.DASHBOARD ? 'text-[#623aa2]' : 'text-gray-400 dark:text-gray-500'}`}
                 >
                     <Home size={24} strokeWidth={currentRoute === AppRoute.DASHBOARD ? 2.5 : 2} />
                     <span className="text-[10px] font-medium">Início</span>
@@ -112,22 +106,29 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
                 <div className="relative -top-6">
                     <button 
-                        onClick={() => onNavigate(AppRoute.CAMERA)}
-                        className="w-14 h-14 bg-yellow-400 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(250,204,21,0.3)] active:scale-95 transition-transform border-4 border-gray-900"
+                        onClick={onCameraAction}
+                        className="w-16 h-16 bg-[#623aa2] rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform border-[4px] border-white dark:border-black"
                     >
-                        <Camera size={26} className="text-black" />
+                        <Camera size={28} className="text-white" />
+                        {!isProjectActive && (
+                           <div className="absolute bottom-3 right-3 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center shadow-sm">
+                              <span className="text-[#623aa2] font-bold text-[10px] leading-none mb-0.5">+</span>
+                           </div>
+                        )}
                     </button>
                 </div>
 
                 <button 
                     onClick={() => onNavigate(AppRoute.SETTINGS)}
-                    className={`flex flex-col items-center justify-center w-16 gap-1 transition-colors ${currentRoute === AppRoute.SETTINGS ? 'text-yellow-400' : 'text-gray-500'}`}
+                    className={`flex flex-col items-center justify-center w-16 gap-1 transition-colors ${currentRoute === AppRoute.SETTINGS ? 'text-[#623aa2]' : 'text-gray-400 dark:text-gray-500'}`}
                 >
                     <Settings size={24} strokeWidth={currentRoute === AppRoute.SETTINGS ? 2.5 : 2} />
                     <span className="text-[10px] font-medium">Ajustes</span>
                 </button>
+
             </div>
         </nav>
+
       </div>
     </div>
   );
