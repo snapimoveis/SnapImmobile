@@ -1,30 +1,21 @@
-
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
+// Configuração do Firebase
+// IMPORTANTE: Substitua pelas suas chaves reais do Console do Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyB3X2VAGQuSvEZ2vRPSuNs21TQL4UlPlNE",
+  apiKey: import.meta.env.VITE_API_KEY || "SUA_API_KEY_AQUI",
   authDomain: "snap-immobile.firebaseapp.com",
   projectId: "snap-immobile",
-  storageBucket: "snap-immobile.firebasestorage.app",
-  messagingSenderId: "345642553254", 
-  appId: "1:345642553254:web:63e9eafc63c28a34988967"
+  storageBucket: "snap-immobile.appspot.com",
+  messagingSenderId: "SENDER_ID",
+  appId: "APP_ID"
 };
 
-let app: any;
-let auth: any;
-let db: any;
-let storage: any;
-
-try {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    storage = getStorage(app);
-} catch (error) {
-    console.error("Firebase Init Error:", error);
-}
-
-export { auth, db, storage };
+// Inicialização e EXPORTAÇÃO explícita
+export const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
