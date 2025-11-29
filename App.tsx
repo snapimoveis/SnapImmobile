@@ -213,6 +213,7 @@ function App() {
 
   const handleLogout = async () => { await logoutUser(); setCurrentUser(null); setCurrentRoute(AppRoute.LANDING); };
 
+  // Função central para controlar a câmera
   const handleCentralCameraAction = () => {
       if (currentRoute === AppRoute.PROJECT_DETAILS && activeProject) {
           setCurrentRoute(AppRoute.CAMERA);
@@ -223,6 +224,7 @@ function App() {
 
   const isAuthRoute = [AppRoute.LANDING, AppRoute.WELCOME, AppRoute.REGISTER, AppRoute.LOGIN].includes(currentRoute);
   const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
+  
   const header = null;
 
   const renderContent = () => {
@@ -253,7 +255,6 @@ function App() {
          return activeProject ? <TourViewer project={activeProject} onClose={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : null;
 
       case AppRoute.SETTINGS:
-          // AQUI: Passamos as props com os tipos corretos
           return <SettingsScreen 
                     currentUser={currentUser} 
                     onUpdateUser={handleUpdateUser} 
@@ -285,11 +286,12 @@ function App() {
       {(isAuthRoute || isFullScreenTool) ? (
           <div className="h-screen w-full bg-black overflow-hidden">{renderContent()}</div>
       ) : (
+          // CORREÇÃO APLICADA AQUI: Adicionado onCameraAction
           <AppLayout 
              currentRoute={currentRoute} 
              onNavigate={setCurrentRoute} 
              onLogout={handleLogout}
-             onCameraAction={handleCentralCameraAction}
+             onCameraAction={handleCentralCameraAction} 
              headerComponent={header}
           >
              {renderContent()}
