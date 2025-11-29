@@ -6,7 +6,8 @@ import {
   Camera, 
   Cloud,
   Play,
-  Download
+  Download,
+  Share2
 } from 'lucide-react';
 import { Project, Photo } from '../types';
 import { ProjectContacts } from './ProjectContacts';
@@ -63,83 +64,115 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col animate-in fade-in duration-300 pb-28">
-      {/* --- HEADER --- */}
-      <header className="bg-white border-b border-gray-200 pt-6 px-4 md:px-6 pb-0 shadow-sm z-10 sticky top-0">
+    // FIX: Removido min-h-screen para não forçar scroll duplo no AppLayout
+    // FIX: Cores alteradas para Dark Mode (bg-transparent pois o pai já é escuro)
+    <div className="flex flex-col animate-in slide-in-from-right-4 duration-300 pb-24 md:pb-0">
+      
+      {/* --- HEADER (Sticky para ficar preso no topo ao rolar) --- */}
+      <header className="bg-gray-900/95 backdrop-blur-md border-b border-white/10 pt-2 px-1 md:px-0 pb-0 z-20 sticky -top-6 md:-top-8">
+        
         <div className="flex items-center justify-between mb-4">
-            <button onClick={onBack} className="flex items-center text-sm text-gray-600 hover:text-gray-900 font-medium">
-                <ArrowLeft size={20} className="mr-1" />
+            <button 
+                onClick={onBack} 
+                className="flex items-center gap-2 text-sm text-gray-400 hover:text-white font-medium p-2 rounded-lg hover:bg-white/5 transition-colors"
+            >
+                <ArrowLeft size={20} />
+                <span className="hidden md:inline">Voltar</span>
             </button>
+            
             <div className="flex gap-2">
-                <button onClick={onViewTour} className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-full transition-colors" title="Ver Tour">
+                <button onClick={onViewTour} className="p-2 text-gray-400 hover:text-yellow-400 hover:bg-yellow-400/10 rounded-full transition-colors" title="Ver Tour Virtual">
                     <Play size={20} />
                 </button>
-                <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+                <button className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+                    <Share2 size={20} />
+                </button>
+                <button className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
                     <MoreHorizontal size={20} />
                 </button>
             </div>
         </div>
 
-        <div className="mb-6">
-            <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-gray-900 leading-tight">{project.title}</h1>
-                <button className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100">
-                    <Pencil size={14} />
+        <div className="mb-6 px-2">
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-white leading-tight">{project.title}</h1>
+                    <p className="text-sm text-gray-400 mt-1 flex items-center gap-1">
+                        {project.address}
+                    </p>
+                </div>
+                <button className="p-2 text-gray-500 hover:text-white bg-white/5 rounded-lg hover:bg-white/10 transition-colors">
+                    <Pencil size={16} />
                 </button>
             </div>
-            <p className="text-sm text-gray-500 mt-1">{project.address}</p>
         </div>
 
-        <div className="flex gap-8 overflow-x-auto no-scrollbar">
+        {/* Tabs */}
+        <div className="flex gap-8 px-2 border-b border-white/10">
           <button 
             onClick={() => setActiveTab('content')}
-            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'content' ? 'border-black text-black' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-all ${
+                activeTab === 'content' 
+                ? 'border-yellow-400 text-yellow-400' 
+                : 'border-transparent text-gray-500 hover:text-gray-300'
+            }`}
           >
-            Conteúdo
+            Galeria ({displayPhotos.length})
           </button>
           <button 
             onClick={() => setActiveTab('contacts')}
-            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'contacts' ? 'border-black text-black' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-all ${
+                activeTab === 'contacts' 
+                ? 'border-yellow-400 text-yellow-400' 
+                : 'border-transparent text-gray-500 hover:text-gray-300'
+            }`}
           >
-            Contactos
+            Informações
           </button>
         </div>
       </header>
 
       {/* --- CONTENT --- */}
       {activeTab === 'content' ? (
-          <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
+          <main className="flex-1 w-full mt-6">
               {displayPhotos.length === 0 ? (
-                 <div className="text-center py-20 bg-white rounded-xl border-2 border-dashed border-gray-200 mt-4">
-                    <div className="mx-auto h-16 w-16 text-gray-300 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                       <Camera size={32} strokeWidth={1.5} />
+                 <div className="text-center py-20 bg-[#121212] rounded-2xl border-2 border-dashed border-white/10 mt-4 mx-2">
+                    <div className="mx-auto h-20 w-20 text-gray-600 bg-white/5 rounded-full flex items-center justify-center mb-6">
+                       <Camera size={36} strokeWidth={1.5} />
                     </div>
-                    <h3 className="text-base font-semibold text-gray-900">Comece a capturar</h3>
-                    <p className="mt-1 text-sm text-gray-500 max-w-xs mx-auto">Toque no botão abaixo para adicionar as primeiras fotos.</p>
+                    <h3 className="text-lg font-semibold text-white">Galeria vazia</h3>
+                    <p className="mt-2 text-sm text-gray-500 max-w-xs mx-auto">Adicione fotos profissionais ou Renders 3D para começar.</p>
                  </div>
               ) : (
-                  /* GRID DE FOTOS (Estilo Nodalview) */
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  /* GRID DE FOTOS (Estilo Dark) */
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                     {displayPhotos.map((photo: Photo) => (
                         <div 
                             key={photo.id}
                             onClick={() => onEditPhoto(photo)}
-                            className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-200 cursor-pointer shadow-sm active:scale-95 transition-transform group"
+                            className="relative aspect-[4/3] rounded-xl overflow-hidden bg-[#121212] border border-white/10 cursor-pointer shadow-lg group hover:border-yellow-400/50 transition-all"
                         >
-                          <img src={photo.url} alt={photo.name} className="w-full h-full object-cover" loading="lazy" />
+                          <img src={photo.url} alt={photo.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
                           
-                          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
-                          <span className="absolute bottom-2 left-2 text-[10px] font-medium text-white/90 tracking-wide uppercase shadow-sm">Snap Fusion</span>
+                          {/* Gradiente para legibilidade */}
+                          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity" />
+                          
+                          {/* Badge HDR/Tipo */}
+                          {photo.type && (
+                              <span className="absolute top-2 left-2 text-[9px] font-bold text-black bg-yellow-400 px-1.5 py-0.5 rounded shadow-sm">
+                                {photo.type.toUpperCase()}
+                              </span>
+                          )}
 
-                          {/* Ícone de Nuvem / Download */}
+                          {/* Botão Download */}
                           <button 
                             onClick={(e) => handleDownloadPhoto(e, photo)}
-                            className="absolute bottom-2 right-2 bg-white rounded-lg p-1.5 shadow-sm text-gray-700 hover:text-blue-600 transition-colors z-10"
+                            className="absolute bottom-2 right-2 p-2 bg-black/60 backdrop-blur-md rounded-lg text-white hover:bg-white hover:text-black transition-all active:scale-95 border border-white/10"
                           >
                             {downloadingId === photo.id ? (
-                                <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                             ) : (
-                                <Cloud size={16} fill="currentColor" className="text-gray-400" />
+                                <Download size={16} />
                             )}
                           </button>
                         </div>
@@ -148,7 +181,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
               )}
           </main>
       ) : (
-          <div className="flex-1 bg-gray-50 p-6">
+          <div className="flex-1 mt-6">
             <ProjectContacts 
               project={project} 
               onUpdate={(updated) => { setProject(updated); onUpdateProject(updated); }} 
@@ -156,16 +189,16 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
           </div>
       )}
 
-      {/* --- BOTÃO FLUTUANTE --- */}
+      {/* --- BOTÃO FLUTUANTE (FAB) --- */}
+      {/* Ajustado para não sobrepor o menu inferior no mobile (mb-20 no mobile, mb-8 no desktop) */}
       {activeTab === 'content' && (
-          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30 shadow-xl rounded-full animate-in slide-in-from-bottom-4">
+          <div className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 z-30 animate-in slide-in-from-bottom-4">
             <button 
                 onClick={onAddPhoto}
-                className="flex items-center gap-3 bg-white text-gray-900 px-6 py-3.5 rounded-full font-bold text-sm hover:bg-gray-50 active:scale-95 transition-all border border-gray-100"
-                style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }}
+                className="flex items-center gap-3 bg-yellow-400 text-black px-8 py-4 rounded-full font-bold text-sm hover:bg-yellow-300 active:scale-95 transition-all shadow-[0_0_20px_rgba(250,204,21,0.3)]"
             >
-                <Camera size={20} className="text-gray-800" />
-                <span>Iniciar captura</span>
+                <Camera size={20} />
+                <span>Nova Foto</span>
             </button>
           </div>
       )}
