@@ -213,7 +213,6 @@ function App() {
 
   const handleLogout = async () => { await logoutUser(); setCurrentUser(null); setCurrentRoute(AppRoute.LANDING); };
 
-  // Função central para controlar a câmera
   const handleCentralCameraAction = () => {
       if (currentRoute === AppRoute.PROJECT_DETAILS && activeProject) {
           setCurrentRoute(AppRoute.CAMERA);
@@ -225,7 +224,6 @@ function App() {
   const isAuthRoute = [AppRoute.LANDING, AppRoute.WELCOME, AppRoute.REGISTER, AppRoute.LOGIN].includes(currentRoute);
   const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
   
-  // Header removido do layout principal para evitar duplicação (agora cada tela gere seu header se precisar)
   const header = null;
 
   const renderContent = () => {
@@ -291,7 +289,6 @@ function App() {
              currentRoute={currentRoute} 
              onNavigate={setCurrentRoute} 
              onLogout={handleLogout}
-             // ESTA LINHA É CRÍTICA: Garanta que ela existe no seu arquivo final
              onCameraAction={handleCentralCameraAction} 
              headerComponent={header}
           >
