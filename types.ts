@@ -9,6 +9,7 @@ export interface UserProfile {
   company?: string;
   createdAt: number;
   password?: string; // Opcional, apenas para registro
+  avatar?: string; // <--- ADICIONADO: Propriedade avatar opcional
   preferences: {
     language: string;
     notifications: boolean;
