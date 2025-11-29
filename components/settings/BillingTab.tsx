@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Invoice, UserProfile } from '../../types';
 import { Download } from 'lucide-react';
@@ -96,7 +95,10 @@ export const BillingTab: React.FC<Props> = ({ invoices, users }) => {
                                   <td className="px-6 py-4">
                                       <span className="px-2 py-1 bg-green-500 text-white text-[10px] font-bold rounded uppercase">PAGO</span>
                                   </td>
-                                  <td className="px-6 py-4 text-gray-500">{formatDate(inv.date)}</td>
+                                  <td className="px-6 py-4 text-gray-500">
+                                      {/* CORREÇÃO AQUI: Convertemos a string de data para timestamp (number) */}
+                                      {formatDate(new Date(inv.date).getTime())}
+                                  </td>
                                   <td className="px-6 py-4 text-gray-900">{inv.amount.toFixed(2)} €</td>
                                   <td className="px-6 py-4 text-right">
                                       <button className="p-2 hover:bg-gray-200 rounded border border-gray-300"><Download className="w-4 h-4 text-gray-600" /></button>
