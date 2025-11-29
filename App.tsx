@@ -33,7 +33,7 @@ function App() {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [prefillEmail, setPrefillEmail] = useState('');
 
-  // === MODO ESCURO AUTOMÁTICO ===
+  // MODO ESCURO AUTOMÁTICO
   useEffect(() => {
     const applyTheme = () => {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -47,7 +47,6 @@ function App() {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   }, []);
 
-  // Inicialização
   useEffect(() => {
     const initApp = async () => {
       const user = getCurrentUser();
@@ -213,7 +212,6 @@ function App() {
 
   const handleLogout = async () => { await logoutUser(); setCurrentUser(null); setCurrentRoute(AppRoute.LANDING); };
 
-  // Função central para controlar a câmera
   const handleCentralCameraAction = () => {
       if (currentRoute === AppRoute.PROJECT_DETAILS && activeProject) {
           setCurrentRoute(AppRoute.CAMERA);
