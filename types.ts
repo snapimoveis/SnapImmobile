@@ -67,11 +67,20 @@ export interface Project {
 }
 
 // === EDITOR ===
-export type ToolMode = 'crop' | 'filter' | 'adjust' | 'text' | 'draw' | 'watermark';
+// Alterado de 'type' para 'enum' para permitir uso como valor (ToolMode.CROP)
+export enum ToolMode {
+  CROP = 'crop',
+  FILTER = 'filter',
+  ADJUST = 'adjust',
+  TEXT = 'text',
+  DRAW = 'draw',
+  WATERMARK = 'watermark'
+}
 
 // === CONFIGURAÇÕES E FATURAÇÃO ===
 export interface Invoice {
   id: string;
+  number: string; // Adicionado para resolver erro no BillingTab
   date: string;
   amount: number;
   status: 'paid' | 'pending' | 'failed';
@@ -84,9 +93,13 @@ export interface Device {
   userId?: string; // Adicionado para resolver erro no storage.ts
   name: string;
   type: string;
+  model?: string; // Adicionado para resolver erro no DevicesTab
+  userName?: string; // Adicionado para resolver erro no DevicesTab
+  lastAccess?: number; // Alias para lastActive
   lastActive: number;
   current?: boolean;
   ip?: string;
+  status?: 'active' | 'inactive'; // Adicionado para resolver erro no DevicesTab
 }
 
 export interface CompanySettings {
@@ -104,6 +117,9 @@ export interface CompanySettings {
   backgroundColor?: string;
   allowUserWatermark?: boolean;
   virtualTourDays?: number;
+  
+  // Assinatura de índice para permitir acesso dinâmico se necessário
+  [key: string]: any; 
 }
 
 // === ROTAS DA APP ===
