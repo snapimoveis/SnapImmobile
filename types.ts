@@ -1,7 +1,6 @@
 // === PERFIL DO UTILIZADOR ===
 export interface UserProfile {
   id: string;
-  // Adicionado suporte para os nomes em Português que os seus componentes estão a usar
   role: 'admin' | 'editor' | 'viewer' | 'Administrador' | 'Fotografo'; 
   firstName: string;
   lastName: string;
@@ -23,7 +22,6 @@ export interface UserProfile {
   };
 }
 
-// === FOTOS E MEDIA ===
 export interface Photo {
   id: string;
   url: string;
@@ -32,9 +30,10 @@ export interface Photo {
   createdAt?: number;
   originalUrl?: string;
   linkedTo?: string;
+  // Adicionado para resolver o erro no CameraView.tsx(312,13)
+  timestamp?: number; 
 }
 
-// === CONTACTOS ===
 export interface Contact {
   id: string;
   name: string;
@@ -44,7 +43,6 @@ export interface Contact {
   notes?: string;
 }
 
-// === PROJETOS ===
 export interface ProjectDetails {
   rooms?: number;
   area?: number;
@@ -67,7 +65,6 @@ export interface Project {
   coverImage?: string;
 }
 
-// === EDITOR ===
 export enum ToolMode {
   CROP = 'crop',
   FILTER = 'filter',
@@ -75,12 +72,10 @@ export enum ToolMode {
   TEXT = 'text',
   DRAW = 'draw',
   WATERMARK = 'watermark',
-  // ADICIONADO: As opções que faltavam para o componente Editor
   MAGIC_ERASE = 'magic_erase',
   VIRTUAL_STAGING = 'virtual_staging'
 }
 
-// === CONFIGURAÇÕES E FATURAÇÃO ===
 export interface Invoice {
   id: string;
   number: string;
@@ -102,7 +97,6 @@ export interface Device {
   lastActive: number;
   current?: boolean;
   ip?: string;
-  // Adicionado suporte para maiúsculas/minúsculas para evitar erros de comparação
   status?: 'active' | 'inactive' | 'Active' | 'Blocked'; 
 }
 
@@ -119,11 +113,9 @@ export interface CompanySettings {
   backgroundColor?: string;
   allowUserWatermark?: boolean;
   virtualTourDays?: number;
-  // Permite propriedades dinâmicas para evitar erros em loops
   [key: string]: any; 
 }
 
-// === ROTAS DA APP ===
 export enum AppRoute {
   LANDING = 'LANDING',
   LOGIN = 'LOGIN',
