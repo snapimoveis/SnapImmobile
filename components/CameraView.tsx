@@ -28,7 +28,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const [lastSavedPhoto, setLastSavedPhoto] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  // Detecção de Orientação
   useEffect(() => {
     const checkOrientation = () => {
       setIsLandscape(window.innerWidth > window.innerHeight);
@@ -38,59 +37,58 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     return () => window.removeEventListener('resize', checkOrientation);
   }, []);
 
-  // Inicializar Câmara
   useEffect(() => { startCamera(); return () => stopCamera(); }, []);
 
   const startCamera = async () => {
     try {
-      // TENTA CONFIGURAR HARDWARE PARA "WARM" (QUENTE) SE POSSÍVEL
-      // Muitos dispositivos móveis aceitam whiteBalanceMode manual
-      const advancedConstraints = {
+      // FIX: Usamos 'any' aqui para evitar erro de TS no Vercel
+      // O TS não reconhece 'whiteBalanceMode' nativamente, mas funciona no Chrome/Android
+      const advancedConstraints: any = {
          whiteBalanceMode: 'manual', 
          exposureMode: 'continuous',
          focusMode: 'continuous'
       };
 
-      const constraints = {
+      // Tenta 4K 4:3 primeiro
+      const constraints: any = {
         video: { 
             facingMode: 'environment', 
             aspectRatio: { exact: 1.333333 },
             width: { ideal: 4032 },
             height: { ideal: 3024 },
-            // @ts-ignore
             advanced: [advancedConstraints] 
         }
       };
 
-      const constraintsFallback = {
+      const constraintsFallback: any = {
         video: { 
             facingMode: 'environment', 
             aspectRatio: { ideal: 1.333333 },
             width: { ideal: 1920 }, 
             height: { ideal: 1440 },
-             // @ts-ignore
             advanced: [advancedConstraints]
         }
       };
 
       let stream;
       try {
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          // Casting explícito para evitar erro de sobrecarga no getUserMedia
+          stream = await navigator.mediaDevices.getUserMedia(constraints as MediaStreamConstraints);
       } catch (e) {
           console.warn("4K falhou, tentando HD...", e);
-          stream = await navigator.mediaDevices.getUserMedia(constraintsFallback);
+          stream = await navigator.mediaDevices.getUserMedia(constraintsFallback as MediaStreamConstraints);
       }
 
       if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => setIsStreaming(true);
         
-        // Tenta aplicar temperatura de cor via hardware para evitar o azulado
         const track = stream.getVideoTracks()[0];
         const capabilities: any = track.getCapabilities?.() || {};
+        
+        // Tenta aquecer a imagem via hardware (5500K-6000K)
         if (capabilities.colorTemperature) {
             try {
-                // 5500K a 6000K tende a ser mais natural/quente que o padrão frio de LEDs
                 await track.applyConstraints({ advanced: [{ colorTemperature: 5500 }] } as any);
             } catch (e) {}
         }
@@ -184,10 +182,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
     const evSequence = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
     
-    // === CORREÇÃO DE LUZES E ATMOSFERA ===
-    // Valores antigos iam até 6.0 (explosão de branco).
-    // Novos valores: Mais conservadores para preservar as lâmpadas.
-    // O brilho vem da Exposição (EV) e não do filtro digital.
+    // Configurações "Quentes" e Suaves para evitar estouro
     const brightnessValues = [0.4, 0.5, 0.6, 0.8, 1.0, 1.1, 1.2, 1.4, 1.6]; 
     const capturedBlobs: string[] = [];
 
@@ -209,17 +204,12 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     setProcessingProgress(0);
 
     for (let i = 0; i < 9; i++) {
-        // Ajuste de Hardware (EV) - Isso traz a luz real
         if (supportsEV) {
             const ev = Math.max(caps.exposureCompensation.min, Math.min(caps.exposureCompensation.max, evSequence[i]));
             try { await track.applyConstraints({ advanced: [{ exposureCompensation: ev }] } as any); } catch(e){}
         } 
         
-        // === O SEGREDO DO "LOOK" RESIDENCIAL ===
-        // 1. brightness(...): Controlado para não estourar o teto.
-        // 2. saturate(1.35): Puxa a cor do sofá amarelo e da madeira.
-        // 3. sepia(0.25): O TRUQUE. Adiciona o tom dourado/quente da Foto 1.
-        // 4. contrast(0.92): Reduz o contraste nas altas luzes para suavizar os spots do teto (Highlight Roll-off).
+        // Aplica o filtro corretivo (Quente + Roll-off de luzes)
         ctx.filter = `brightness(${brightnessValues[i]}) saturate(1.35) sepia(0.25) contrast(0.92)`; 
 
         playShutterSound();
@@ -228,7 +218,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
         drawCroppedFrame(video, canvas, ctx);
         
-        ctx.filter = 'none'; // Limpa filtro para o próximo frame
+        ctx.filter = 'none';
 
         const frameData = canvas.toDataURL('image/jpeg', 0.95);
         capturedBlobs.push(frameData);
@@ -274,7 +264,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     }
   };
 
-  // Ecrã de Preview
   if (previewImage) {
       return (
         <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-[100] flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300 touch-none">
@@ -302,7 +291,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   return (
     <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-col md:flex-row text-white touch-none">
       
-      {/* BARRA ESQUERDA/SUPERIOR */}
       <div className={`bg-black z-30 flex items-center justify-between px-6
         ${isLandscape 
             ? 'flex-col w-20 h-full border-r border-white/10 py-8' 
@@ -320,7 +308,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
          {isLandscape && <div className="w-6 h-6"></div>}
       </div>
 
-      {/* VISOR CENTRAL */}
       <div className="flex-1 relative bg-[#050505] overflow-hidden flex items-center justify-center p-2">
         <div className="relative w-full max-w-full aspect-[3/4] md:aspect-[4/3] overflow-hidden bg-black shadow-2xl rounded-lg md:rounded-none">
             <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
@@ -388,7 +375,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         </div>
       </div>
 
-      {/* BARRA DIREITA/INFERIOR */}
       <div className={`bg-black z-30 flex items-center justify-center relative
         ${isLandscape 
             ? 'flex-col w-32 h-full border-l border-white/10' 
@@ -406,7 +392,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         </button>
       </div>
 
-      {/* Processing Overlay */}
       {isProcessing && !previewImage && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
             <div className="flex flex-col items-center">
