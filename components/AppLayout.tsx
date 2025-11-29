@@ -1,6 +1,6 @@
 import React from 'react';
 import { Home, Settings, Camera, LogOut } from 'lucide-react';
-import { AppRoute } from '../types';
+import { AppRoute } from '../types'; // Importa do arquivo criado acima
 
 interface AppLayoutProps {
   children: React.ReactNode;
