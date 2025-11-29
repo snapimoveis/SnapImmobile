@@ -1,0 +1,40 @@
+/* Não precisamos de @tailwind aqui pois você usa o CDN */
+
+:root {
+  /* Variáveis para o Notch do iPhone */
+  --sat: env(safe-area-inset-top);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+  --sar: env(safe-area-inset-right);
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  background-color: #111827; /* bg-gray-900 para combinar com seu HTML */
+  color: #ffffff;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Altura segura para mobile */
+.h-screen-safe {
+  height: 100vh; /* Fallback */
+  height: 100dvh; /* Altura real dinâmica */
+}
+
+/* Utilitários de Safe Area */
+.pt-safe { padding-top: var(--sat); }
+.pb-safe { padding-bottom: var(--sab); }
+.pl-safe { padding-left: var(--sal); }
+.pr-safe { padding-right: var(--sar); }
+.mb-safe { margin-bottom: var(--sab); }
+
+/* Remove scrollbar padrão */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
