@@ -43,13 +43,22 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   const startCamera = async () => {
     try {
-      // Tenta 4K 4:3 primeiro para máxima nitidez
+      // TENTA CONFIGURAR HARDWARE PARA "WARM" (QUENTE) SE POSSÍVEL
+      // Muitos dispositivos móveis aceitam whiteBalanceMode manual
+      const advancedConstraints = {
+         whiteBalanceMode: 'manual', 
+         exposureMode: 'continuous',
+         focusMode: 'continuous'
+      };
+
       const constraints = {
         video: { 
             facingMode: 'environment', 
             aspectRatio: { exact: 1.333333 },
             width: { ideal: 4032 },
-            height: { ideal: 3024 }
+            height: { ideal: 3024 },
+            // @ts-ignore
+            advanced: [advancedConstraints] 
         }
       };
 
@@ -58,7 +67,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             facingMode: 'environment', 
             aspectRatio: { ideal: 1.333333 },
             width: { ideal: 1920 }, 
-            height: { ideal: 1440 }
+            height: { ideal: 1440 },
+             // @ts-ignore
+            advanced: [advancedConstraints]
         }
       };
 
@@ -73,6 +84,16 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => setIsStreaming(true);
+        
+        // Tenta aplicar temperatura de cor via hardware para evitar o azulado
+        const track = stream.getVideoTracks()[0];
+        const capabilities: any = track.getCapabilities?.() || {};
+        if (capabilities.colorTemperature) {
+            try {
+                // 5500K a 6000K tende a ser mais natural/quente que o padrão frio de LEDs
+                await track.applyConstraints({ advanced: [{ colorTemperature: 5500 }] } as any);
+            } catch (e) {}
+        }
       }
     } catch (err) {
       console.error(err);
@@ -162,10 +183,16 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const supportsEV = !!caps.exposureCompensation;
 
     const evSequence = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
-    const brightnessValues = [0.1, 0.3, 0.5, 0.8, 1.0, 1.5, 2.5, 4.0, 6.0];
+    
+    // === CORREÇÃO DE LUZES E ATMOSFERA ===
+    // Valores antigos iam até 6.0 (explosão de branco).
+    // Novos valores: Mais conservadores para preservar as lâmpadas.
+    // O brilho vem da Exposição (EV) e não do filtro digital.
+    const brightnessValues = [0.4, 0.5, 0.6, 0.8, 1.0, 1.1, 1.2, 1.4, 1.6]; 
     const capturedBlobs: string[] = [];
 
     let effectiveProfile = hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior';
+    
     if (hdrProfile === 'interior') {
       try {
         drawCroppedFrame(video, canvas, ctx);
@@ -182,24 +209,30 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     setProcessingProgress(0);
 
     for (let i = 0; i < 9; i++) {
+        // Ajuste de Hardware (EV) - Isso traz a luz real
         if (supportsEV) {
             const ev = Math.max(caps.exposureCompensation.min, Math.min(caps.exposureCompensation.max, evSequence[i]));
             try { await track.applyConstraints({ advanced: [{ exposureCompensation: ev }] } as any); } catch(e){}
         } 
         
-        ctx.filter = `brightness(${brightnessValues[i]}) saturate(1.1)`; 
+        // === O SEGREDO DO "LOOK" RESIDENCIAL ===
+        // 1. brightness(...): Controlado para não estourar o teto.
+        // 2. saturate(1.35): Puxa a cor do sofá amarelo e da madeira.
+        // 3. sepia(0.25): O TRUQUE. Adiciona o tom dourado/quente da Foto 1.
+        // 4. contrast(0.92): Reduz o contraste nas altas luzes para suavizar os spots do teto (Highlight Roll-off).
+        ctx.filter = `brightness(${brightnessValues[i]}) saturate(1.35) sepia(0.25) contrast(0.92)`; 
 
         playShutterSound();
         setFlashVisual(true);
         setTimeout(() => setFlashVisual(false), 50);
 
         drawCroppedFrame(video, canvas, ctx);
-        ctx.filter = 'none';
+        
+        ctx.filter = 'none'; // Limpa filtro para o próximo frame
 
         const frameData = canvas.toDataURL('image/jpeg', 0.95);
         capturedBlobs.push(frameData);
         
-        // Preview visual das capturas
         if (i % 2 === 0) {
             setCapturedPreviews(prev => [...prev, { url: frameData, ev: `${evSequence[i]}` }]);
         }
@@ -210,7 +243,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
     if (supportsEV) try { await track.applyConstraints({ advanced: [{ exposureCompensation: 0 }] } as any); } catch(e){}
 
-    // Enviar 3 fotos para a IA (Escura, Normal, Clara)
     const indicesToUse = [1, 4, 7]; 
     const fusionPayload = indicesToUse.map(i => capturedBlobs[i]);
 
@@ -222,7 +254,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         setProcessingStep('Concluído');
         setProcessingProgress(100);
         setLastSavedPhoto(finalImage);
-        setPreviewImage(finalImage); // Abre Preview
+        setPreviewImage(finalImage); 
 
         onPhotoCaptured({
             id: crypto.randomUUID(),
@@ -242,7 +274,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     }
   };
 
-  // Ecrã de Preview/Confirmação
+  // Ecrã de Preview
   if (previewImage) {
       return (
         <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-[100] flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300 touch-none">
@@ -270,7 +302,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   return (
     <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-col md:flex-row text-white touch-none">
       
-      {/* === BARRA ESQUERDA/SUPERIOR (Ferramentas) === */}
+      {/* BARRA ESQUERDA/SUPERIOR */}
       <div className={`bg-black z-30 flex items-center justify-between px-6
         ${isLandscape 
             ? 'flex-col w-20 h-full border-r border-white/10 py-8' 
@@ -288,24 +320,20 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
          {isLandscape && <div className="w-6 h-6"></div>}
       </div>
 
-      {/* === VISOR CENTRAL (4:3) === */}
+      {/* VISOR CENTRAL */}
       <div className="flex-1 relative bg-[#050505] overflow-hidden flex items-center justify-center p-2">
-        {/* Container 4:3 Fixo */}
         <div className="relative w-full max-w-full aspect-[3/4] md:aspect-[4/3] overflow-hidden bg-black shadow-2xl rounded-lg md:rounded-none">
             <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
             <canvas ref={canvasRef} className="hidden" />
             
-            {/* Flash */}
             <div className={`absolute inset-0 bg-white transition-opacity duration-75 pointer-events-none ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
 
-            {/* Countdown Overlay */}
             {countdown !== null && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
                     <span className="text-[120px] font-black text-white drop-shadow-2xl animate-ping">{countdown}</span>
                 </div>
             )}
 
-            {/* Grid Overlay */}
             {showGrid && (
                 <div className="absolute inset-0 w-full h-full grid grid-cols-3 grid-rows-3 opacity-30 pointer-events-none">
                     <div className="border-r border-b border-white"></div>
@@ -320,16 +348,13 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 </div>
             )}
             
-            {/* Crosshair Central (Simples) */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-60">
                 <div className="w-4 h-4 relative">
-                     <div className="absolute top-1/2 left-0 w-full h-[1px] bg-white/80"></div>
-                     <div className="absolute left-1/2 top-0 h-full w-[1px] bg-white/80"></div>
+                      <div className="absolute top-1/2 left-0 w-full h-[1px] bg-white/80"></div>
+                      <div className="absolute left-1/2 top-0 h-full w-[1px] bg-white/80"></div>
                 </div>
             </div>
 
-            {/* === PREVIEWS DAS FOTOS (Banda Lateral) === */}
-            {/* Aparece enquanto tira as fotos, mostrando as exposições escuras a claras */}
             {isProcessing && capturedPreviews.length > 0 && (
                 <div className="absolute top-4 left-4 bottom-4 w-16 flex flex-col gap-2 overflow-hidden animate-in slide-in-from-left-4 z-40">
                     {capturedPreviews.map((prev, idx) => (
@@ -340,8 +365,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 </div>
             )}
 
-            {/* === BOTÕES INTERIOR/EXTERIOR (Fundo da Imagem) === */}
-            {/* Ajuste de CSS para garantir visibilidade em landscape */}
             <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-6 z-20 pointer-events-auto">
                  <button onClick={() => setHdrProfile('interior')} 
                     className={`text-xs font-bold tracking-widest transition-all px-4 py-1.5 rounded-full shadow-lg border ${hdrProfile === 'interior' ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-black/50 text-white/90 border-white/30 backdrop-blur-md'}`}>
@@ -353,7 +376,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 </button>
             </div>
 
-            {/* Botões Zoom (Sobre a Imagem, Canto Inferior/Direito) */}
             <div className={`absolute z-20 flex gap-3 p-1 bg-black/30 backdrop-blur-md rounded-full border border-white/10
                 ${isLandscape 
                     ? 'right-4 top-1/2 -translate-y-1/2 flex-col' 
@@ -366,14 +388,13 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         </div>
       </div>
 
-      {/* === BARRA DIREITA/INFERIOR (Disparo) === */}
+      {/* BARRA DIREITA/INFERIOR */}
       <div className={`bg-black z-30 flex items-center justify-center relative
         ${isLandscape 
             ? 'flex-col w-32 h-full border-l border-white/10' 
             : 'flex-row h-36 w-full border-t border-white/10 pb-6'
         }`}>
         
-        {/* Botão Disparo */}
         <button 
             onClick={handleShutterClick} 
             disabled={isProcessing || countdown !== null} 
