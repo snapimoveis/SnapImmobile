@@ -7,7 +7,7 @@ interface AppLayoutProps {
   currentRoute: AppRoute;
   onNavigate: (route: AppRoute) => void;
   onLogout: () => void;
-  onCameraAction: () => void; // <--- Esta é a propriedade que estava a faltar na definição
+  onCameraAction: () => void;
   headerComponent?: React.ReactNode;
 }
 
