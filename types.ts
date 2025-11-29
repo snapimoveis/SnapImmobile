@@ -11,6 +11,9 @@ export interface UserProfile {
   createdAt: number;
   password?: string; // Opcional, usado apenas no registo
   avatar?: string;   // Adicionado para resolver erro no ProfileTab
+  lastActive?: number; // Adicionado para resolver erro no UsersTab
+  watermarkUrl?: string; // Adicionado para resolver erro no storage.ts
+  deviceId?: string; // Adicionado para resolver erro no storage.ts
   preferences: {
     language: string;
     notifications: boolean;
@@ -78,6 +81,7 @@ export interface Invoice {
 
 export interface Device {
   id: string;
+  userId?: string; // Adicionado para resolver erro no storage.ts
   name: string;
   type: string;
   lastActive: number;
@@ -86,6 +90,7 @@ export interface Device {
 }
 
 export interface CompanySettings {
+  id?: string; // Adicionado para resolver erro no storage.ts
   name: string;
   logoUrl?: string;
   taxId?: string;
@@ -93,6 +98,12 @@ export interface CompanySettings {
   website?: string;
   email?: string;
   phone?: string;
+  
+  // Cores e Marca (Adicionado para resolver erros no GeneralTab)
+  primaryColor?: string;
+  backgroundColor?: string;
+  allowUserWatermark?: boolean;
+  virtualTourDays?: number;
 }
 
 // === ROTAS DA APP ===
