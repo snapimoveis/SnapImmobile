@@ -18,19 +18,14 @@ export const GeneralTab: React.FC<Props> = ({ company, setCompany, onSave, isLoa
     const weekDays = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 
     const toggleDay = (day: string) => {
-        // FIX: Força o tipo para string[] ou usa array vazio se for undefined/null/number
-        const currentDays: string[] = Array.isArray(company.virtualTourDays) ? company.virtualTourDays : [];
+        // Garante que é um array, mesmo que venha undefined
+        const currentDays = company.virtualTourDays || [];
         
         if (currentDays.includes(day)) {
             setCompany({ ...company, virtualTourDays: currentDays.filter(d => d !== day) });
         } else {
             setCompany({ ...company, virtualTourDays: [...currentDays, day] });
         }
-    };
-
-    // Helper seguro para website
-    const getSafeWebsite = () => {
-        return (company.website || '').replace('https://', '');
     };
 
     return (
@@ -58,7 +53,7 @@ export const GeneralTab: React.FC<Props> = ({ company, setCompany, onSave, isLoa
                           <span className="inline-flex items-center px-4 rounded-l-lg border border-r-0 border-gray-300 dark:border-white/20 bg-gray-50 dark:bg-white/5 text-gray-500 text-sm">https://</span>
                           <input 
                               type="text" 
-                              value={getSafeWebsite()}
+                              value={(company.website || '').replace('https://', '')}
                               onChange={e => setCompany({...company, website: `https://${e.target.value}`})}
                               className="flex-1 p-3 border border-gray-300 dark:border-white/20 bg-transparent rounded-r-lg focus:ring-2 focus:ring-purple-500 outline-none text-gray-900 dark:text-white"
                           />
@@ -212,9 +207,8 @@ export const GeneralTab: React.FC<Props> = ({ company, setCompany, onSave, isLoa
                   <h4 className="font-bold text-gray-900 dark:text-white mb-6">Seleccione os dias em que está disponível para uma visita virtual guiada *</h4>
                   <div className="flex gap-4 flex-wrap">
                       {weekDays.map(day => {
-                          // FIX: Usa array vazio se virtualTourDays não for um array válido
-                          const safeDays = Array.isArray(company.virtualTourDays) ? company.virtualTourDays : [];
-                          const isSelected = safeDays.includes(day);
+                          // Usa verificação segura para array
+                          const isSelected = (company.virtualTourDays || []).includes(day);
                           return (
                               <button
                                 key={day}
