@@ -11,7 +11,6 @@ interface CameraViewProps {
 export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // FIX: Armazenar o stream separadamente para garantir limpeza correta
   const streamRef = useRef<MediaStream | null>(null); 
 
   const [isStreaming, setIsStreaming] = useState(false);
@@ -30,6 +29,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const [lastSavedPhoto, setLastSavedPhoto] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+  // NOVO: Estado para a mira de foco
+  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null);
+
   useEffect(() => {
     const checkOrientation = () => {
       setIsLandscape(window.innerWidth > window.innerHeight);
@@ -39,7 +41,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     return () => window.removeEventListener('resize', checkOrientation);
   }, []);
 
-  // Monitora o preview para parar/reiniciar a câmera
   useEffect(() => {
     if (!previewImage) {
         startCamera();
@@ -118,6 +119,52 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         videoRef.current.srcObject = null;
     }
     setIsStreaming(false);
+  };
+
+  // === NOVA FUNÇÃO: TAP TO FOCUS ===
+  const handleTapToFocus = async (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+    if (!streamRef.current) return;
+
+    // 1. Calcular posição visual do toque
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    // Mostra o quadrado amarelo
+    setFocusPoint({ x, y });
+    
+    // Esconde o quadrado após 1.2 segundos
+    setTimeout(() => setFocusPoint(null), 1200);
+
+    // 2. Comandar o Hardware
+    const track = streamRef.current.getVideoTracks()[0];
+    const capabilities: any = track.getCapabilities?.() || {};
+
+    // Truque: Reaplicar o modo "continuous" força a câmera a "caçar" o foco e reavaliar a luz
+    // Isso simula o comportamento de focar novamente na cena
+    const constraints: any = { advanced: [] };
+    
+    if (capabilities.focusMode?.includes('continuous')) {
+        constraints.advanced.push({ focusMode: 'continuous' });
+    }
+    if (capabilities.exposureMode?.includes('continuous')) {
+        constraints.advanced.push({ exposureMode: 'continuous' });
+    }
+    // Opcional: Reavaliar White Balance (pode esfriar a imagem, mas corrige cores erradas)
+    if (capabilities.whiteBalanceMode?.includes('continuous')) {
+        constraints.advanced.push({ whiteBalanceMode: 'continuous' });
+    }
+
+    if (constraints.advanced.length > 0) {
+        try {
+            await track.applyConstraints(constraints);
+        } catch (err) {
+            // Ignorar erros silenciosamente se o dispositivo não suportar a troca rápida
+        }
+    }
   };
 
   const playShutterSound = () => {
@@ -300,11 +347,10 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   }
 
   return (
-    // FIX: Layout fluido principal (flex-col em mobile, flex-row em desktop/landscape)
     <div className={`fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex text-white touch-none
         ${isLandscape ? 'flex-row' : 'flex-col'}`}>
       
-      {/* === ZONA 1: FERRAMENTAS (Barra Topo/Esquerda) === */}
+      {/* === ZONA 1: FERRAMENTAS === */}
       <div className={`bg-black z-30 flex items-center justify-between
         ${isLandscape 
             ? 'flex-col w-16 md:w-24 h-full border-r border-white/10 py-6 pl-[env(safe-area-inset-left)]' 
@@ -319,31 +365,46 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             <Grid3X3 size={20} className="md:w-6 md:h-6" />
          </button>
 
-         {/* Espaçador para equilibrar o layout em landscape */}
          {isLandscape && <div className="w-6 h-6 opacity-0"></div>}
       </div>
 
-      {/* === ZONA 2: VIEWFINDER (Centro Expansível) === */}
+      {/* === ZONA 2: VIEWFINDER (Com suporte a Clique para Focar) === */}
       <div className="flex-1 relative bg-[#050505] overflow-hidden flex items-center justify-center p-2 md:p-4">
         
-        {/* Container que mantém a proporção mas nunca excede o espaço disponível */}
-        <div className={`relative bg-black shadow-2xl rounded-lg overflow-hidden
+        {/* Adicionei 'onClick={handleTapToFocus}' aqui */}
+        <div 
+            onClick={handleTapToFocus}
+            className={`relative bg-black shadow-2xl rounded-lg overflow-hidden cursor-crosshair
             ${isLandscape ? 'h-full aspect-[4/3]' : 'w-full max-h-full aspect-[3/4]'} 
-            max-w-full max-h-full`}>
-            
+            max-w-full max-h-full`}
+        >
             <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
             <canvas ref={canvasRef} className="hidden" />
             
             <div className={`absolute inset-0 bg-white transition-opacity duration-75 pointer-events-none ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
 
-            {/* Countdown Overlay */}
+            {/* MIRA DE FOCO (SQUARE RETICLE) */}
+            {focusPoint && (
+                <div 
+                    className="absolute w-20 h-20 border-2 border-yellow-400 opacity-0 animate-in fade-in zoom-in duration-200 pointer-events-none z-40"
+                    style={{ 
+                        left: focusPoint.x - 40, 
+                        top: focusPoint.y - 40,
+                        boxShadow: '0 0 10px rgba(255, 230, 0, 0.5)',
+                        animation: 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite'
+                    }}
+                >
+                    {/* Cantos da mira */}
+                    <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-yellow-400 rounded-full -translate-x-1/2 -translate-y-1/2"></div>
+                </div>
+            )}
+
             {countdown !== null && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
                     <span className="text-[80px] md:text-[120px] font-black text-white drop-shadow-2xl animate-ping">{countdown}</span>
                 </div>
             )}
 
-            {/* Grid Overlay */}
             {showGrid && (
                 <div className="absolute inset-0 w-full h-full grid grid-cols-3 grid-rows-3 opacity-30 pointer-events-none">
                     <div className="border-r border-b border-white"></div>
@@ -366,7 +427,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 </div>
             </div>
 
-            {/* Previews das Fotos (Lateral dentro do Viewfinder) */}
+            {/* Previews */}
             {isProcessing && capturedPreviews.length > 0 && (
                 <div className="absolute top-4 left-4 bottom-4 w-12 md:w-16 flex flex-col gap-2 overflow-hidden animate-in slide-in-from-left-4 z-40">
                     {capturedPreviews.map((prev, idx) => (
@@ -377,13 +438,15 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 </div>
             )}
 
-            {/* Controles de Perfil (Fundo) */}
+            {/* Botões Perfil */}
             <div className="absolute bottom-4 md:bottom-6 left-0 right-0 flex justify-center gap-4 md:gap-6 z-20 pointer-events-auto px-4">
-                 <button onClick={() => setHdrProfile('interior')} 
+                 <button 
+                    onClick={(e) => { e.stopPropagation(); setHdrProfile('interior'); }} 
                     className={`text-[10px] md:text-xs font-bold tracking-widest transition-all px-3 md:px-4 py-1.5 rounded-full shadow-lg border ${hdrProfile === 'interior' ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-black/50 text-white/90 border-white/30 backdrop-blur-md'}`}>
                     INTERIOR
                 </button>
-                <button onClick={() => setHdrProfile('exterior')} 
+                <button 
+                    onClick={(e) => { e.stopPropagation(); setHdrProfile('exterior'); }}
                     className={`text-[10px] md:text-xs font-bold tracking-widest transition-all px-3 md:px-4 py-1.5 rounded-full shadow-lg border ${hdrProfile === 'exterior' ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-black/50 text-white/90 border-white/30 backdrop-blur-md'}`}>
                     EXTERIOR
                 </button>
@@ -395,21 +458,20 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                     ? 'right-2 md:right-4 top-1/2 -translate-y-1/2 flex-col' 
                     : 'bottom-16 md:bottom-20 left-1/2 -translate-x-1/2 flex-row mb-1'
                 }`}>
-                <button onClick={() => handleZoom(1)} className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-xs md:text-sm transition-all ${zoom === 1 ? 'bg-yellow-400 text-black shadow-lg scale-105' : 'text-white hover:bg-white/20'}`}>1x</button>
-                <button onClick={() => handleZoom(0.5)} className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-xs md:text-sm transition-all ${zoom === 0.5 ? 'bg-yellow-400 text-black shadow-lg scale-105' : 'text-white hover:bg-white/20'}`}>.5</button>
+                <button onClick={(e) => { e.stopPropagation(); handleZoom(1); }} className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-xs md:text-sm transition-all ${zoom === 1 ? 'bg-yellow-400 text-black shadow-lg scale-105' : 'text-white hover:bg-white/20'}`}>1x</button>
+                <button onClick={(e) => { e.stopPropagation(); handleZoom(0.5); }} className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-xs md:text-sm transition-all ${zoom === 0.5 ? 'bg-yellow-400 text-black shadow-lg scale-105' : 'text-white hover:bg-white/20'}`}>.5</button>
             </div>
 
         </div>
       </div>
 
-      {/* === ZONA 3: DISPARADOR (Barra Fundo/Direita) === */}
+      {/* === ZONA 3: DISPARADOR === */}
       <div className={`bg-black z-30 flex items-center justify-center relative
         ${isLandscape 
             ? 'flex-col w-24 md:w-32 h-full border-l border-white/10 pr-[env(safe-area-inset-right)]' 
             : 'flex-row h-24 md:h-36 w-full border-t border-white/10 pb-[env(safe-area-inset-bottom)]'
         }`}>
         
-        {/* Botão Disparo Adaptável */}
         <button 
             onClick={handleShutterClick} 
             disabled={isProcessing || countdown !== null} 
@@ -421,7 +483,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         </button>
       </div>
 
-      {/* Processing Overlay */}
       {isProcessing && !previewImage && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
             <div className="flex flex-col items-center">
