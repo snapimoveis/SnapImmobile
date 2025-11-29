@@ -7,7 +7,7 @@ interface AppLayoutProps {
   currentRoute: AppRoute;
   onNavigate: (route: AppRoute) => void;
   onLogout: () => void;
-  onCameraAction: () => void; // Propriedade obrigatória
+  onCameraAction: () => void;
   headerComponent?: React.ReactNode;
 }
 
@@ -23,6 +23,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const isProjectActive = currentRoute === AppRoute.PROJECT_DETAILS;
 
   return (
+    // LAYOUT PURO: Branco no Light, Preto no Dark (Sem cinzas)
     <div className="flex flex-col md:flex-row h-screen-safe w-full bg-white dark:bg-black text-black dark:text-white overflow-hidden font-sans transition-colors duration-300">
       
       {/* === SIDEBAR (Desktop) === */}
