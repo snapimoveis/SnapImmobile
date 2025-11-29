@@ -9,11 +9,11 @@ export interface UserProfile {
   cpf?: string;
   company?: string;
   createdAt: number;
-  password?: string; // Opcional, usado apenas no registo
-  avatar?: string;   // Adicionado para resolver erro no ProfileTab
-  lastActive?: number; // Adicionado para resolver erro no UsersTab
-  watermarkUrl?: string; // Adicionado para resolver erro no storage.ts
-  deviceId?: string; // Adicionado para resolver erro no storage.ts
+  password?: string;
+  avatar?: string;
+  lastActive?: number;
+  watermarkUrl?: string;
+  deviceId?: string;
   preferences: {
     language: string;
     notifications: boolean;
@@ -27,10 +27,10 @@ export interface Photo {
   id: string;
   url: string;
   name: string;
-  type?: string;        // ex: 'hdr', 'wide', etc.
+  type?: string;
   createdAt?: number;
-  originalUrl?: string; // Adicionado para resolver erro no CameraView
-  linkedTo?: string;    // Adicionado para resolver erro no TourViewer (link entre fotos)
+  originalUrl?: string;
+  linkedTo?: string;
 }
 
 // === CONTACTOS ===
@@ -61,13 +61,13 @@ export interface Project {
   details?: ProjectDetails;
   status: 'In Progress' | 'Completed' | 'Archived';
   photos: Photo[];
-  contacts?: Contact[]; // Adicionado para resolver erro no ProjectContacts
+  contacts?: Contact[];
   createdAt: number;
   coverImage?: string;
 }
 
 // === EDITOR ===
-// Alterado de 'type' para 'enum' para permitir uso como valor (ToolMode.CROP)
+// FIX: Alterado de 'type' para 'enum' para permitir usar como valor (ToolMode.CROP)
 export enum ToolMode {
   CROP = 'crop',
   FILTER = 'filter',
@@ -80,7 +80,7 @@ export enum ToolMode {
 // === CONFIGURAÇÕES E FATURAÇÃO ===
 export interface Invoice {
   id: string;
-  number: string; // Adicionado para resolver erro no BillingTab
+  number: string; // FIX: Adicionado número
   date: string;
   amount: number;
   status: 'paid' | 'pending' | 'failed';
@@ -90,20 +90,20 @@ export interface Invoice {
 
 export interface Device {
   id: string;
-  userId?: string; // Adicionado para resolver erro no storage.ts
+  userId?: string;
   name: string;
   type: string;
-  model?: string; // Adicionado para resolver erro no DevicesTab
-  userName?: string; // Adicionado para resolver erro no DevicesTab
-  lastAccess?: number; // Alias para lastActive
+  model?: string; // FIX: Adicionado modelo
+  userName?: string; // FIX: Adicionado nome do utilizador
+  lastAccess?: number; // FIX: Alias para lastActive
   lastActive: number;
   current?: boolean;
   ip?: string;
-  status?: 'active' | 'inactive'; // Adicionado para resolver erro no DevicesTab
+  status?: 'active' | 'inactive'; // FIX: Adicionado status
 }
 
 export interface CompanySettings {
-  id?: string; // Adicionado para resolver erro no storage.ts
+  id?: string;
   name: string;
   logoUrl?: string;
   taxId?: string;
@@ -111,14 +111,11 @@ export interface CompanySettings {
   website?: string;
   email?: string;
   phone?: string;
-  
-  // Cores e Marca (Adicionado para resolver erros no GeneralTab)
   primaryColor?: string;
   backgroundColor?: string;
   allowUserWatermark?: boolean;
   virtualTourDays?: number;
-  
-  // Assinatura de índice para permitir acesso dinâmico se necessário
+  // FIX: Permite aceder a propriedades dinamicamente (como 'includes')
   [key: string]: any; 
 }
 
