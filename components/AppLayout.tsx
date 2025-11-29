@@ -1,353 +1,132 @@
-import React, { useState, useEffect } from 'react';
-import { HashRouter } from 'react-router-dom';
-import { Header } from './components/Header';
-import { ProjectList } from './components/ProjectList';
-import { CameraView } from './components/CameraView';
-import { Editor } from './components/Editor';
-import { ProjectDetail } from './components/ProjectDetail'; 
-import { TourViewer } from './components/TourViewer';
-import { NewProjectModal } from './components/NewProjectModal';
-import { LandingScreen } from './components/LandingScreen';
-import { SettingsScreen } from './components/SettingsScreen';
-import { WelcomeScreen } from './components/WelcomeScreen';
-import { RegisterScreen } from './components/RegisterScreen';
-import { LoginScreen } from './components/LoginScreen';
-import { ManagementMenu } from './components/ManagementMenu';
-import { UpdateNotification } from './components/UpdateNotification';
-import { AppLayout } from './components/AppLayout'; // NOVO IMPORT
+import React from 'react';
+import { Home, Settings, Camera, LogOut } from 'lucide-react';
+import { AppRoute } from '../types';
 
-import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
-import { generateDescription } from './services/geminiService';
-import { 
-    getCurrentUser, getUserProjects, saveProject, deleteProject, 
-    logoutUser, registerUser, loginUser, saveUserSession, updateUser, deleteUserAccount
-} from './services/storage';
+interface AppLayoutProps {
+  children: React.ReactNode;
+  currentRoute: AppRoute;
+  onNavigate: (route: AppRoute) => void;
+  onLogout: () => void;
+  headerComponent?: React.ReactNode;
+}
 
-function App() {
-  const [currentRoute, setCurrentRoute] = useState<AppRoute>(AppRoute.LANDING);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [selectedRole, setSelectedRole] = useState<string>('');
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [activePhoto, setActivePhoto] = useState<Photo | null>(null);
-  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
-  const [prefillEmail, setPrefillEmail] = useState('');
+export const AppLayout: React.FC<AppLayoutProps> = ({ 
+  children, 
+  currentRoute, 
+  onNavigate, 
+  onLogout,
+  headerComponent
+}) => {
 
-  // Inicialização
-  useEffect(() => {
-    const initApp = async () => {
-      const user = getCurrentUser();
-      if (user) {
-        setCurrentUser(user);
-        try {
-          const userProjects = await getUserProjects(user.id);
-          setProjects(userProjects);
-          setCurrentRoute(AppRoute.DASHBOARD);
-        } catch (e) {
-          console.error("Failed to load projects", e);
-        }
-      }
-    };
-    initApp();
-  }, []);
-
-  const handleRoleSelect = (role: string) => {
-    setSelectedRole(role);
-    setCurrentRoute(AppRoute.REGISTER);
-  };
-
-  const handleRegistrationSubmit = async (data: any) => {
-    try {
-        const tempUser: UserProfile = {
-            id: crypto.randomUUID(), 
-            role: selectedRole as any,
-            firstName: data.firstName,
-            lastName: data.lastName,
-            email: data.email,
-            phone: data.phone,
-            cpf: data.cpf,
-            company: data.company,
-            createdAt: Date.now(),
-            password: data.password,
-            preferences: {
-                language: 'pt-PT',
-                notifications: true,
-                marketing: false,
-                theme: 'light'
-            }
-        };
-
-        const newUser = await registerUser(tempUser, data.password);
-        saveUserSession(newUser);
-        setCurrentUser(newUser);
-        setProjects([]);
-        setCurrentRoute(AppRoute.DASHBOARD);
-    } catch (e: any) {
-        if (e.code === 'auth/email-already-in-use' || e.message?.includes('email-already-in-use')) {
-            alert("Este e-mail já está registado. Redirecionando para o login...");
-            setPrefillEmail(data.email);
-            setCurrentRoute(AppRoute.LOGIN);
-            return;
-        } 
-        console.error("Erro no registo:", e);
-        alert("Erro ao criar conta: " + (e.message || "Tente novamente."));
-    }
-  };
-
-  const handleCreateProject = async (details: ProjectDetailsType & { title: string, address: string }) => {
-    if (!currentUser) return;
-
-    const newProject: Project = {
-      id: crypto.randomUUID(),
-      userId: currentUser.id,
-      title: details.title,
-      address: details.address,
-      details: { ...details },
-      status: 'In Progress',
-      photos: [],
-      createdAt: Date.now()
-    };
-    
-    try {
-      const savedProject = await saveProject(newProject); 
-      setProjects([savedProject, ...projects]);
-      setActiveProject(savedProject);
-      setCurrentRoute(AppRoute.PROJECT_DETAILS);
-      setIsNewProjectModalOpen(false);
-    } catch (e: any) {
-      const msg = e.code === 'permission-denied' ? 'Permissão negada. Verifique as Regras no Console do Firebase.' : 'Erro ao criar projeto.';
-      alert(msg);
-    }
-  };
-
-  const handleDeleteProject = async (projectId: string) => {
-    if (window.confirm("Tem a certeza que deseja eliminar este imóvel?")) {
-      try {
-        await deleteProject(projectId);
-        setProjects(prev => prev.filter(p => p.id !== projectId));
-        if (activeProject && activeProject.id === projectId) setActiveProject(null);
-      } catch (e) {
-        alert("Erro ao eliminar projeto.");
-      }
-    }
-  };
-
-  const handlePhotoCaptured = async (photo: Photo) => {
-    if (!currentUser) return;
-
-    try {
-      if (!activeProject) {
-          const draft: Project = {
-              id: crypto.randomUUID(),
-              userId: currentUser.id,
-              title: 'Imóvel Rascunho',
-              address: 'Sem Morada',
-              status: 'In Progress',
-              photos: [photo],
-              createdAt: Date.now(),
-              coverImage: photo.url
-          };
-          
-          const savedDraft = await saveProject(draft); 
-          setProjects([savedDraft, ...projects]);
-          setActiveProject(savedDraft);
-          return;
-      }
-
-      generateDescription(photo.url).then(desc => {
-          console.log("Descrição gerada:", desc);
-      });
-
-      const updatedProject = {
-          ...activeProject,
-          photos: [...activeProject.photos, photo],
-          coverImage: activeProject.coverImage || photo.url
-      };
-
-      setActiveProject(updatedProject);
-
-      saveProject(updatedProject).then((savedProject) => {
-          const updatedProjects = projects.map(p => p.id === activeProject.id ? savedProject : p);
-          setProjects(updatedProjects);
-          setActiveProject(savedProject);
-      }).catch(e => {
-          console.error("Erro ao salvar foto:", e);
-          alert(`Erro ao guardar a foto: ${e.message}`);
-      });
-      
-    } catch (e: any) {
-      console.error(e);
-      alert(`Erro crítico: ${e.message}`);
-    }
-  };
-
-  const handleSaveEditedPhoto = async (updatedPhoto: Photo) => {
-      if (!activeProject) return;
-      try {
-        const updatedPhotos = activeProject.photos.map(p => p.id === updatedPhoto.id ? updatedPhoto : p);
-        const updatedProject = { ...activeProject, photos: updatedPhotos, coverImage: updatedPhotos[0].url };
-        
-        const savedProject = await saveProject(updatedProject);
-        
-        setProjects(projects.map(p => p.id === activeProject.id ? savedProject : p));
-        setActiveProject(savedProject);
-        setCurrentRoute(AppRoute.PROJECT_DETAILS);
-      } catch (e) {
-        alert("Erro ao guardar alterações.");
-      }
-  };
-
-  const navigateToProject = (project: Project) => {
-      setActiveProject(project);
-      setCurrentRoute(AppRoute.PROJECT_DETAILS);
-  };
-
-  const handleUpdateProject = async (updated: Project) => {
-      try {
-        const savedProject = await saveProject(updated);
-        setProjects(projects.map(p => p.id === updated.id ? savedProject : p));
-        setActiveProject(savedProject);
-      } catch (e) {
-        alert("Erro ao atualizar projeto.");
-      }
-  };
-
-  const handleLoginSubmit = async (email: string, password?: string) => {
-      try {
-          const user = await loginUser(email, password);
-          saveUserSession(user);
-          setCurrentUser(user);
-          const userProjects = await getUserProjects(user.id);
-          setProjects(userProjects);
-          setCurrentRoute(AppRoute.DASHBOARD);
-      } catch (e: any) {
-          console.error("Erro no login:", e);
-          let msg = "Falha no login.";
-          
-          if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password') {
-              msg = "E-mail ou senha incorretos.";
-          } else if (e.message && e.message.includes('DEVICE_NOT_ALLOWED')) {
-              msg = "Acesso bloqueado: Esta conta está vinculada a outro dispositivo.";
-          }
-          alert(msg);
-      }
-  };
-
-  const handleUpdateUser = async (updatedUser: UserProfile) => {
-      try {
-          const savedUser = await updateUser(updatedUser);
-          saveUserSession(savedUser);
-          setCurrentUser(savedUser);
-      } catch (e) {
-          alert("Erro ao atualizar perfil.");
-      }
-  };
-
-  const handleDeleteAccount = async () => {
-      if (currentUser) {
-          try {
-              await deleteUserAccount(currentUser.email, currentUser.id);
-              await handleLogout();
-          } catch(e) {
-              alert("Erro ao apagar conta.");
-          }
-      }
-  };
-
-  const handleLogout = async () => {
-      await logoutUser();
-      setCurrentUser(null);
-      setCurrentRoute(AppRoute.LANDING);
-  };
-
-  // Lógica de Rotas
-  const isAuthRoute = [AppRoute.LANDING, AppRoute.WELCOME, AppRoute.REGISTER, AppRoute.LOGIN].includes(currentRoute);
-  // Tools que precisam de Fullscreen absoluto (sem layout)
-  const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
-  
-  // Header Component (para passar ao Layout ou Renderizar direto)
-  const header = (
-     <Header 
-        currentRoute={currentRoute} 
-        onNavigate={setCurrentRoute} 
-        title={activeProject && currentRoute === AppRoute.PROJECT_DETAILS ? activeProject.title : undefined} 
-     />
-  );
-
-  const renderContent = () => {
-    switch (currentRoute) {
-      case AppRoute.LANDING:
-        return <LandingScreen onLogin={() => setCurrentRoute(AppRoute.LOGIN)} onFreeTrial={() => setCurrentRoute(AppRoute.WELCOME)} />;
-      case AppRoute.LOGIN:
-        return <LoginScreen initialEmail={prefillEmail} onLogin={handleLoginSubmit} onBack={() => setCurrentRoute(AppRoute.LANDING)} onRegisterClick={() => setCurrentRoute(AppRoute.WELCOME)} />;
-      case AppRoute.WELCOME:
-        return <WelcomeScreen onNext={handleRoleSelect} onBack={() => setCurrentRoute(AppRoute.LANDING)} />;
-      case AppRoute.REGISTER:
-        return <RegisterScreen role={selectedRole} onSubmit={handleRegistrationSubmit} onBack={() => setCurrentRoute(AppRoute.WELCOME)} />;
-      case AppRoute.CAMERA:
-        return (
-            <CameraView 
-                onClose={() => setCurrentRoute(activeProject ? AppRoute.PROJECT_DETAILS : AppRoute.DASHBOARD)} 
-                onPhotoCaptured={handlePhotoCaptured} 
-            />
-        );
-      case AppRoute.EDITOR:
-        return activePhoto ? <Editor photo={activePhoto} onSave={handleSaveEditedPhoto} onCancel={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : <div>Erro: Nenhuma foto</div>;
-      case AppRoute.PROJECT_DETAILS:
-        if (!activeProject) return <div>Erro: Nenhum projeto selecionado</div>;
-        return (
-            <ProjectDetail 
-                initialProject={activeProject} 
-                onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} 
-                onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} 
-                onEditPhoto={(p: Photo) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }} 
-                onUpdateProject={handleUpdateProject} 
-                onViewTour={() => setCurrentRoute(AppRoute.TOUR_VIEWER)} 
-            />
-        );
-      case AppRoute.TOUR_VIEWER:
-         return activeProject ? <TourViewer project={activeProject} onClose={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : null;
-      case AppRoute.SETTINGS:
-          return <SettingsScreen currentUser={currentUser!} onUpdateUser={handleUpdateUser} onDeleteAccount={handleDeleteAccount} />;
-      case AppRoute.MENU:
-          return <ManagementMenu onClose={() => setCurrentRoute(AppRoute.DASHBOARD)} onNavigate={(r) => r === 'SETTINGS' ? setCurrentRoute(AppRoute.SETTINGS) : setCurrentRoute(AppRoute.DASHBOARD)} onLogout={handleLogout} />;
-      case AppRoute.DASHBOARD:
-      default:
-        return (
-          <>
-            <ProjectList 
-                projects={projects} 
-                onSelectProject={navigateToProject} 
-                onCreateProject={() => setIsNewProjectModalOpen(true)} 
-                onDeleteProject={handleDeleteProject} 
-            />
-            {isNewProjectModalOpen && <NewProjectModal onClose={() => setIsNewProjectModalOpen(false)} onCreate={handleCreateProject} />}
-          </>
-        );
-    }
-  };
+  const navItems = [
+    { 
+      id: AppRoute.DASHBOARD, 
+      icon: Home, 
+      label: 'Início',
+      isActive: currentRoute === AppRoute.DASHBOARD || currentRoute === AppRoute.PROJECT_DETAILS 
+    },
+    { 
+      id: AppRoute.CAMERA, 
+      icon: Camera, 
+      label: 'Novo',
+      isAction: true 
+    },
+    { 
+      id: AppRoute.SETTINGS, 
+      icon: Settings, 
+      label: 'Ajustes',
+      isActive: currentRoute === AppRoute.SETTINGS
+    },
+  ];
 
   return (
-    <HashRouter>
-      <UpdateNotification />
+    <div className="flex flex-col md:flex-row h-screen-safe w-full bg-gray-50 overflow-hidden">
       
-      {/* Caso 1: Rotas de Autenticação ou Ferramentas Fullscreen (Sem Layout) */}
-      {(isAuthRoute || isFullScreenTool) ? (
-          <div className="h-screen w-full bg-black overflow-hidden">
-              {renderContent()}
-          </div>
-      ) : (
-          /* Caso 2: App Principal (Com Layout Responsivo) */
-          <AppLayout 
-             currentRoute={currentRoute} 
-             onNavigate={setCurrentRoute} 
-             onLogout={handleLogout}
-             headerComponent={header}
+      {/* === SIDEBAR (Desktop) === */}
+      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 h-full shrink-0 z-20">
+        <div className="p-6 flex items-center gap-3">
+          <div className="w-8 h-8 bg-yellow-400 rounded-lg flex items-center justify-center font-bold text-black shadow-sm">S</div>
+          <span className="font-bold text-xl tracking-tight text-gray-900">SnapImmobile</span>
+        </div>
+
+        <nav className="flex-1 px-4 py-4 flex flex-col gap-2">
+          {navItems.filter(i => !i.isAction).map((item) => (
+            <button
+              key={item.id}
+              onClick={() => onNavigate(item.id)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium
+                ${item.isActive 
+                  ? 'bg-yellow-50 text-yellow-700 font-bold' 
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+            >
+              <item.icon size={20} />
+              <span>{item.label}</span>
+            </button>
+          ))}
+          
+          <button 
+            onClick={() => onNavigate(AppRoute.CAMERA)}
+            className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-900 text-white hover:bg-black transition-colors shadow-lg"
           >
-             {renderContent()}
-          </AppLayout>
-      )}
-    </HashRouter>
+            <Camera size={20} className="text-yellow-400" />
+            <span>Novo Imóvel</span>
+          </button>
+        </nav>
+
+        <div className="p-4 border-t border-gray-100 mt-auto">
+           <button onClick={onLogout} className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors">
+              <LogOut size={20} />
+              <span>Sair</span>
+           </button>
+        </div>
+      </aside>
+
+      {/* === ÁREA PRINCIPAL === */}
+      <div className="flex-1 flex flex-col h-full relative w-full overflow-hidden">
+        
+        {headerComponent && (
+            <div className="shrink-0 z-10 bg-white/80 backdrop-blur-md sticky top-0 md:relative">
+                {headerComponent}
+            </div>
+        )}
+
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 pb-24 md:pb-8 w-full">
+            <div className="max-w-7xl mx-auto w-full">
+                {children}
+            </div>
+        </main>
+
+        {/* === BOTTOM BAR (Mobile) === */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-gray-200 pb-[env(safe-area-inset-bottom)] z-50">
+            <div className="flex items-center justify-around h-16 px-2">
+                <button 
+                    onClick={() => onNavigate(AppRoute.DASHBOARD)}
+                    className={`flex flex-col items-center justify-center w-16 gap-1 ${currentRoute === AppRoute.DASHBOARD ? 'text-yellow-600' : 'text-gray-400'}`}
+                >
+                    <Home size={24} strokeWidth={currentRoute === AppRoute.DASHBOARD ? 2.5 : 2} />
+                    <span className="text-[10px] font-medium">Início</span>
+                </button>
+
+                <div className="relative -top-6">
+                    <button 
+                        onClick={() => onNavigate(AppRoute.CAMERA)}
+                        className="w-14 h-14 bg-gray-900 rounded-full flex items-center justify-center shadow-xl shadow-gray-900/30 active:scale-95 transition-transform border-4 border-gray-50"
+                    >
+                        <Camera size={26} className="text-yellow-400" />
+                    </button>
+                </div>
+
+                <button 
+                    onClick={() => onNavigate(AppRoute.SETTINGS)}
+                    className={`flex flex-col items-center justify-center w-16 gap-1 ${currentRoute === AppRoute.SETTINGS ? 'text-yellow-600' : 'text-gray-400'}`}
+                >
+                    <Settings size={24} strokeWidth={currentRoute === AppRoute.SETTINGS ? 2.5 : 2} />
+                    <span className="text-[10px] font-medium">Ajustes</span>
+                </button>
+            </div>
+        </nav>
+      </div>
+    </div>
   );
-}
-export default App;
+};
