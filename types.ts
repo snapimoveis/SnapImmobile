@@ -1,4 +1,3 @@
-
 export enum AppRoute {
   LANDING = 'LANDING',
   LOGIN = 'LOGIN',
@@ -33,6 +32,16 @@ export interface ProjectDetails {
     type?: 'Apartment' | 'House' | 'Commercial' | 'Land';
 }
 
+// --- NOVA INTERFACE CONTACT ---
+export interface Contact {
+  id: string;
+  name: string;
+  role: 'Proprietário' | 'Inquilino' | 'Porteiro' | 'Outro';
+  phone: string;
+  email?: string;
+  notes?: string;
+}
+
 export interface Project {
   id: string;
   userId: string; // Link project to user
@@ -43,13 +52,15 @@ export interface Project {
   photos: Photo[];
   createdAt: number;
   details?: ProjectDetails;
+  // --- NOVO CAMPO ---
+  contacts?: Contact[];
 }
 
 export interface UserPreferences {
-  language: 'pt-PT' | 'pt-BR' | 'en-US';
-  notifications: boolean;
-  marketing: boolean;
-  theme: 'light' | 'dark';
+  language?: 'pt-PT' | 'pt-BR' | 'en-US';
+  notifications?: boolean;
+  marketing?: boolean;
+  theme?: 'light' | 'dark';
 }
 
 export interface UserProfile {
@@ -61,24 +72,32 @@ export interface UserProfile {
   password?: string;
   phone: string;
   cpf: string;
-  company?: string; // Name of company
-  companyId?: string; // ID linking to CompanySettings
-  avatar?: string; // Base64 avatar image
-  businessImage?: string; // Imagem do negócio
-  watermarkUrl?: string; // URL for the user's watermark PNG
+  
+  company?: string; 
+  companyId?: string; 
+  
+  businessName?: string;
+  businessEmail?: string;
+  website?: string;
+  businessLogo?: string;
+  
+  avatar?: string; 
+  businessImage?: string; 
+  watermarkUrl?: string; 
+  
   preferences?: UserPreferences;
   createdAt: number;
   deviceId?: string;
   status?: 'Active' | 'Blocked' | 'Pending';
   lastActive?: number;
-  deviceModel?: string; // e.g. "iPhone 14"
+  deviceModel?: string; 
 }
 
 export interface Device {
   id: string;
   userId: string;
   userName: string;
-  name: string; // e.g., "iPhone 14 Pro"
+  name: string; 
   type: 'Mobile' | 'Desktop' | 'Tablet';
   lastAccess: number;
   status: 'Active' | 'Blocked';
@@ -104,7 +123,7 @@ export interface CompanySettings {
   backgroundColor: string;
   allowUserWatermark: boolean;
   watermarkUrl?: string;
-  virtualTourDays?: string[]; // ['SEG', 'TER', 'QUA'...]
+  virtualTourDays?: string[]; 
   ownerId: string;
 }
 
