@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+// IMPORTAÇÃO CORRETA: Garantir que ToolMode é importado como valor (não apenas como tipo)
 import { Photo, ToolMode } from '../types';
-import { Wand2, Sofa, Eraser, Check, X, Undo, Redo, Save, Sparkles, ScanEye, Trash2, Brush, Maximize, Minimize } from 'lucide-react';
+import { Wand2, Sofa, Eraser, X, Undo, Save, Sparkles, Maximize, Minimize, Brush } from 'lucide-react';
 import { editImageWithPrompt } from '../services/geminiService';
 
 interface EditorProps {
@@ -11,14 +12,14 @@ interface EditorProps {
 
 export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
   const [currentImage, setCurrentImage] = useState<string>(''); 
-  // FIX: Usar ToolMode.MAGIC_ERASE (verifique se src/types.ts tem este valor no enum)
+  // Define o modo inicial usando o Enum
   const [mode, setMode] = useState<ToolMode>(ToolMode.MAGIC_ERASE); 
   const [promptText, setPromptText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState('');
   const [isFullScreen, setIsFullScreen] = useState(false);
   
-  // Brush State
+  // Estado do Pincel
   const [brushSize, setBrushSize] = useState(25); 
   const [isDrawing, setIsDrawing] = useState(false);
   const [cursorPos, setCursorPos] = useState<{x: number, y: number} | null>(null);
@@ -27,14 +28,17 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // History stack
+  // Pilha de Histórico
   const [history, setHistory] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Load Image Securely
+  // Carregar Imagem de forma Segura
   useEffect(() => {
       let isMounted = true;
       const prepareImage = async () => {
+          if (!photo.url) return;
+
+          // Se já for base64 ou blob, usa direto
           if (photo.url.startsWith('data:') || photo.url.startsWith('blob:')) {
               if (isMounted) {
                   setCurrentImage(photo.url);
@@ -44,7 +48,7 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
           }
 
           try {
-              // Cache busting param to avoid CORS cache issues on mobile
+              // Adiciona timestamp para evitar cache de CORS
               const urlWithCacheBust = photo.url.includes('?') 
                 ? `${photo.url}&t=${Date.now()}` 
                 : `${photo.url}?t=${Date.now()}`;
@@ -52,13 +56,14 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
               const response = await fetch(urlWithCacheBust, { mode: 'cors' });
               const blob = await response.blob();
               const objectUrl = URL.createObjectURL(blob);
+              
               if (isMounted) {
                   setCurrentImage(objectUrl);
                   setHistory([objectUrl]);
               }
           } catch (e) {
-              console.error("Failed to load image securely", e);
-              // Fallback
+              console.error("Falha ao carregar imagem:", e);
+              // Fallback: tenta usar a URL original se o fetch falhar
               if (isMounted) {
                   setCurrentImage(photo.url);
                   setHistory([photo.url]);
@@ -70,15 +75,15 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
 
       return () => {
           isMounted = false;
-          // Cleanup blobs on unmount only if they were created here
+          // Limpa blobs criados apenas se não for a URL original
           history.forEach(url => {
               if (url.startsWith('blob:') && url !== photo.url) URL.revokeObjectURL(url);
           });
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photo.id]); // Removido photo.url das deps para evitar loop se a URL mudar ligeiramente
+  }, [photo.id]); 
 
-  // Sync Canvas Size
+  // Sincronizar Tamanho do Canvas
   useEffect(() => {
     const updateCanvasSize = () => {
         if (containerRef.current && canvasRef.current && imgRef.current) {
@@ -91,9 +96,9 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
         }
     };
 
+    // Pequeno delay para garantir que a imagem carregou o layout
+    const timer = setTimeout(updateCanvasSize, 100);
     window.addEventListener('resize', updateCanvasSize);
-    // Timeout fix for mobile rendering delay
-    const timer = setTimeout(updateCanvasSize, 200);
 
     return () => {
         window.removeEventListener('resize', updateCanvasSize);
@@ -101,7 +106,7 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
     };
   }, [currentImage, mode, isFullScreen]);
 
-  // Helper: Get Coordinates (Mobile + Desktop)
+  // Helper: Obter Coordenadas (Compatível com Mobile e Desktop)
   const getCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
       const canvas = canvasRef.current;
       if (!canvas) return { x: 0, y: 0 };
@@ -123,11 +128,10 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
       };
   };
 
-  // Drawing Handlers
+  // Funções de Desenho
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
       if (mode !== ToolMode.MAGIC_ERASE) return;
       
-      // Prevent scrolling on mobile while drawing
       if (e.cancelable && 'touches' in e) e.preventDefault();
 
       setIsDrawing(true);
@@ -137,17 +141,15 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
       if (ctx) {
           ctx.beginPath();
           ctx.moveTo(coords.x, coords.y);
-          // Dot for single tap
           ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
           ctx.arc(coords.x, coords.y, brushSize / 2, 0, Math.PI * 2);
           ctx.fill();
-          ctx.beginPath(); // Begin path for movement
+          ctx.beginPath(); 
           ctx.moveTo(coords.x, coords.y);
       }
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-      // Update cursor for desktop
       if (!('touches' in e)) {
           const coords = getCoordinates(e);
           setCursorPos(coords);
@@ -155,7 +157,6 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
 
       if (!isDrawing || mode !== ToolMode.MAGIC_ERASE || !canvasRef.current) return;
       
-      // Prevent scrolling on mobile
       if (e.cancelable && 'touches' in e) e.preventDefault();
 
       const ctx = canvasRef.current.getContext('2d');
@@ -166,12 +167,11 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
       ctx.lineWidth = brushSize;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)'; // Red mask
+      ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)'; 
       
       ctx.lineTo(coords.x, coords.y);
       ctx.stroke();
       
-      // Keep path active for smooth curves
       ctx.beginPath();
       ctx.moveTo(coords.x, coords.y);
   };
@@ -179,7 +179,7 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
   const stopDrawing = () => {
       setIsDrawing(false);
       const ctx = canvasRef.current?.getContext('2d');
-      if (ctx) ctx.beginPath(); // Close path
+      if (ctx) ctx.beginPath(); 
   };
 
   const clearMask = () => {
@@ -198,15 +198,12 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
       }
   };
 
-  // Removed handleRedo as it wasn't exposed in UI, but logic is fine to keep if needed later
-
   const getCompositedImage = async (): Promise<string> => {
       if (!imgRef.current || !canvasRef.current) return currentImage;
 
       const originalImg = imgRef.current;
       const maskCanvas = canvasRef.current;
 
-      // Force anonymous just in case
       if (!originalImg.src.startsWith('data:') && !originalImg.src.startsWith('blob:')) {
           originalImg.crossOrigin = "anonymous";
       }
@@ -228,23 +225,21 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
       if (!ctx) throw new Error("Could not create context");
 
       try {
-          // 1. Draw Original
           ctx.drawImage(originalImg, 0, 0, width, height);
 
-          // 2. Draw Mask
           if (mode === ToolMode.MAGIC_ERASE) {
               ctx.drawImage(maskCanvas, 0, 0, width, height);
           }
 
-          // Test export to catch Tainted Canvas error early
           return tempCanvas.toDataURL('image/jpeg', 0.85);
       } catch (e) {
           console.error("Canvas Security Error:", e);
-          throw new Error("Erro de Segurança (CORS): Não é possível editar esta imagem devido às restrições do navegador/servidor.");
+          throw new Error("Erro de Segurança: Não é possível editar esta imagem.");
       }
   };
 
   const handleEdit = async () => {
+      // Validação para Virtual Staging
       if (mode === ToolMode.VIRTUAL_STAGING && !promptText.trim()) return;
       
       setIsProcessing(true);
@@ -257,7 +252,6 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
           let finalPrompt = promptText;
 
           if (editMode === 'ERASE') {
-              // CRITICAL: Must send the image WITH the red mask on it
               imageToSend = await getCompositedImage();
               const userInstruction = promptText.trim() ? promptText : "the red marked object";
               finalPrompt = `Remove ${userInstruction}. It is covered by red strokes.`;
@@ -276,7 +270,6 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
           
           setPromptText('');
           clearMask();
-          // Keep mode active for further edits
       } catch (e: any) {
           console.error("Edit failed", e);
           alert(e.message || "Falha no processamento. Tente novamente.");
@@ -304,13 +297,13 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
       {/* Header */}
       {!isFullScreen && (
         <div className="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 z-20">
-            <button onClick={onCancel} className="p-2"><X size={24} /></button>
+            <button onClick={onCancel} className="p-2 hover:bg-gray-800 rounded-full transition-colors"><X size={24} /></button>
             <span className="font-semibold">Editor AI</span>
             <div className="flex gap-2">
-                <button onClick={() => setIsFullScreen(true)} className="p-2"><Maximize size={20} /></button>
+                <button onClick={() => setIsFullScreen(true)} className="p-2 hover:bg-gray-800 rounded-full transition-colors"><Maximize size={20} /></button>
                 <button 
                     onClick={handleSave}
-                    className="bg-blue-600 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2"
+                    className="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 transition-colors"
                 >
                     <Save size={16} /> Guardar
                 </button>
@@ -324,7 +317,7 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
         {isFullScreen && (
             <button 
                 onClick={() => setIsFullScreen(false)}
-                className="absolute top-6 right-6 z-50 p-3 bg-black/50 rounded-full"
+                className="absolute top-6 right-6 z-50 p-3 bg-black/50 hover:bg-black/70 rounded-full transition-colors backdrop-blur-sm"
             >
                 <Minimize size={24} />
             </button>
@@ -370,63 +363,80 @@ export const Editor: React.FC<EditorProps> = ({ photo, onSave, onCancel }) => {
         {isProcessing && (
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-50">
                 <div className="w-16 h-16 rounded-full border-t-2 border-l-2 border-blue-500 animate-spin mb-6"></div>
-                <p className="text-xl font-light">{processingStage}</p>
+                <p className="text-xl font-light mt-4">{processingStage}</p>
             </div>
         )}
       </div>
 
       {/* Controls */}
       {!isFullScreen && (
-        <div className="bg-gray-900 border-t border-gray-800 p-4 pb-8 md:pb-4 z-20">
+        <div className="bg-gray-900 border-t border-gray-800 p-4 pb-8 md:pb-6 z-20 safe-area-pb">
+            
+            {/* Brush Size Slider */}
             {mode === ToolMode.MAGIC_ERASE && (
-                <div className="mb-4 flex items-center gap-4 px-2">
+                <div className="mb-6 flex items-center gap-4 px-4 max-w-md mx-auto">
                     <Brush size={16} className="text-gray-400" />
                     <input 
                         type="range" min="10" max="80" 
                         value={brushSize} onChange={(e) => setBrushSize(Number(e.target.value))}
-                        className="flex-1 h-1 bg-gray-700 rounded-lg appearance-none accent-blue-500"
+                        className="flex-1 h-1 bg-gray-700 rounded-lg appearance-none accent-blue-500 cursor-pointer"
                     />
+                    <div className="w-6 h-6 rounded-full bg-red-500/50 border border-white/20" style={{ width: brushSize/2, height: brushSize/2 }}></div>
                 </div>
             )}
 
             <div className="flex justify-between items-center max-w-lg mx-auto">
-                <div className="flex gap-4">
+                {/* Tool Selection */}
+                <div className="flex gap-2 bg-gray-800 p-1 rounded-xl">
                     <button 
                         onClick={() => setMode(ToolMode.MAGIC_ERASE)}
-                        className={`flex flex-col items-center p-2 rounded-lg ${mode === ToolMode.MAGIC_ERASE ? 'text-blue-400 bg-blue-900/20' : 'text-gray-400'}`}
+                        className={`flex flex-col items-center px-4 py-2 rounded-lg transition-all ${mode === ToolMode.MAGIC_ERASE ? 'bg-gray-700 text-blue-400 shadow-sm' : 'text-gray-400 hover:text-gray-200'}`}
                     >
-                        <Eraser size={24} />
-                        <span className="text-[10px] mt-1">Apagar</span>
+                        <Eraser size={20} />
+                        <span className="text-[10px] mt-1 font-medium">Apagar</span>
                     </button>
                     <button 
                         onClick={() => setMode(ToolMode.VIRTUAL_STAGING)}
-                        className={`flex flex-col items-center p-2 rounded-lg ${mode === ToolMode.VIRTUAL_STAGING ? 'text-blue-400 bg-blue-900/20' : 'text-gray-400'}`}
+                        className={`flex flex-col items-center px-4 py-2 rounded-lg transition-all ${mode === ToolMode.VIRTUAL_STAGING ? 'bg-gray-700 text-blue-400 shadow-sm' : 'text-gray-400 hover:text-gray-200'}`}
                     >
-                        <Sofa size={24} />
-                        <span className="text-[10px] mt-1">Decorar</span>
+                        <Sofa size={20} />
+                        <span className="text-[10px] mt-1 font-medium">Decorar</span>
                     </button>
                 </div>
 
-                <div className="flex gap-2">
-                    <button onClick={handleUndo} disabled={currentIndex===0} className="p-3 bg-gray-800 rounded-full disabled:opacity-30">
+                {/* Actions */}
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={handleUndo} 
+                        disabled={currentIndex === 0} 
+                        className="p-3 bg-gray-800 hover:bg-gray-700 rounded-full disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
                         <Undo size={20} />
                     </button>
                     
                     {mode === ToolMode.MAGIC_ERASE ? (
-                        <button onClick={handleEdit} className="px-6 py-2 bg-blue-600 rounded-full font-bold flex items-center gap-2">
-                            <Wand2 size={18} /> Aplicar
+                        <button 
+                            onClick={handleEdit} 
+                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-full font-bold flex items-center gap-2 transition-transform active:scale-95 shadow-lg shadow-blue-900/20"
+                        >
+                            <Wand2 size={18} /> 
+                            <span>Aplicar</span>
                         </button>
                     ) : (
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center bg-gray-800 p-1 rounded-full pl-4 pr-1">
                             <input 
                                 type="text" 
                                 value={promptText}
                                 onChange={(e) => setPromptText(e.target.value)}
                                 placeholder="O que adicionar?"
-                                className="bg-gray-800 border-none rounded-lg px-3 text-sm w-32 focus:ring-1 focus:ring-blue-500"
+                                className="bg-transparent border-none text-sm w-32 focus:ring-0 text-white placeholder-gray-500"
                             />
-                            <button onClick={handleEdit} disabled={!promptText.trim()} className="p-3 bg-blue-600 rounded-full disabled:opacity-50">
-                                <Sparkles size={20} />
+                            <button 
+                                onClick={handleEdit} 
+                                disabled={!promptText.trim()} 
+                                className="p-2 bg-blue-600 hover:bg-blue-700 rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <Sparkles size={18} />
                             </button>
                         </div>
                     )}
