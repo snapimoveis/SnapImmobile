@@ -18,8 +18,8 @@ const getApiKey = () => {
 const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
 
-// --- FUNÇÃO AUXILIAR DE REDIMENSIONAMENTO (Max 1600px para nitidez) ---
-const resizeForAI = async (base64Str: string, maxWidth = 1600): Promise<string> => {
+// --- REDIMENSIONAMENTO (Aumentado para 1920px para melhor textura em madeira/tecidos) ---
+const resizeForAI = async (base64Str: string, maxWidth = 1920): Promise<string> => {
     return new Promise((resolve) => {
         const img = new Image();
         img.src = base64Str;
@@ -32,11 +32,12 @@ const resizeForAI = async (base64Str: string, maxWidth = 1600): Promise<string> 
             canvas.height = img.height * scale;
             const ctx = canvas.getContext('2d');
             if (ctx) {
-                // Algoritmo de suavização melhorado para downscaling
+                // Algoritmo 'high' preserva melhor as linhas retas da arquitetura
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                resolve(canvas.toDataURL('image/jpeg', 0.92)); 
+                // Compressão leve (0.95) para não perder dados de cor nas sombras
+                resolve(canvas.toDataURL('image/jpeg', 0.95)); 
             } else {
                 resolve(base64Str);
             }
@@ -50,45 +51,46 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
 
   const rawImages = Array.isArray(base64Images) ? base64Images : [base64Images];
   
-  // Usamos 1600px para dar mais dados de textura à IA
-  const processedImages = await Promise.all(rawImages.map(img => resizeForAI(img, 1600)));
+  // Processamento paralelo das imagens
+  const processedImages = await Promise.all(rawImages.map(img => resizeForAI(img, 1920)));
 
   const contextMap: any = {
-      'hp_hdr_interior': "CONTEXTO: Interior Imobiliário.",
-      'hp_hdr_exterior': "CONTEXTO: Fachada Exterior.",
-      'hp_hdr_window': "CONTEXTO: Interior com janela."
+      'hp_hdr_interior': "CONTEXTO: Fotografia de Interiores de Alto Padrão.",
+      'hp_hdr_exterior': "CONTEXTO: Fachada Arquitetónica Exterior.",
+      'hp_hdr_window': "CONTEXTO: Interior com forte contraluz (Janela)."
   };
 
   const contextInstruction = contextMap[profile] || contextMap['hp_hdr_interior'];
 
-  // PROMPT V10 (AI RECONSTRUCTION & LOGICAL INPAINTING)
+  // PROMPT V12 (FOCADO EM "WARM COZY LOOK" & "HIGHLIGHT RECOVERY")
   const prompt = `
-    SYSTEM: SNAP FUSION ENGINE (AI RECONSTRUCTION MODE).
+    ROLE: Professional Real Estate Retoucher (Architectural Digest Style).
     ${contextInstruction}
     
-    INPUT: 3 Exposures (Dark, Normal, Bright).
-    ESTRITAMENTE PROIBIDO: MUDAR O FORMATO (4:3). NUNCA RECORTAR.
-
-    PROBLEMA ATUAL: As imagens de entrada têm micro-tremor (desfoque) e luzes estouradas.
+    INPUT: A bracketing stack of 3 images (Underexposed, Normal, Overexposed).
     
-    TAREFA: NÃO APENAS FUNDIR. RECONSTRUIR A IMAGEM.
+    CRITICAL INSTRUCTION ON COLOR: 
+    The input images intentionally have a WARM/GOLDEN color grading applied. 
+    DO NOT "CORRECT" THE WHITE BALANCE TO NEUTRAL GREY. 
+    PRESERVE and ENHANCE the warm, cozy, welcoming atmosphere.
+
+    TASKS:
     
-    1. RECONSTRUÇÃO DE TEXTURA (CRÍTICO):
-       - A imagem parece "soft" devido ao movimento. Use IA para RECONSTRUIR a nitidez perdida.
-       - O chão de madeira e os tecidos devem ter textura tátil e definida (micro-detalhe).
-       - Simule uma captura feita com tripé e lente prime nítida.
-
-    2. INPAINTING LÓGICO DE LUZES:
-       - As lâmpadas e janelas estão "brancas demais".
-       - Use a exposição ESCURA para ver o que está lá, e "pinte" (inpaint) os detalhes do filamento da lâmpada ou da vista da janela de volta na imagem final.
-       - Elimine o "nevoeiro" (glare) à volta das luzes.
-
-    3. COR E AMBIENTE:
-       - Mantenha o contraste rico e as cores quentes naturais (estilo Nodalview).
-       - A imagem deve ter "pop" e profundidade 3D.
-
-    RESULTADO: Uma imagem reconstruída, perfeitamente nítida e focada.
-    RETORNA APENAS A IMAGEM FINAL EM 4:3.
+    1. INTELLIGENT HDR MERGE (THE "LIGHTS" FIX):
+       - Use the UNDEREXPOSED (Dark) image data to recover details in bright light fixtures (ceiling spots) and windows.
+       - Apply a soft "Highlight Roll-off". Light sources should glow softly, NOT clip to pure white.
+       - Eliminate any "hazy halo" around ceiling lights.
+    
+    2. TEXTURE RECONSTRUCTION (SHARPNESS):
+       - The floor is wood. It must look tactile and sharp.
+       - The furniture (sofa) is fabric. Enhance the micro-contrast of the fabric.
+       - Output must be razor-sharp, simulating a tripod shot with a prime lens.
+       
+    3. ATMOSPHERE:
+       - Style: "Hygge", inviting, warm.
+       - Shadows: Lift the shadows slightly to show details in corners, but keep black points rich (don't make it flat).
+    
+    OUTPUT: A single, high-fidelity image in 4:3 aspect ratio. NO cropping.
   `;
 
   try {
@@ -114,7 +116,6 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
           }
       }
       
-      // Fallback
       return rawImages[Math.floor(rawImages.length / 2)]; 
   } catch (error) {
     console.error("[Snap AI] Erro:", error);
@@ -122,12 +123,11 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   }
 };
 
-// ... (Resto das funções mantém-se igual)
 export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
     if (!apiKey) throw new Error("Chave de API não configurada.");
     const sys = mode === 'ERASE' 
-        ? `TASK: INPAINTING. Remove objects marked by RED STROKES. Input image HAS red strokes on it. Output: Clean image without strokes.`
-        : `TASK: VIRTUAL STAGING. Add: "${prompt}". Maintain aspect ratio.`;
+        ? `TASK: REAL ESTATE INPAINTING. Remove objects marked by RED STROKES. Fill the empty space seamlessly matching the surrounding floor/wall texture.`
+        : `TASK: VIRTUAL STAGING. Add realistic furniture: "${prompt}". Maintain perspective and lighting consistent with the room.`;
 
     try {
         const response = await ai.models.generateContent({
@@ -153,7 +153,7 @@ export const generateDescription = async (base64Image: string): Promise<string> 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: {
-                parts: [{ inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } }, { text: "Descrição curta do imóvel." }]
+                parts: [{ inlineData: { data: cleanBase64(base64Image), mimeType: getMimeType(base64Image) } }, { text: "Gere uma descrição atraente de imobiliária para este ambiente (max 2 frases)." }]
             }
         });
         return response.text ? response.text.trim() : "Imóvel";
