@@ -25,6 +25,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   return (
     <div className="flex flex-col md:flex-row h-screen-safe w-full bg-white dark:bg-black text-black dark:text-white overflow-hidden font-sans transition-colors duration-300">
       
+      {/* === SIDEBAR (Desktop) === */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-black border-r border-gray-200 dark:border-white/10 h-full shrink-0 z-30 transition-colors duration-300">
         <div className="p-6 flex items-center gap-3">
           <div className="w-10 h-10 bg-[#623aa2] rounded-lg flex items-center justify-center font-bold text-white shadow-md">
@@ -75,6 +76,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         </div>
       </aside>
 
+      {/* === ÁREA PRINCIPAL === */}
       <div className="flex-1 flex flex-col h-full relative w-full overflow-hidden">
         
         {headerComponent && (
@@ -89,6 +91,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             </div>
         </main>
 
+        {/* === BOTTOM BAR (Mobile) === */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-black border-t border-gray-200 dark:border-white/10 pb-[env(safe-area-inset-bottom)] z-50 transition-colors duration-300">
             <div className="flex items-center justify-around h-16 px-2">
                 
