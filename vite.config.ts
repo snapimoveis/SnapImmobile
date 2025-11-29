@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   
-  const apiKey = env.VITE_API_KEY || env.API_KEY || 'AIzaSyCPcdh9IHT3A2KCFuB4GFdd0skPFcg0FOM';
+  const apiKey = env.VITE_API_KEY || env.API_KEY || '';
 
   return {
     plugins: [
@@ -56,7 +56,8 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             vendor: ['react', 'react-dom', 'react-router-dom'],
             ui: ['lucide-react'],
-            ai: ['@google/genai']
+            // FIX: Changed from '@google/genai' to '@google/generative-ai'
+            ai: ['@google/generative-ai']
           }
         }
       }
