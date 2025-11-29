@@ -23,11 +23,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const isProjectActive = currentRoute === AppRoute.PROJECT_DETAILS;
 
   return (
-    // MODO PURO: bg-white (Claro) e bg-black (Escuro)
+    // MODO PURO: bg-white e bg-black (Sem tons de cinza ou azul)
     <div className="flex flex-col md:flex-row h-screen-safe w-full bg-white dark:bg-black text-black dark:text-white overflow-hidden font-sans transition-colors duration-300">
       
       {/* === SIDEBAR (Desktop) === */}
-      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-black border-r border-gray-200 dark:border-white/10 h-full shrink-0 z-30 transition-colors duration-300">
+      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-black border-r border-black/10 dark:border-white/10 h-full shrink-0 z-30 transition-colors duration-300">
         <div className="p-6 flex items-center gap-3">
           <div className="w-10 h-10 bg-[#623aa2] rounded-lg flex items-center justify-center font-bold text-white shadow-md">
             S
@@ -41,7 +41,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium
               ${currentRoute === AppRoute.DASHBOARD 
                 ? 'bg-[#623aa2] text-white shadow-md' 
-                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/10'
               }`}
           >
             <Home size={20} />
@@ -53,7 +53,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium
               ${currentRoute === AppRoute.SETTINGS 
                 ? 'bg-[#623aa2] text-white shadow-md' 
-                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/10'
               }`}
           >
             <Settings size={20} />
@@ -62,14 +62,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           
           <button 
             onClick={onCameraAction}
-            className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors shadow-sm group"
+            className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 transition-colors shadow-sm group"
           >
             <Camera size={20} className="text-[#623aa2]" />
             <span>{isProjectActive ? 'Abrir Câmera' : 'Novo Imóvel'}</span>
           </button>
         </nav>
 
-        <div className="p-4 border-t border-gray-200 dark:border-white/10 mt-auto">
+        <div className="p-4 border-t border-black/10 dark:border-white/10 mt-auto">
            <button onClick={onLogout} className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/10 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-500 transition-colors">
               <LogOut size={20} />
               <span>Sair</span>
@@ -81,7 +81,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       <div className="flex-1 flex flex-col h-full relative w-full overflow-hidden">
         
         {headerComponent && (
-            <div className="shrink-0 z-20 bg-white/90 dark:bg-black/90 backdrop-blur-md border-b border-gray-200 dark:border-white/10 sticky top-0 transition-colors duration-300">
+            <div className="shrink-0 z-20 bg-white/90 dark:bg-black/90 backdrop-blur-md border-b border-black/5 dark:border-white/10 sticky top-0 transition-colors duration-300">
                 {headerComponent}
             </div>
         )}
@@ -93,7 +93,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         </main>
 
         {/* === BOTTOM BAR (Mobile) === */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-black border-t border-gray-200 dark:border-white/10 pb-[env(safe-area-inset-bottom)] z-50 transition-colors duration-300">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-black border-t border-black/5 dark:border-white/10 pb-[env(safe-area-inset-bottom)] z-50 transition-colors duration-300">
             <div className="flex items-center justify-around h-16 px-2">
                 
                 <button 
