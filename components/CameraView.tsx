@@ -250,7 +250,10 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 <img src={previewImage} className="max-w-full max-h-full object-contain" alt="Resultado HDR" />
                 
                 <div className="absolute top-0 left-0 right-0 p-6 flex justify-end bg-gradient-to-b from-black/60 to-transparent">
-                    <button onClick={() => setPreviewImage(null)} className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-white/20 border border-white/20 shadow-lg">
+                    <button 
+                        onClick={() => setPreviewImage(null)} 
+                        className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-white/20 border border-white/20 shadow-lg"
+                    >
                         <X size={28} />
                     </button>
                 </div>
@@ -267,7 +270,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   return (
     <div className="fixed inset-0 h-[100dvh] w-screen bg-black z-50 font-sans overflow-hidden select-none flex flex-col md:flex-row text-white touch-none">
       
-      {/* === BARRA DE FERRAMENTAS (Esquerda/Topo) === */}
+      {/* === BARRA ESQUERDA/SUPERIOR (Ferramentas) === */}
       <div className={`bg-black z-30 flex items-center justify-between px-6
         ${isLandscape 
             ? 'flex-col w-20 h-full border-r border-white/10 py-8' 
@@ -316,8 +319,29 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                     <div></div>
                 </div>
             )}
+            
+            {/* Crosshair Central (Simples) */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-60">
+                <div className="w-4 h-4 relative">
+                     <div className="absolute top-1/2 left-0 w-full h-[1px] bg-white/80"></div>
+                     <div className="absolute left-1/2 top-0 h-full w-[1px] bg-white/80"></div>
+                </div>
+            </div>
 
-            {/* === BOTÕES INTERIOR/EXTERIOR (Overlay) === */}
+            {/* === PREVIEWS DAS FOTOS (Banda Lateral) === */}
+            {/* Aparece enquanto tira as fotos, mostrando as exposições escuras a claras */}
+            {isProcessing && capturedPreviews.length > 0 && (
+                <div className="absolute top-4 left-4 bottom-4 w-16 flex flex-col gap-2 overflow-hidden animate-in slide-in-from-left-4 z-40">
+                    {capturedPreviews.map((prev, idx) => (
+                        <div key={idx} className="aspect-[4/3] w-full rounded border border-white/50 overflow-hidden shadow-lg">
+                            <img src={prev.url} className="w-full h-full object-cover" />
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* === BOTÕES INTERIOR/EXTERIOR (Fundo da Imagem) === */}
+            {/* Ajuste de CSS para garantir visibilidade em landscape */}
             <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-6 z-20 pointer-events-auto">
                  <button onClick={() => setHdrProfile('interior')} 
                     className={`text-xs font-bold tracking-widest transition-all px-4 py-1.5 rounded-full shadow-lg border ${hdrProfile === 'interior' ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-black/50 text-white/90 border-white/30 backdrop-blur-md'}`}>
@@ -329,8 +353,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 </button>
             </div>
 
-            {/* === ZOOM (Overlay - Fora da caixa preta) === */}
-            {/* Posicionado perto do disparador mas DENTRO da imagem */}
+            {/* Botões Zoom (Sobre a Imagem, Canto Inferior/Direito) */}
             <div className={`absolute z-20 flex gap-3 p-1 bg-black/30 backdrop-blur-md rounded-full border border-white/10
                 ${isLandscape 
                     ? 'right-4 top-1/2 -translate-y-1/2 flex-col' 
@@ -340,20 +363,10 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 <button onClick={() => handleZoom(0.5)} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all ${zoom === 0.5 ? 'bg-yellow-400 text-black shadow-lg scale-105' : 'text-white hover:bg-white/20'}`}>.5</button>
             </div>
 
-            {/* Previews */}
-            {isProcessing && capturedPreviews.length > 0 && (
-                <div className="absolute top-4 left-4 bottom-4 w-16 flex flex-col gap-2 overflow-hidden animate-in slide-in-from-left-4 z-40">
-                    {capturedPreviews.map((prev, idx) => (
-                        <div key={idx} className="aspect-[4/3] w-full rounded border border-white/50 overflow-hidden shadow-lg">
-                            <img src={prev.url} className="w-full h-full object-cover" />
-                        </div>
-                    ))}
-                </div>
-            )}
         </div>
       </div>
 
-      {/* === BARRA DE DISPARO (Direita/Fundo) - Limpa === */}
+      {/* === BARRA DIREITA/INFERIOR (Disparo) === */}
       <div className={`bg-black z-30 flex items-center justify-center relative
         ${isLandscape 
             ? 'flex-col w-32 h-full border-l border-white/10' 
