@@ -18,11 +18,14 @@ const auth = getAuth(app);
 export const registerUser = async (userProfile: UserProfile, password?: string): Promise<UserProfile> => {
     if (!password) throw new Error("Senha é obrigatória para registro");
     
+    // 1. Criar Auth User
     const userCredential = await createUserWithEmailAndPassword(auth, userProfile.email, password);
     const user = userCredential.user;
 
+    // 2. Atualizar Perfil Auth
     await updateProfile(user, { displayName: `${userProfile.firstName} ${userProfile.lastName}` });
 
+    // 3. Salvar Perfil no Firestore
     const newUser: UserProfile = { ...userProfile, id: user.uid };
     await setDoc(doc(db, "users", user.uid), newUser);
 
@@ -35,18 +38,26 @@ export const loginUser = async (email: string, password?: string): Promise<UserP
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
+    // Buscar dados extras do Firestore
     const userDoc = await getDoc(doc(db, "users", user.uid));
     
     if (userDoc.exists()) {
         const userData = userDoc.data() as UserProfile;
+        
+        // Verificação de Segurança de Dispositivo (Simulada)
+        if (userData.deviceId && userData.deviceId !== 'current-device-id') {
+             // Lógica real de device check aqui
+        }
+        
         return userData;
     } else {
+        // Fallback se não existir doc (cria básico)
         const newProfile: UserProfile = {
             id: user.uid,
             email: user.email!,
             firstName: user.displayName?.split(' ')[0] || 'User',
             lastName: user.displayName?.split(' ')[1] || '',
-            role: 'editor', 
+            role: 'editor', // Role padrão seguro
             createdAt: Date.now(),
             preferences: { language: 'pt', notifications: true, marketing: false, theme: 'light' }
         };
@@ -87,12 +98,18 @@ export const deleteUserAccount = async (email: string, userId: string) => {
 // === COMPANY SETTINGS ===
 
 export const getCompanySettings = async (): Promise<CompanySettings> => {
+    // Simulação: Pegar a primeira empresa ou criar padrão
     const q = query(collection(db, "companies"), limit(1));
     const querySnapshot = await getDocs(q);
     
     if (!querySnapshot.empty) {
         const docData = querySnapshot.docs[0].data() as CompanySettings;
-        return { ...docData, id: querySnapshot.docs[0].id };
+        // FIX: Garantir que virtualTourDays venha como array se estiver salvo como number ou undefined
+        const safeVirtualTourDays = Array.isArray(docData.virtualTourDays) 
+            ? docData.virtualTourDays 
+            : [];
+
+        return { ...docData, id: querySnapshot.docs[0].id, virtualTourDays: safeVirtualTourDays };
     }
     
     return {
@@ -101,7 +118,8 @@ export const getCompanySettings = async (): Promise<CompanySettings> => {
         primaryColor: '#623aa2',
         backgroundColor: '#ffffff',
         allowUserWatermark: true,
-        virtualTourDays: 30
+        // FIX: Agora inicializamos com um array vazio ou dias padrão, e não com o número 30
+        virtualTourDays: [] 
     };
 };
 
@@ -127,6 +145,7 @@ export const saveProject = async (project: Project): Promise<Project> => {
         await updateDoc(doc(db, "projects", project.id), { ...project });
         return project;
     } else {
+        // Se for novo, deixa o Firestore gerar o ID se não tiver, ou usa o fornecido
         const docRef = await addDoc(collection(db, "projects"), project);
         return { ...project, id: docRef.id };
     }
@@ -139,6 +158,7 @@ export const deleteProject = async (projectId: string): Promise<void> => {
 // === BILLING & DEVICES (MOCK) ===
 
 export const getInvoices = async (): Promise<Invoice[]> => {
+    // Mock data for UI development
     return [
         { id: 'INV-001', number: '2025/001', date: '2025-10-01', amount: 29.90, status: 'paid' },
         { id: 'INV-002', number: '2025/002', date: '2025-11-01', amount: 29.90, status: 'pending' }
