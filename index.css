@@ -13,16 +13,8 @@ html, body {
   height: 100%;
   width: 100%;
   overflow-x: hidden;
-  /* MODO PURO: Branco no Light, Preto no Dark */
-  background-color: #ffffff;
-  color: #000000;
+  background-color: #000000; /* Fallback preto */
   -webkit-tap-highlight-color: transparent;
-}
-
-/* Quando a classe 'dark' está ativa no html */
-html.dark body {
-  background-color: #000000;
-  color: #ffffff;
 }
 
 .h-screen-safe {
@@ -30,11 +22,11 @@ html.dark body {
   height: 100dvh;
 }
 
+/* Classes utilitárias para Safe Area (Notch) */
 .pt-safe { padding-top: var(--sat); }
 .pb-safe { padding-bottom: var(--sab); }
 .pl-safe { padding-left: var(--sal); }
 .pr-safe { padding-right: var(--sar); }
-.mb-safe { margin-bottom: var(--sab); }
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
