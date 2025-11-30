@@ -14,7 +14,7 @@ import { RegisterScreen } from './components/RegisterScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { ManagementMenu } from './components/ManagementMenu';
 import { UpdateNotification } from './components/UpdateNotification';
-// MUDANÇA: Importar MainLayout (o novo ficheiro) em vez de AppLayout
+// USAR MainLayout
 import { MainLayout } from './components/MainLayout';
 
 import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
@@ -224,7 +224,6 @@ function App() {
 
   const isAuthRoute = [AppRoute.LANDING, AppRoute.WELCOME, AppRoute.REGISTER, AppRoute.LOGIN].includes(currentRoute);
   const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
-  
   const header = null;
 
   const renderContent = () => {
@@ -286,7 +285,6 @@ function App() {
       {(isAuthRoute || isFullScreenTool) ? (
           <div className="h-screen w-full bg-black overflow-hidden">{renderContent()}</div>
       ) : (
-          // MUDANÇA: Usar MainLayout
           <MainLayout 
              currentRoute={currentRoute} 
              onNavigate={setCurrentRoute} 
