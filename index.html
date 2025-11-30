@@ -2,11 +2,13 @@
 <html lang="pt-PT">
   <head>
     <meta charset="UTF-8" />
+    
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Snap Immobile" />
+    
     <meta name="theme-color" content="#000000" />
     
     <link rel="icon" type="image/png" href="/icon-192.png" />
@@ -29,7 +31,7 @@
   </head>
   <body class="bg-white dark:bg-black text-black dark:text-white select-none overscroll-none">
     <div id="root"></div>
-    <!-- MUDANÇA AQUI: Removido /src/ se o arquivo estiver na raiz -->
-    <script type="module" src="./index.tsx"></script>
+    <!-- IMPORTANTE: Verifique se o arquivo src/index.tsx existe. Se for main.tsx, altere aqui. -->
+    <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>
