@@ -22,6 +22,7 @@ export interface UserProfile {
   };
 }
 
+// === FOTOS E MEDIA ===
 export interface Photo {
   id: string;
   url: string;
@@ -33,6 +34,7 @@ export interface Photo {
   timestamp?: number;
 }
 
+// === CONTACTOS ===
 export interface Contact {
   id: string;
   name: string;
@@ -42,6 +44,7 @@ export interface Contact {
   notes?: string;
 }
 
+// === PROJETOS ===
 export interface ProjectDetails {
   rooms?: number;
   area?: number;
@@ -64,6 +67,7 @@ export interface Project {
   coverImage?: string;
 }
 
+// === EDITOR ===
 export enum ToolMode {
   CROP = 'crop',
   FILTER = 'filter',
@@ -75,9 +79,10 @@ export enum ToolMode {
   VIRTUAL_STAGING = 'virtual_staging'
 }
 
+// === CONFIGURAÇÕES E FATURAÇÃO ===
 export interface Invoice {
   id: string;
-  number: string; // ADICIONADO
+  number: string;
   date: string;
   amount: number;
   status: 'paid' | 'pending' | 'failed';
@@ -96,7 +101,6 @@ export interface Device {
   lastActive: number;
   current?: boolean;
   ip?: string;
-  // ADICIONADO: Tipos literais exatos que você usa no código
   status?: 'active' | 'inactive' | 'Active' | 'Blocked'; 
 }
 
@@ -112,11 +116,11 @@ export interface CompanySettings {
   primaryColor?: string;
   backgroundColor?: string;
   allowUserWatermark?: boolean;
-  // CORREÇÃO CRÍTICA: virtualTourDays deve ser array de strings, não number
   virtualTourDays?: string[]; 
   [key: string]: any; 
 }
 
+// === ROTAS DA APP ===
 export enum AppRoute {
   LANDING = 'LANDING',
   LOGIN = 'LOGIN',
