@@ -1,192 +1,158 @@
 import { 
-    getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, 
-    query, where, limit, getDoc, setDoc 
+    getFirestore, collection, getDocs, doc, updateDoc, deleteDoc, 
+    query, where, getDoc, setDoc 
 } from 'firebase/firestore';
+
 import { 
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
     signOut, updateProfile, deleteUser 
 } from 'firebase/auth';
-// Importações do Storage
+
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
+
 import { app } from './firebaseConfig';
-import { Project, UserProfile, CompanySettings, Device, Invoice, Photo } from '../types';
+import { Project, UserProfile, Photo } from '../types';
 
 const db = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
-// === HELPER: Upload de Imagem Seguro ===
-const uploadImageToStorage = async (base64Image: string | undefined, path: string): Promise<string> => {
-    if (!base64Image) return '';
-    // Se já é uma URL curta (http...), retorna ela mesma
-    if (base64Image.startsWith('http')) return base64Image;
-    
-    // Se não for imagem válida, retorna vazio para evitar erro de tamanho
-    if (!base64Image.startsWith('data:image')) {
-        console.warn("Imagem inválida para upload, ignorando.");
-        return ''; 
-    }
-    
-    try {
-        const storageRef = ref(storage, path);
-        // Upload da string gigante
-        await uploadString(storageRef, base64Image, 'data_url');
-        // Obter a URL curta e pública
-        const downloadURL = await getDownloadURL(storageRef);
-        return downloadURL;
-    } catch (error) {
-        console.error("Erro no upload:", error);
-        // Em caso de falha, retorna vazio para não travar o banco com base64 gigante
-        return ''; 
-    }
+const uploadImage = async (base64: string, path: string): Promise<string> => {
+    const storageRef = ref(storage, path);
+    await uploadString(storageRef, base64, "data_url");
+    return await getDownloadURL(storageRef);
 };
 
-// ... (Funções de User Management mantêm-se iguais) ...
+// ---------------------------
+// REGISTER
+// ---------------------------
+export const registerUser = async (userProfile: UserProfile, password: string): Promise<UserProfile> => {
+    const cred = await createUserWithEmailAndPassword(auth, userProfile.email, password);
+    const user = cred.user;
 
-export const registerUser = async (userProfile: UserProfile, password?: string): Promise<UserProfile> => {
-    if (!password) throw new Error("Senha obrigatória");
-    const userCredential = await createUserWithEmailAndPassword(auth, userProfile.email, password);
-    const user = userCredential.user;
     await updateProfile(user, { displayName: `${userProfile.firstName} ${userProfile.lastName}` });
-    const newUser: UserProfile = { ...userProfile, id: user.uid };
+
+    const newUser = { ...userProfile, id: user.uid };
     await setDoc(doc(db, "users", user.uid), newUser);
+
     return newUser;
 };
 
-export const loginUser = async (email: string, password?: string): Promise<UserProfile> => {
-    if (!password) throw new Error("Senha obrigatória");
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    
-    if (userDoc.exists()) {
-        return userDoc.data() as UserProfile;
-    } else {
-        const newProfile: UserProfile = {
-            id: user.uid,
-            email: user.email!,
-            firstName: user.displayName?.split(' ')[0] || 'User',
-            lastName: user.displayName?.split(' ')[1] || '',
-            role: 'editor', 
-            createdAt: Date.now(),
-            preferences: { language: 'pt', notifications: true, marketing: false, theme: 'light' }
-        };
-        await setDoc(doc(db, "users", user.uid), newProfile);
-        return newProfile;
-    }
+// ---------------------------
+// LOGIN
+// ---------------------------
+export const loginUser = async (email: string, password: string): Promise<UserProfile> => {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const user = cred.user;
+
+    const snap = await getDoc(doc(db, "users", user.uid));
+    if (snap.exists()) return snap.data() as UserProfile;
+
+    const profile: UserProfile = {
+        id: user.uid,
+        email: user.email!,
+        firstName: "User",
+        lastName: "",
+        role: "editor",
+        createdAt: Date.now(),
+        preferences: { language: "pt", notifications: true, marketing: false, theme: "light" }
+    };
+
+    await setDoc(doc(db, "users", user.uid), profile);
+    return profile;
 };
 
+// ---------------------------
+// SESSÃO
+// ---------------------------
 export const logoutUser = async () => {
     await signOut(auth);
-    localStorage.removeItem('snap_user');
+    localStorage.removeItem("snap_user");
 };
 
 export const getCurrentUser = (): UserProfile | null => {
-    const stored = localStorage.getItem('snap_user');
+    const stored = localStorage.getItem("snap_user");
     return stored ? JSON.parse(stored) : null;
 };
 
 export const saveUserSession = (user: UserProfile) => {
-    localStorage.setItem('snap_user', JSON.stringify(user));
+    localStorage.setItem("snap_user", JSON.stringify(user));
 };
 
-export const updateUser = async (updatedUser: UserProfile): Promise<UserProfile> => {
-    const userRef = doc(db, "users", updatedUser.id);
-    await updateDoc(userRef, { ...updatedUser });
+// ---------------------------
+// UPDATE USER (CORRIGIDO)
+// ---------------------------
+export const updateUser = async (updatedUser: UserProfile) => {
+    await setDoc(doc(db, "users", updatedUser.id), updatedUser, { merge: true });
     return updatedUser;
 };
 
-export const deleteUserAccount = async (email: string, userId: string) => {
+// ---------------------------
+// DELETE USER
+// ---------------------------
+export const deleteUserAccount = async (_email: string, userId: string) => {
     const user = auth.currentUser;
-    if (user) {
-        await deleteDoc(doc(db, "users", userId));
-        await deleteUser(user);
-        localStorage.removeItem('snap_user');
-    }
+
+    await deleteDoc(doc(db, "users", userId));
+    if (user) await deleteUser(user);
+
+    localStorage.removeItem("snap_user");
 };
 
-// ... (Company Settings) ...
-
-export const getCompanySettings = async (): Promise<CompanySettings> => {
-    const q = query(collection(db, "companies"), limit(1));
-    const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
-        const docData = querySnapshot.docs[0].data() as CompanySettings;
-        const safeVirtualTourDays = Array.isArray(docData.virtualTourDays) ? docData.virtualTourDays : [];
-        return { ...docData, id: querySnapshot.docs[0].id, virtualTourDays: safeVirtualTourDays };
-    }
-    return {
-        id: 'default',
-        name: 'Minha Imobiliária',
-        primaryColor: '#623aa2',
-        backgroundColor: '#ffffff',
-        allowUserWatermark: true,
-        virtualTourDays: [] 
-    };
-};
-
-export const saveCompanySettings = async (settings: CompanySettings): Promise<void> => {
-    if (settings.logoUrl && settings.logoUrl.startsWith('data:')) {
-        const path = `companies/${settings.id || 'default'}/logo_${Date.now()}`;
-        settings.logoUrl = await uploadImageToStorage(settings.logoUrl, path);
-    }
-    if (settings.id && settings.id !== 'default') {
-        await updateDoc(doc(db, "companies", settings.id), { ...settings });
-    } else {
-        await addDoc(collection(db, "companies"), settings);
-    }
-};
-
+// ---------------------------
+// PROJECTS
+// ---------------------------
 export const getUserProjects = async (userId: string): Promise<Project[]> => {
     const q = query(collection(db, "projects"), where("userId", "==", userId));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as Project));
 };
 
-// === CORREÇÃO DO SAVE PROJECT ===
+// ---------------------------
+// SAVE PROJECT (CORRIGIDO COMPLETO)
+// ---------------------------
 export const saveProject = async (project: Project): Promise<Project> => {
     const projectRef = doc(db, "projects", project.id);
-    // Clone para não alterar a UI
-    const projectToSave = JSON.parse(JSON.stringify(project)) as Project;
 
-    // 1. Processar Fotos (Upload Base64 -> URL)
-    if (projectToSave.photos && projectToSave.photos.length > 0) {
-        const processedPhotos: Photo[] = [];
-        for (const photo of projectToSave.photos) {
-            if (photo.url && photo.url.startsWith('data:')) {
-                const path = `projects/${project.id}/photos/${photo.id}_${Date.now()}.jpg`;
-                const publicUrl = await uploadImageToStorage(photo.url, path);
-                // Se upload falhar, url fica vazia, mas evita erro de tamanho
-                processedPhotos.push({ ...photo, url: publicUrl });
-            } else {
-                processedPhotos.push(photo);
-            }
-        }
-        projectToSave.photos = processedPhotos;
-    }
+    const clean: any = {
+        id: project.id,
+        userId: project.userId,
+        title: project.title,
+        address: project.address,
+        status: project.status,
+        createdAt: project.createdAt,
+        details: project.details || {},
+        coverImage: project.coverImage ?? null,
+        photos: []
+    };
 
-    // 2. Processar Capa
-    if (projectToSave.coverImage && projectToSave.coverImage.startsWith('data:')) {
-        // Verifica se a capa é uma das fotos já processadas
-        const existingPhoto = projectToSave.photos.find(p => p.id === project.coverImage || p.url === project.coverImage);
-        
-        if (existingPhoto && existingPhoto.url.startsWith('http')) {
-             projectToSave.coverImage = existingPhoto.url;
+    for (const photo of project.photos ?? []) {
+        const safePhoto: any = {
+            id: photo.id,
+            name: photo.name,
+            type: photo.type ?? "hdr",
+            createdAt: photo.createdAt ?? Date.now(),
+            timestamp: photo.timestamp ?? Date.now(),
+            url: ""
+        };
+
+        if (photo.url.startsWith("data:")) {
+            safePhoto.url = await uploadImage(photo.url, `projects/${project.id}/photos/${photo.id}.jpg`);
         } else {
-             const path = `projects/${project.id}/cover_${Date.now()}.jpg`;
-             projectToSave.coverImage = await uploadImageToStorage(projectToSave.coverImage, path);
+            safePhoto.url = photo.url;
         }
+
+        clean.photos.push(safePhoto);
     }
 
-    // 3. Salvar no Firestore (Agora seguro e leve)
-    await setDoc(projectRef, projectToSave, { merge: true });
-    return projectToSave;
+    if (clean.coverImage?.startsWith("data:")) {
+        clean.coverImage = await uploadImage(clean.coverImage, `projects/${project.id}/cover.jpg`);
+    }
+
+    await setDoc(projectRef, clean, { merge: true });
+    return clean as Project;
 };
 
-export const deleteProject = async (projectId: string): Promise<void> => {
+export const deleteProject = async (projectId: string) => {
     await deleteDoc(doc(db, "projects", projectId));
 };
-
-// Mocks
-export const getInvoices = async (): Promise<Invoice[]> => [];
-export const getDevices = async (): Promise<Device[]> => [];
