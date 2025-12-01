@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter } from 'react-router-dom';
-import { ProjectList } from './components/ProjectList';
+import ProjectList from './components/ProjectList';
 import { CameraView } from './components/CameraView';
 import { Editor } from './components/Editor';
-// CORREÇÃO: Usando chaves {} para importação nomeada
 import { ProjectDetail } from './components/ProjectDetail'; 
 import { TourViewer } from './components/TourViewer';
 import { NewProjectModal } from './components/NewProjectModal';
@@ -101,8 +100,7 @@ function App() {
             setCurrentRoute(AppRoute.LOGIN);
             return;
         } 
-        console.error("Erro no registo:", e);
-        alert("Erro ao criar conta: " + (e.message || "Tente novamente."));
+        alert("Erro ao criar conta.");
     }
   };
 
@@ -148,9 +146,8 @@ function App() {
           setActiveProject(savedDraft);
           return;
       }
-      
-      // Chama a IA sem bloquear
-      generateDescription(photo.url).then((desc) => console.log(desc)).catch(() => {});
+
+      generateDescription(photo.url).catch(() => {});
 
       const updatedProject = {
           ...activeProject,
@@ -158,8 +155,8 @@ function App() {
           coverImage: activeProject.coverImage || photo.url
       };
       setActiveProject(updatedProject);
+
       saveProject(updatedProject).then((saved) => {
-          // CORREÇÃO: Tipagem explícita aqui também
           setProjects(prev => prev.map((p: Project) => p.id === activeProject.id ? saved : p));
       });
     } catch (e: any) { alert(`Erro: ${e.message}`); }
@@ -213,7 +210,11 @@ function App() {
       }
   };
 
-  const handleLogout = async () => { await logoutUser(); setCurrentUser(null); setCurrentRoute(AppRoute.LANDING); };
+  const handleLogout = async () => { 
+    await logoutUser(); 
+    setCurrentUser(null); 
+    setCurrentRoute(AppRoute.LANDING); 
+  };
 
   const handleCentralCameraAction = () => {
       if (currentRoute === AppRoute.PROJECT_DETAILS && activeProject) {
@@ -229,15 +230,26 @@ function App() {
 
   const renderContent = () => {
     switch (currentRoute) {
-      case AppRoute.LANDING: return <LandingScreen onLogin={() => setCurrentRoute(AppRoute.LOGIN)} onFreeTrial={() => setCurrentRoute(AppRoute.WELCOME)} />;
-      case AppRoute.LOGIN: return <LoginScreen initialEmail={prefillEmail} onLogin={handleLoginSubmit} onBack={() => setCurrentRoute(AppRoute.LANDING)} onRegisterClick={() => setCurrentRoute(AppRoute.WELCOME)} />;
-      case AppRoute.WELCOME: return <WelcomeScreen onNext={handleRoleSelect} onBack={() => setCurrentRoute(AppRoute.LANDING)} />;
-      case AppRoute.REGISTER: return <RegisterScreen role={selectedRole} onSubmit={handleRegistrationSubmit} onBack={() => setCurrentRoute(AppRoute.WELCOME)} />;
+      case AppRoute.LANDING: 
+        return <LandingScreen onLogin={() => setCurrentRoute(AppRoute.LOGIN)} onFreeTrial={() => setCurrentRoute(AppRoute.WELCOME)} />;
+
+      case AppRoute.LOGIN: 
+        return <LoginScreen initialEmail={prefillEmail} onLogin={handleLoginSubmit} onBack={() => setCurrentRoute(AppRoute.LANDING)} onRegisterClick={() => setCurrentRoute(AppRoute.WELCOME)} />;
+
+      case AppRoute.WELCOME: 
+        return <WelcomeScreen onNext={handleRoleSelect} onBack={() => setCurrentRoute(AppRoute.LANDING)} />;
+
+      case AppRoute.REGISTER: 
+        return <RegisterScreen role={selectedRole} onSubmit={handleRegistrationSubmit} onBack={() => setCurrentRoute(AppRoute.WELCOME)} />;
+
       case AppRoute.CAMERA:
         return <CameraView onClose={() => setCurrentRoute(activeProject ? AppRoute.PROJECT_DETAILS : AppRoute.DASHBOARD)} onPhotoCaptured={handlePhotoCaptured} />;
+
       case AppRoute.EDITOR:
-        return activePhoto ? <Editor photo={activePhoto} onSave={handleSaveEditedPhoto} onCancel={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : <div>Erro: Nenhuma foto</div>;
-      
+        return activePhoto 
+          ? <Editor photo={activePhoto} onSave={handleSaveEditedPhoto} onCancel={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> 
+          : <div>Erro: Nenhuma foto</div>;
+
       case AppRoute.PROJECT_DETAILS:
         if (!activeProject) return <div>Carregando...</div>;
         return (
@@ -245,7 +257,6 @@ function App() {
                 initialProject={activeProject} 
                 onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} 
                 onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} 
-                // CORREÇÃO: Tipagem explícita (p: Photo)
                 onEditPhoto={(p: Photo) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }} 
                 onUpdateProject={handleUpdateProject} 
                 onViewTour={() => setCurrentRoute(AppRoute.TOUR_VIEWER)} 
@@ -263,7 +274,11 @@ function App() {
                  />;
 
       case AppRoute.MENU:
-          return <ManagementMenu onClose={() => setCurrentRoute(AppRoute.DASHBOARD)} onNavigate={(r: string) => r === 'SETTINGS' ? setCurrentRoute(AppRoute.SETTINGS) : setCurrentRoute(AppRoute.DASHBOARD)} onLogout={handleLogout} />;
+          return <ManagementMenu 
+                    onClose={() => setCurrentRoute(AppRoute.DASHBOARD)} 
+                    onNavigate={(r: string) => r === 'SETTINGS' ? setCurrentRoute(AppRoute.SETTINGS) : setCurrentRoute(AppRoute.DASHBOARD)} 
+                    onLogout={handleLogout} 
+                />;
 
       case AppRoute.DASHBOARD:
       default:
@@ -271,12 +286,20 @@ function App() {
           <>
             <ProjectList 
                 projects={projects} 
-                // CORREÇÃO: Tipagem explícita (p: Project)
                 onSelectProject={(p: Project) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
                 onCreateProject={() => setIsNewProjectModalOpen(true)} 
-                onDeleteProject={async (id) => { await deleteProject(id); setProjects(prev => prev.filter(p => p.id !== id)); }} 
+                onDeleteProject={async (id: string) => { 
+                  await deleteProject(id); 
+                  setProjects(prev => prev.filter((p: Project) => p.id !== id)); 
+                }} 
             />
-            {isNewProjectModalOpen && <NewProjectModal onClose={() => setIsNewProjectModalOpen(false)} onCreate={handleCreateProject} />}
+
+            {isNewProjectModalOpen && (
+              <NewProjectModal 
+                onClose={() => setIsNewProjectModalOpen(false)} 
+                onCreate={handleCreateProject} 
+              />
+            )}
           </>
         );
     }
@@ -285,6 +308,7 @@ function App() {
   return (
     <HashRouter>
       <UpdateNotification />
+
       {(isAuthRoute || isFullScreenTool) ? (
           <div className="h-screen w-full bg-black overflow-hidden">{renderContent()}</div>
       ) : (
@@ -301,4 +325,5 @@ function App() {
     </HashRouter>
   );
 }
+
 export default App;
