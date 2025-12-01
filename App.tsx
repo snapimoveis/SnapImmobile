@@ -43,7 +43,7 @@ function App() {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   }, []);
 
-  // === INICIALIZAÇÃO DO APP ===
+  // === INICIALIZAÇÃO ===
   useEffect(() => {
     const initApp = async () => {
       const user = getCurrentUser();
@@ -61,7 +61,7 @@ function App() {
     initApp();
   }, []);
 
-  // === FLUXO DE REGISTO ===
+  // === REGISTO ===
   const handleRoleSelect = (role: string) => {
     setSelectedRole(role);
     setCurrentRoute(AppRoute.REGISTER);
@@ -104,7 +104,7 @@ function App() {
     }
   };
 
-  // === CRIAÇÃO DE PROJETO ===
+  // === CRIAR PROJETO ===
   const handleCreateProject = async (details: ProjectDetailsType & { title: string, address: string }) => {
     if (!currentUser) return;
     
@@ -130,70 +130,92 @@ function App() {
     }
   };
 
-  // === CAPTURA DE FOTO ===
+  // === CAPTURAR FOTO (CORRIGIDO) ===
   const handlePhotoCaptured = async (photo: Photo) => {
     if (!currentUser) return;
+
     try {
+      // CASO NÃO EXISTA PROJETO ATIVO — cria um rascunho
       if (!activeProject) {
-          const draft: Project = {
-              id: crypto.randomUUID(),
-              userId: currentUser.id,
-              title: 'Imóvel Rascunho',
-              address: 'Sem Morada',
-              status: 'In Progress',
-              photos: [photo],
-              createdAt: Date.now(),
-              coverImage: photo.url
-          };
-          const savedDraft = await saveProject(draft); 
-          setProjects([savedDraft, ...projects]);
-          setActiveProject(savedDraft);
-          return;
+        const draft: Project = {
+          id: crypto.randomUUID(),
+          userId: currentUser.id,
+          title: 'Imóvel Rascunho',
+          address: 'Sem Morada',
+          status: 'In Progress',
+          photos: [photo],
+          createdAt: Date.now(),
+          coverImage: photo.url
+        };
+
+        const savedDraft = await saveProject(draft);
+        setProjects((prev) => [savedDraft, ...prev]);
+        setActiveProject(savedDraft);
+        return;
       }
 
+      // IA em background
       generateDescription(photo.url).catch(() => {});
 
-      const updatedProject = {
-          ...activeProject,
-          photos: [...activeProject.photos, photo],
-          coverImage: activeProject.coverImage || photo.url
+      // Atualiza projeto com nova foto
+      const updatedProject: Project = {
+        ...activeProject,
+        photos: [...(activeProject.photos || []), photo],
+        coverImage: activeProject.coverImage || photo.url,
       };
 
-      setActiveProject(updatedProject);
+      // Salva NO FIRESTORE primeiro
+      const savedProject = await saveProject(updatedProject);
 
-      saveProject(updatedProject).then((saved) => {
-          setProjects(prev => prev.map((p: Project) => p.id === activeProject.id ? saved : p));
-      });
+      // Só depois atualiza estados
+      setActiveProject(savedProject);
+      setProjects((prev) =>
+        prev.map((p) => (p.id === savedProject.id ? savedProject : p))
+      );
 
-    } catch (e: any) { 
-      alert(`Erro: ${e.message}`); 
+    } catch (e: any) {
+      console.error("Erro ao guardar foto:", e);
+      alert("Erro ao guardar foto: " + (e?.message || "Tente novamente."));
     }
   };
 
-  // === EDIÇÃO DE FOTO ===
+  // === GUARDAR FOTO EDITADA (melhorado) ===
   const handleSaveEditedPhoto = async (updatedPhoto: Photo) => {
-      if (!activeProject) return;
-      try {
-        const updatedPhotos = activeProject.photos.map(p => p.id === updatedPhoto.id ? updatedPhoto : p);
-        const updatedProject = { ...activeProject, photos: updatedPhotos, coverImage: updatedPhotos[0].url };
-        const savedProject = await saveProject(updatedProject);
-        setProjects(projects.map(p => p.id === activeProject.id ? savedProject : p));
-        setActiveProject(savedProject);
-        setCurrentRoute(AppRoute.PROJECT_DETAILS);
-      } catch {
-        alert("Erro ao guardar alterações.");
-      }
+    if (!activeProject) return;
+
+    try {
+      const updatedPhotos = activeProject.photos.map((p) =>
+        p.id === updatedPhoto.id ? updatedPhoto : p
+      );
+
+      const updatedProject: Project = {
+        ...activeProject,
+        photos: updatedPhotos,
+        coverImage: updatedPhotos[0]?.url || activeProject.coverImage
+      };
+
+      const savedProject = await saveProject(updatedProject);
+
+      setProjects((prev) =>
+        prev.map((p) => (p.id === savedProject.id ? savedProject : p))
+      );
+
+      setActiveProject(savedProject);
+      setCurrentRoute(AppRoute.PROJECT_DETAILS);
+    } catch {
+      alert("Erro ao guardar alterações.");
+    }
   };
 
-  // === ATUALIZA PROJETO ===
+  // === ATUALIZAR PROJETO ===
   const handleUpdateProject = async (updated: Project) => {
-      try {
-        const savedProject = await saveProject(updated);
-        setProjects(projects.map(p => p.id === updated.id ? savedProject : p));
-        setActiveProject(savedProject);
-      } catch {
-        alert("Erro ao atualizar projeto.");
-      }
+    try {
+      const savedProject = await saveProject(updated);
+      setProjects(projects.map(p => p.id === updated.id ? savedProject : p));
+      setActiveProject(savedProject);
+    } catch {
+      alert("Erro ao atualizar projeto.");
+    }
   };
 
   // === LOGIN ===
@@ -210,7 +232,7 @@ function App() {
       }
   };
 
-  // === PERFIL DO UTILIZADOR ===
+  // === PERFIL ===
   const handleUpdateUser = async (updatedUser: UserProfile) => {
       try {
           const savedUser = await updateUser(updatedUser);
@@ -252,7 +274,7 @@ function App() {
   const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
   const header = null;
 
-  // === RENDERIZAÇÃO DAS TELAS ===
+  // === RENDER ===
   const renderContent = () => {
     switch (currentRoute) {
       case AppRoute.LANDING:
