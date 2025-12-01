@@ -8,7 +8,7 @@ interface CameraViewProps {
   onClose: () => void;
 }
 
-type LensType = "wide" | "ultra"; // 1.0x e 0.5x
+type LensType = "wide" | "ultra"; // 1x e 0.5x
 
 export const CameraView: React.FC<CameraViewProps> = ({
   onPhotoCaptured,
@@ -46,15 +46,18 @@ export const CameraView: React.FC<CameraViewProps> = ({
   >([]);
 
   const [showHoldSteady, setShowHoldSteady] = useState(false);
-
   const [hdrProfile, setHdrProfile] = useState<"interior" | "exterior">(
     "interior"
   );
 
-  // Lentes (corrigido)
+  // Lentes iPhone
   const [lens, setLens] = useState<LensType>("wide");
-  const [wideDeviceId, setWideDeviceId] = useState<string | null>(null);
-  const [ultraDeviceId, setUltraDeviceId] = useState<string | null>(null);
+  const [wideDeviceId, setWideDeviceId] = useState<string | undefined>(
+    undefined
+  );
+  const [ultraDeviceId, setUltraDeviceId] = useState<string | undefined>(
+    undefined
+  );
 
   // =====================================
   // INIT
@@ -62,17 +65,19 @@ export const CameraView: React.FC<CameraViewProps> = ({
   useEffect(() => {
     mountedRef.current = true;
 
-    // carregar sons WAV
+    // sons WAV + política de autoplay do Safari
     shutterSound.current = new Audio("/iphone-camera-capture-6448.wav");
     shutterSound.current.preload = "auto";
+    shutterSound.current.muted = false;
 
     countdownBeep.current = new Audio("/mixkit-simple-game-countdown-921.wav");
     countdownBeep.current.preload = "auto";
+    countdownBeep.current.muted = false;
 
     const handleResize = () =>
       safeSet(() => setIsLandscape(window.innerWidth > window.innerHeight));
-
     handleResize();
+
     window.addEventListener("resize", handleResize);
 
     return () => {
@@ -82,54 +87,60 @@ export const CameraView: React.FC<CameraViewProps> = ({
     };
   }, []);
 
+  // Reinicia câmera ao fechar o preview
   useEffect(() => {
     if (!previewImage) {
       startCamera(lens);
-      safeSet(() => setHasSaved(false));
+      setHasSaved(false);
     }
   }, [previewImage]);
 
   // =====================================
-  // DETECTAR CÂMERAS
+  // DETECTAR LENTES
   // =====================================
   const detectBackCameras = async () => {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videos = devices.filter((d) => d.kind === "videoinput");
 
-    let wide: MediaDeviceInfo | undefined;
-    let ultra: MediaDeviceInfo | undefined;
+    let wideCam: MediaDeviceInfo | undefined;
+    let ultraCam: MediaDeviceInfo | undefined;
 
     videos.forEach((cam) => {
-      const label = cam.label.toLowerCase();
+      const lbl = cam.label.toLowerCase();
 
-      if (!ultra && (label.includes("0.5") || label.includes("ultra"))) {
-        ultra = cam;
+      // Ultra-wide (0.5x)
+      if (!ultraCam && (lbl.includes("0.5") || lbl.includes("ultra"))) {
+        ultraCam = cam;
       }
 
+      // Wide (1x)
       if (
-        !wide &&
-        !label.includes("front") &&
-        (label.includes("back") ||
-          label.includes("wide") ||
-          label.includes("1.") ||
-          label.includes("main"))
+        !wideCam &&
+        !lbl.includes("front") &&
+        (lbl.includes("back") ||
+          lbl.includes("wide") ||
+          lbl.includes("1.") ||
+          lbl.includes("main"))
       ) {
-        wide = cam;
+        wideCam = cam;
       }
     });
 
-    if (!wide) wide = videos.find((v) => !v.label.includes("front")) || videos[0];
-    if (!ultra && videos.length > 1)
-      ultra = videos.find((v) => v.deviceId !== wide!.deviceId);
+    // Fallbacks
+    if (!wideCam)
+      wideCam = videos.find((v) => !v.label.toLowerCase().includes("front"));
 
-    setWideDeviceId(wide?.deviceId || null);
-    setUltraDeviceId(ultra?.deviceId || null);
+    if (!ultraCam)
+      ultraCam = videos.find((v) => v.deviceId !== wideCam?.deviceId);
 
-    return { wide, ultra };
+    setWideDeviceId(wideCam?.deviceId);
+    setUltraDeviceId(ultraCam?.deviceId);
+
+    return { wideCam, ultraCam };
   };
 
   // =====================================
-  // START/STOP CAMERA
+  // START CAMERA
   // =====================================
   const startCamera = async (targetLens: LensType) => {
     stopCamera();
@@ -137,64 +148,60 @@ export const CameraView: React.FC<CameraViewProps> = ({
     let deviceId: string | undefined;
 
     if (!wideDeviceId && !ultraDeviceId) {
-      const result = await detectBackCameras();
+      const cams = await detectBackCameras();
       deviceId =
         targetLens === "ultra"
-          ? result?.ultra?.deviceId
-          : result?.wide?.deviceId;
+          ? cams.ultraCam?.deviceId
+          : cams.wideCam?.deviceId;
     } else {
       deviceId =
-        targetLens === "ultra" ? ultraDeviceId || wideDeviceId : wideDeviceId!;
+        targetLens === "ultra" ? ultraDeviceId ?? wideDeviceId : wideDeviceId;
     }
 
-    const constraints = {
+    const constraints: MediaStreamConstraints = {
       video: {
         deviceId: deviceId ? { exact: deviceId } : undefined,
-        width: { ideal: 4032 },
-        height: { ideal: 3024 },
-        aspectRatio: { ideal: 4 / 3 },
-      },
+        facingMode: undefined, // força NÃO usar câmera frontal
+        width: { ideal: 3840 },
+        height: { ideal: 2160 },
+        aspectRatio: 4 / 3
+      }
     };
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
 
-      const vid = videoRef.current;
-      if (vid) {
-        vid.srcObject = stream;
-        vid.onloadedmetadata = () => setIsStreaming(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => setIsStreaming(true);
       }
 
       setLens(targetLens);
-    } catch (error) {
-      console.error("Erro ao iniciar câmera:", error);
+    } catch (err) {
+      console.error("Erro ao iniciar câmera:", err);
       alert("Não foi possível aceder à câmara.");
     }
   };
 
   const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
     setIsStreaming(false);
   };
 
   // =====================================
-  // TAP TO FOCUS (melhorado)
+  // TAP-TO-FOCUS — cast seguro
   // =====================================
   const handleTapToFocus = async (
     e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>
   ) => {
     if (!streamRef.current) return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clientX =
-      "touches" in e ? e.touches[0].clientX : (e as any).clientX;
-    const clientY =
-      "touches" in e ? e.touches[0].clientY : (e as any).clientY;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const clientX = "touches" in e ? e.touches[0].clientX : (e as any).clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : (e as any).clientY;
 
     const x = clientX - rect.left;
     const y = clientY - rect.top;
@@ -207,7 +214,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
     if (caps.focusMode?.includes("single-shot")) {
       try {
-        await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] });
+        await (track as any).applyConstraints({
+          advanced: [{ focusMode: "single-shot" }]
+        });
       } catch {}
     }
   };
@@ -218,9 +227,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const handleShutterClick = () => {
     if (isProcessing) return;
 
-    try {
-      shutterSound.current?.play();
-    } catch {}
+    shutterSound.current?.play().catch(() => {});
 
     setShowHoldSteady(true);
     setTimeout(() => setShowHoldSteady(false), 1200);
@@ -231,9 +238,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     const timer = setInterval(() => {
       c--;
       if (c > 0) {
-        try {
-          countdownBeep.current?.play();
-        } catch {}
+        countdownBeep.current?.play().catch(() => {});
         setCountdown(c);
       } else {
         clearInterval(timer);
@@ -244,7 +249,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   };
 
   // =====================================
-  // CAPTURAR HDR
+  // HDR + IA
   // =====================================
   const captureHDR = async () => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -257,59 +262,56 @@ export const CameraView: React.FC<CameraViewProps> = ({
     const ctx = canvas.getContext("2d")!;
     const frames: string[] = [];
 
-    const brightness = [0.5, 0.7, 0.9, 1, 1.1, 1.2];
+    const brightness = [0.6, 0.8, 1, 1.2, 1.3, 1.4];
 
     for (let i = 0; i < brightness.length; i++) {
-      const filter = `brightness(${brightness[i]})`;
-
-      if (!video.videoWidth) await new Promise((r) => setTimeout(r, 10));
-
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
-      ctx.filter = filter;
+      ctx.filter = `brightness(${brightness[i]}) contrast(1.1) saturate(1.05)`;
       ctx.drawImage(video, 0, 0);
       ctx.filter = "none";
 
       const jpeg = canvas.toDataURL("image/jpeg", 0.95);
       frames.push(jpeg);
 
-      setProcessingProgress(((i + 1) / brightness.length) * 45);
+      setProcessingProgress(((i + 1) / brightness.length) * 50);
 
-      safeSet(() => setFlashVisual(true));
+      setFlashVisual(true);
       await new Promise((r) => setTimeout(r, 60));
-      safeSet(() => setFlashVisual(false));
+      setFlashVisual(false);
     }
 
     setProcessingStep("Processando IA…");
-    setProcessingProgress(70);
 
-    let finalImage = frames[Math.floor(frames.length / 2)];
+    let finalImage = frames[2]; // exposição média
 
     try {
       const ai = await enhanceImage(frames);
-      if (ai && ai.length > 1000) finalImage = ai;
-    } catch (e) {
-      console.warn("Falha IA:", e);
-    }
+      if (ai?.length > 1000) finalImage = ai;
+    } catch {}
 
-    setPreviewImage(finalImage);
     setProcessingProgress(100);
-    await savePhoto(finalImage);
+    setPreviewImage(finalImage);
+
+    await savePhoto(finalImage, frames[2]);
     setIsProcessing(false);
   };
 
   // =====================================
-  // SALVAR FOTO
+  // SALVAR FOTO (agora com originalUrl + timestamp)
   // =====================================
-  const savePhoto = async (url: string) => {
+  const savePhoto = async (url: string, original: string) => {
     if (hasSaved) return;
 
     const newPhoto: Photo = {
       id: crypto.randomUUID(),
       url,
+      originalUrl: original,
       name: `SNAP_${Date.now()}.jpg`,
       createdAt: Date.now(),
+      timestamp: Date.now(),
+      type: "hdr"
     };
 
     await onPhotoCaptured(newPhoto);
@@ -354,7 +356,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
         </div>
       )}
 
-      {/* Top bar */}
+      {/* Barra superior */}
       <div className="flex items-center justify-between px-6 py-4">
         <button onClick={onClose} className="p-3 bg-black/40 rounded-full">
           <X size={22} />
@@ -445,21 +447,22 @@ export const CameraView: React.FC<CameraViewProps> = ({
         </div>
       </div>
 
-      {/* Shutter */}
+      {/* BOTÃO DE CAPTURA */}
       <div className="flex justify-center py-6">
         <button
           onClick={handleShutterClick}
-          className="w-24 h-24 rounded-full border-4 border-white flex items-center justify-center"
+          disabled={isProcessing}
+          className="w-24 h-24 rounded-full border-4 border-white flex items-center justify-center active:scale-95 transition-transform"
         >
           <div className="w-20 h-20 bg-white rounded-full" />
         </button>
       </div>
 
-      {/* Overlay de processamento */}
+      {/* OVERLAY PROCESSANDO */}
       {isProcessing && (
-        <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center">
+        <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50">
           <div className="w-16 h-16 border-4 border-white/20 border-t-yellow-400 rounded-full animate-spin mb-4" />
-          <div className="text-yellow-400 text-xl font-bold">
+          <div className="text-yellow-400 font-bold text-xl uppercase">
             {processingStep}
           </div>
           <div className="text-white/60 mt-2">
