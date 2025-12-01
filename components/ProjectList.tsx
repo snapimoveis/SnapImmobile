@@ -9,7 +9,7 @@ interface ProjectListProps {
   onDeleteProject: (id: string) => void;
 }
 
-const ProjectList: React.FC<ProjectListProps> = ({
+export const ProjectList: React.FC<ProjectListProps> = ({
   projects,
   onSelectProject,
   onCreateProject,
@@ -18,6 +18,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
   const [search, setSearch] = useState("");
 
   const formatDate = (timestamp: number) => {
+    if (!timestamp) return "";
     try {
       return new Date(timestamp).toLocaleDateString("pt-PT", {
         day: "numeric",
@@ -29,6 +30,9 @@ const ProjectList: React.FC<ProjectListProps> = ({
     }
   };
 
+  // ------------------------------
+  // FILTRO DE BUSCA
+  // ------------------------------
   const filteredProjects = useMemo(() => {
     if (!search.trim()) return projects;
     const term = search.toLowerCase();
@@ -39,6 +43,9 @@ const ProjectList: React.FC<ProjectListProps> = ({
     );
   }, [projects, search]);
 
+  // ------------------------------
+  // ACTIVIDADE RECENTE
+  // ------------------------------
   const recentProjects = useMemo(() => {
     return [...projects]
       .sort((a, b) => b.createdAt - a.createdAt)
@@ -47,7 +54,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
 
   return (
     <div className="min-h-screen bg-brand-gray-50 dark:bg-black p-4 pb-24 transition-colors duration-300">
-      {/* HEADER + BOTÃO */}
+      {/* HEADER */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">
           Seus Projetos
@@ -64,13 +71,13 @@ const ProjectList: React.FC<ProjectListProps> = ({
       {/* SEARCH BAR */}
       <div className="mb-6">
         <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/10 rounded-2xl px-3 py-2">
-          <Search className="text-gray-400" size={18} />
+          <Search size={18} className="text-gray-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Pesquisar imóveis..."
-            className="bg-transparent outline-none text-sm flex-1 text-gray-800 dark:text-gray-100 placeholder:text-gray-400"
+            className="bg-transparent outline-none flex-1 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400"
           />
         </div>
       </div>
@@ -84,7 +91,11 @@ const ProjectList: React.FC<ProjectListProps> = ({
 
           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
             {recentProjects.map((project) => {
-              const image = project.coverImage || project.photos?.[0]?.url;
+              const image =
+                project.coverImage ||
+                project.photos?.[0]?.url ||
+                null;
+
               const photoCount = project.photos?.length || 0;
 
               return (
@@ -106,8 +117,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                       </div>
                     )}
 
-                    {/* ícone de localização (canto inferior esquerdo) */}
-                    <div className="absolute bottom-2 left-2 bg-black/60 text-white rounded-lg p-1 flex items-center justify-center">
+                    <div className="absolute bottom-2 left-2 bg-black/60 text-white rounded-lg p-1">
                       <MapPin size={14} />
                     </div>
                   </div>
@@ -127,7 +137,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
         </div>
       )}
 
-      {/* TODOS OS IMÓVEIS */}
+      {/* LISTA DE TODOS OS IMÓVEIS */}
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
           Todos os imóveis
@@ -147,7 +157,11 @@ const ProjectList: React.FC<ProjectListProps> = ({
           </div>
         ) : (
           filteredProjects.map((project) => {
-            const image = project.coverImage || project.photos?.[0]?.url;
+            const image =
+              project.coverImage ||
+              project.photos?.[0]?.url ||
+              null;
+
             const photoCount = project.photos?.length || 0;
 
             return (
@@ -169,13 +183,11 @@ const ProjectList: React.FC<ProjectListProps> = ({
                     </div>
                   )}
 
-                  {/* contador de fotos (canto inferior esquerdo) */}
                   <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-xl flex items-center gap-1">
                     <Camera size={12} />
                     {photoCount}
                   </div>
 
-                  {/* botão apagar (canto superior direito) */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -204,7 +216,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
         )}
       </div>
 
-      {/* BOTÃO FLUTUANTE "NOVO IMÓVEL" */}
+      {/* BOTÃO FLUTUANTE */}
       <div className="fixed bottom-8 left-0 right-0 flex justify-center pointer-events-none">
         <button
           onClick={onCreateProject}
