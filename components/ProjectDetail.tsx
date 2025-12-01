@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Camera, Video, Settings, Share2, MoreHorizontal, Pencil, Check } from 'lucide-react';
 import { Project, Photo } from '../types';
-// Certifique-se de que o componente Button existe em ui/index.tsx
-import { Button } from './ui'; 
+import { Button } from './ui';
 
 interface ProjectDetailProps {
   initialProject: Project;
@@ -13,8 +12,8 @@ interface ProjectDetailProps {
   onViewTour: () => void;
 }
 
-// AQUI ESTÁ A EXPORTAÇÃO CORRETA
-export const ProjectDetail: React.FC<ProjectDetailProps> = ({ 
+// EXPORTAÇÃO PADRÃO (DEFAULT) PARA EVITAR ERROS DE IMPORTAÇÃO
+const ProjectDetail: React.FC<ProjectDetailProps> = ({ 
   initialProject, 
   onBack, 
   onAddPhoto, 
@@ -111,3 +110,6 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({
     </div>
   );
 };
+
+export { ProjectDetail }; // Exportação nomeada para manter compatibilidade
+export default ProjectDetail; // Exportação padrão para segurança
