@@ -1,302 +1,194 @@
-import React, { useState, useEffect } from 'react';
-import { HashRouter } from 'react-router-dom';
-// Removido Header pois não está sendo usado diretamente no renderContent e pode causar confusão se não existir
-// import { Header } from './components/Header'; 
-import { ProjectList } from './components/ProjectList';
-import { CameraView } from './components/CameraView';
-import { Editor } from './components/Editor';
-import { ProjectDetail } from './components/ProjectDetail';
-import { TourViewer } from './components/TourViewer';
-import { NewProjectModal } from './components/NewProjectModal';
-import { LandingScreen } from './components/LandingScreen';
-import { SettingsScreen } from './components/SettingsScreen';
-import { WelcomeScreen } from './components/WelcomeScreen';
-import { RegisterScreen } from './components/RegisterScreen';
-import { LoginScreen } from './components/LoginScreen';
-import { ManagementMenu } from './components/ManagementMenu';
-import { UpdateNotification } from './components/UpdateNotification';
-// Importação Correta do MainLayout
-import { MainLayout } from './components/MainLayout';
+import { 
+    getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, 
+    query, where, limit, getDoc, setDoc 
+} from 'firebase/firestore';
+import { 
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
+    signOut, updateProfile, deleteUser 
+} from 'firebase/auth';
+// FIX: Garante que importamos 'app' que deve ser exportado do firebaseConfig
+import { app } from './firebaseConfig';
+import { Project, UserProfile, CompanySettings, Device, Invoice } from '../types';
 
-import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
-import { generateDescription } from './services/geminiService';
-import {
-    getCurrentUser, getUserProjects, saveProject, deleteProject,
-    logoutUser, registerUser, loginUser, saveUserSession, updateUser, deleteUserAccount
-} from './services/storage';
+const db = getFirestore(app);
+const auth = getAuth(app);
 
-function App() {
-  const [currentRoute, setCurrentRoute] = useState<AppRoute>(AppRoute.LANDING);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [selectedRole, setSelectedRole] = useState<string>('');
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [activePhoto, setActivePhoto] = useState<Photo | null>(null);
-  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
-  const [prefillEmail, setPrefillEmail] = useState('');
+// === USER MANAGEMENT ===
 
-  // === MODO ESCURO AUTOMÁTICO ===
-  useEffect(() => {
-    const applyTheme = () => {
-      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (isDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    };
-    applyTheme();
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
-  }, []);
+export const registerUser = async (userProfile: UserProfile, password?: string): Promise<UserProfile> => {
+    if (!password) throw new Error("Senha é obrigatória para registro");
+    
+    // 1. Criar Auth User
+    const userCredential = await createUserWithEmailAndPassword(auth, userProfile.email, password);
+    const user = userCredential.user;
 
-  // Inicialização
-  useEffect(() => {
-    const initApp = async () => {
-      const user = getCurrentUser();
-      if (user) {
-        setCurrentUser(user);
-        try {
-          const userProjects = await getUserProjects(user.id);
-          setProjects(userProjects);
-          setCurrentRoute(AppRoute.DASHBOARD);
-        } catch (e) {
-          console.error("Failed to load projects", e);
+    // 2. Atualizar Perfil Auth
+    await updateProfile(user, { displayName: `${userProfile.firstName} ${userProfile.lastName}` });
+
+    // 3. Salvar Perfil no Firestore
+    const newUser: UserProfile = { ...userProfile, id: user.uid };
+    await setDoc(doc(db, "users", user.uid), newUser);
+
+    return newUser;
+};
+
+export const loginUser = async (email: string, password?: string): Promise<UserProfile> => {
+    if (!password) throw new Error("Senha obrigatória");
+    
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    // Buscar dados extras do Firestore
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    
+    if (userDoc.exists()) {
+        const userData = userDoc.data() as UserProfile;
+        
+        // Verificação de Segurança de Dispositivo (Simulada)
+        if (userData.deviceId && userData.deviceId !== 'current-device-id') {
+             // Lógica real de device check aqui
         }
-      }
-    };
-    initApp();
-  }, []);
-
-  const handleRoleSelect = (role: string) => {
-    setSelectedRole(role);
-    setCurrentRoute(AppRoute.REGISTER);
-  };
-
-  const handleRegistrationSubmit = async (data: any) => {
-    try {
-        // Adaptação para o tipo UserProfile
-        const tempUser: UserProfile = {
-            id: crypto.randomUUID(),
-            role: selectedRole as any, // Casting se necessário, ou garanta que selectedRole corresponda ao tipo
-            firstName: data.firstName,
-            lastName: data.lastName,
-            email: data.email,
-            phone: data.phone,
-            cpf: data.cpf,
-            company: data.company,
+        
+        return userData;
+    } else {
+        // Fallback se não existir doc (cria básico)
+        const newProfile: UserProfile = {
+            id: user.uid,
+            email: user.email!,
+            firstName: user.displayName?.split(' ')[0] || 'User',
+            lastName: user.displayName?.split(' ')[1] || '',
+            role: 'editor', // Role padrão seguro
             createdAt: Date.now(),
-            password: data.password,
-            preferences: {
-                language: 'pt-PT',
-                notifications: true,
-                marketing: false,
-                theme: 'light'
-            }
+            preferences: { language: 'pt', notifications: true, marketing: false, theme: 'light' }
         };
-
-        const newUser = await registerUser(tempUser, data.password);
-        saveUserSession(newUser);
-        setCurrentUser(newUser);
-        setProjects([]);
-        setCurrentRoute(AppRoute.DASHBOARD);
-    } catch (e: any) {
-        if (e.code === 'auth/email-already-in-use' || e.message?.includes('email-already-in-use')) {
-            alert("Este e-mail já está registado. Redirecionando para o login...");
-            setPrefillEmail(data.email);
-            setCurrentRoute(AppRoute.LOGIN);
-            return;
-        }
-        console.error("Erro no registo:", e);
-        alert("Erro ao criar conta: " + (e.message || "Tente novamente."));
+        await setDoc(doc(db, "users", user.uid), newProfile);
+        return newProfile;
     }
-  };
+};
 
-  const handleCreateProject = async (details: ProjectDetailsType & { title: string, address: string }) => {
-    if (!currentUser) return;
-    const newProject: Project = {
-      id: crypto.randomUUID(),
-      userId: currentUser.id,
-      title: details.title,
-      address: details.address,
-      details: { ...details },
-      status: 'In Progress',
-      photos: [],
-      createdAt: Date.now()
+export const logoutUser = async () => {
+    await signOut(auth);
+    localStorage.removeItem('snap_user');
+};
+
+export const getCurrentUser = (): UserProfile | null => {
+    const stored = localStorage.getItem('snap_user');
+    return stored ? JSON.parse(stored) : null;
+};
+
+export const saveUserSession = (user: UserProfile) => {
+    localStorage.setItem('snap_user', JSON.stringify(user));
+};
+
+export const updateUser = async (updatedUser: UserProfile): Promise<UserProfile> => {
+    const userRef = doc(db, "users", updatedUser.id);
+    await updateDoc(userRef, { ...updatedUser });
+    return updatedUser;
+};
+
+export const deleteUserAccount = async (email: string, userId: string) => {
+    const user = auth.currentUser;
+    if (user) {
+        await deleteDoc(doc(db, "users", userId));
+        await deleteUser(user);
+        localStorage.removeItem('snap_user');
+    }
+};
+
+// === COMPANY SETTINGS ===
+
+export const getCompanySettings = async (): Promise<CompanySettings> => {
+    // Simulação: Pegar a primeira empresa ou criar padrão
+    const q = query(collection(db, "companies"), limit(1));
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+        const docData = querySnapshot.docs[0].data() as CompanySettings;
+        // FIX: Garantir que virtualTourDays venha como array se estiver salvo como number ou undefined
+        const safeVirtualTourDays = Array.isArray(docData.virtualTourDays) 
+            ? docData.virtualTourDays 
+            : [];
+
+        return { ...docData, id: querySnapshot.docs[0].id, virtualTourDays: safeVirtualTourDays };
+    }
+    
+    return {
+        id: 'default',
+        name: 'Minha Imobiliária',
+        primaryColor: '#623aa2',
+        backgroundColor: '#ffffff',
+        allowUserWatermark: true,
+        // FIX: Agora inicializamos com um array vazio ou dias padrão, e não com o número 30
+        virtualTourDays: [] 
     };
-    try {
-      const savedProject = await saveProject(newProject);
-      setProjects([savedProject, ...projects]);
-      setActiveProject(savedProject);
-      setCurrentRoute(AppRoute.PROJECT_DETAILS);
-      setIsNewProjectModalOpen(false);
-    } catch (e: any) { alert('Erro ao criar projeto.'); }
-  };
+};
 
-  const handlePhotoCaptured = async (photo: Photo) => {
-    if (!currentUser) return;
-    try {
-      if (!activeProject) {
-          const draft: Project = {
-              id: crypto.randomUUID(),
-              userId: currentUser.id,
-              title: 'Imóvel Rascunho',
-              address: 'Sem Morada',
-              status: 'In Progress',
-              photos: [photo],
-              createdAt: Date.now(),
-              coverImage: photo.url
-          };
-          const savedDraft = await saveProject(draft);
-          setProjects([savedDraft, ...projects]);
-          setActiveProject(savedDraft);
-          return;
-      }
-      generateDescription(photo.url).then((desc: string) => {
-          console.log("Descrição gerada:", desc);
-      });
-      const updatedProject = {
-          ...activeProject,
-          photos: [...activeProject.photos, photo],
-          coverImage: activeProject.coverImage || photo.url
-      };
-      setActiveProject(updatedProject);
-      saveProject(updatedProject).then((saved) => {
-          setProjects(projects.map(p => p.id === activeProject.id ? saved : p));
-      });
-    } catch (e: any) { alert(`Erro: ${e.message}`); }
-  };
-
-  const handleSaveEditedPhoto = async (updatedPhoto: Photo) => {
-      if (!activeProject) return;
-      try {
-        const updatedPhotos = activeProject.photos.map(p => p.id === updatedPhoto.id ? updatedPhoto : p);
-        const updatedProject = { ...activeProject, photos: updatedPhotos, coverImage: updatedPhotos[0].url };
-        const savedProject = await saveProject(updatedProject);
-        setProjects(projects.map(p => p.id === activeProject.id ? savedProject : p));
-        setActiveProject(savedProject);
-        setCurrentRoute(AppRoute.PROJECT_DETAILS);
-      } catch (e) { alert("Erro ao guardar alterações."); }
-  };
-
-  const handleUpdateProject = async (updated: Project) => {
-      try {
-        const savedProject = await saveProject(updated);
-        setProjects(projects.map(p => p.id === updated.id ? savedProject : p));
-        setActiveProject(savedProject);
-      } catch (e) { alert("Erro ao atualizar projeto."); }
-  };
-
-  const handleLoginSubmit = async (email: string, password?: string) => {
-      try {
-          const user = await loginUser(email, password);
-          saveUserSession(user);
-          setCurrentUser(user);
-          const userProjects = await getUserProjects(user.id);
-          setProjects(userProjects);
-          setCurrentRoute(AppRoute.DASHBOARD);
-      } catch (e: any) { alert("Login falhou."); }
-  };
-
-  const handleUpdateUser = async (updatedUser: UserProfile) => {
-      try {
-          const savedUser = await updateUser(updatedUser);
-          saveUserSession(savedUser);
-          setCurrentUser(savedUser);
-      } catch (e) { alert("Erro ao atualizar perfil."); }
-  };
-
-  const handleDeleteAccount = async () => {
-      if (currentUser) {
-          try {
-              await deleteUserAccount(currentUser.email, currentUser.id);
-              await handleLogout();
-          } catch(e) { alert("Erro ao apagar conta."); }
-      }
-  };
-
-  const handleLogout = async () => { await logoutUser(); setCurrentUser(null); setCurrentRoute(AppRoute.LANDING); };
-
-  const handleCentralCameraAction = () => {
-      if (currentRoute === AppRoute.PROJECT_DETAILS && activeProject) {
-          setCurrentRoute(AppRoute.CAMERA);
-      } else {
-          setIsNewProjectModalOpen(true);
-      }
-  };
-
-  const isAuthRoute = [AppRoute.LANDING, AppRoute.WELCOME, AppRoute.REGISTER, AppRoute.LOGIN].includes(currentRoute);
-  const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
-
-  const renderContent = () => {
-    switch (currentRoute) {
-      case AppRoute.LANDING: return <LandingScreen onLogin={() => setCurrentRoute(AppRoute.LOGIN)} onFreeTrial={() => setCurrentRoute(AppRoute.WELCOME)} />;
-      case AppRoute.LOGIN: return <LoginScreen initialEmail={prefillEmail} onLogin={handleLoginSubmit} onBack={() => setCurrentRoute(AppRoute.LANDING)} onRegisterClick={() => setCurrentRoute(AppRoute.WELCOME)} />;
-      case AppRoute.WELCOME: return <WelcomeScreen onNext={handleRoleSelect} onBack={() => setCurrentRoute(AppRoute.LANDING)} />;
-      case AppRoute.REGISTER: return <RegisterScreen role={selectedRole} onSubmit={handleRegistrationSubmit} onBack={() => setCurrentRoute(AppRoute.WELCOME)} />;
-      case AppRoute.CAMERA:
-        return <CameraView onClose={() => setCurrentRoute(activeProject ? AppRoute.PROJECT_DETAILS : AppRoute.DASHBOARD)} onPhotoCaptured={handlePhotoCaptured} />;
-      case AppRoute.EDITOR:
-        return activePhoto ? <Editor photo={activePhoto} onSave={handleSaveEditedPhoto} onCancel={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : <div>Erro: Nenhuma foto</div>;
-
-      case AppRoute.PROJECT_DETAILS:
-        if (!activeProject) return <div>Carregando...</div>;
-        return (
-            <ProjectDetail
-                initialProject={activeProject}
-                onBack={() => setCurrentRoute(AppRoute.DASHBOARD)}
-                onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)}
-                onEditPhoto={(p) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }}
-                onUpdateProject={handleUpdateProject}
-                onViewTour={() => setCurrentRoute(AppRoute.TOUR_VIEWER)}
-            />
-        );
-
-      case AppRoute.TOUR_VIEWER:
-         return activeProject ? <TourViewer project={activeProject} onClose={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : null;
-
-      case AppRoute.SETTINGS:
-          return <SettingsScreen
-                    currentUser={currentUser}
-                    onUpdateUser={handleUpdateUser}
-                    onDeleteAccount={handleDeleteAccount}
-                 />;
-
-      case AppRoute.MENU:
-          return <ManagementMenu onClose={() => setCurrentRoute(AppRoute.DASHBOARD)} onNavigate={(r: string) => r === 'SETTINGS' ? setCurrentRoute(AppRoute.SETTINGS) : setCurrentRoute(AppRoute.DASHBOARD)} onLogout={handleLogout} />;
-
-      case AppRoute.DASHBOARD:
-      default:
-        return (
-          <>
-            <ProjectList
-                projects={projects}
-                onSelectProject={(p) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }}
-                onCreateProject={() => setIsNewProjectModalOpen(true)}
-                onDeleteProject={async (id) => { await deleteProject(id); setProjects(prev => prev.filter(p => p.id !== id)); }}
-            />
-            {isNewProjectModalOpen && <NewProjectModal onClose={() => setIsNewProjectModalOpen(false)} onCreate={handleCreateProject} />}
-          </>
-        );
+export const saveCompanySettings = async (settings: CompanySettings): Promise<void> => {
+    if (settings.id && settings.id !== 'default') {
+        // FIX: Garantir que o ID é string
+        await updateDoc(doc(db, "companies", settings.id), { ...settings });
+    } else {
+        await addDoc(collection(db, "companies"), settings);
     }
-  };
+};
 
-  return (
-    <HashRouter>
-      <UpdateNotification />
-      {(isAuthRoute || isFullScreenTool) ? (
-          <div className="h-screen w-full bg-black overflow-hidden">{renderContent()}</div>
-      ) : (
-          <MainLayout
-             currentRoute={currentRoute}
-             onNavigate={setCurrentRoute}
-             onLogout={handleLogout}
-             onCameraAction={handleCentralCameraAction}
-             // headerComponent removido, pois já não o usamos no MainLayout para a lógica atual
-          >
-             {renderContent()}
-          </MainLayout>
-      )}
-    </HashRouter>
-  );
-}
-export default App;
+// === PROJECTS ===
+
+export const getUserProjects = async (userId: string): Promise<Project[]> => {
+    const q = query(collection(db, "projects"), where("userId", "==", userId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
+};
+
+export const saveProject = async (project: Project): Promise<Project> => {
+    if (project.id && (await getDoc(doc(db, "projects", project.id))).exists()) {
+        await updateDoc(doc(db, "projects", project.id), { ...project });
+        return project;
+    } else {
+        // Se for novo, deixa o Firestore gerar o ID se não tiver, ou usa o fornecido
+        const docRef = await addDoc(collection(db, "projects"), project);
+        return { ...project, id: docRef.id };
+    }
+};
+
+export const deleteProject = async (projectId: string): Promise<void> => {
+    await deleteDoc(doc(db, "projects", projectId));
+};
+
+// === BILLING & DEVICES (MOCK) ===
+
+export const getInvoices = async (): Promise<Invoice[]> => {
+    // Mock data for UI development
+    return [
+        { id: 'INV-001', number: '2025/001', date: '2025-10-01', amount: 29.90, status: 'paid' },
+        { id: 'INV-002', number: '2025/002', date: '2025-11-01', amount: 29.90, status: 'pending' }
+    ];
+};
+
+export const getDevices = async (): Promise<Device[]> => {
+    return [
+        { 
+            id: 'dev1', 
+            name: 'iPhone 15 Pro', 
+            type: 'mobile', 
+            model: 'iPhone 15 Pro',
+            userName: 'Tania',
+            lastAccess: Date.now(),
+            lastActive: Date.now(), 
+            current: true, 
+            userId: 'user1',
+            status: 'active'
+        },
+        { 
+            id: 'dev2', 
+            name: 'MacBook Air', 
+            type: 'desktop',
+            model: 'M2',
+            userName: 'Tania',
+            lastAccess: Date.now() - 86400000,
+            lastActive: Date.now() - 86400000, 
+            userId: 'user1',
+            status: 'inactive'
+        }
+    ];
+};
