@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter } from 'react-router-dom';
-// Componentes
 import { ProjectList } from './components/ProjectList';
 import { CameraView } from './components/CameraView';
 import { Editor } from './components/Editor';
-import ProjectDetail from './components/ProjectDetail'; 
+import { ProjectDetail } from './components/ProjectDetail'; 
 import { TourViewer } from './components/TourViewer';
 import { NewProjectModal } from './components/NewProjectModal';
 import { LandingScreen } from './components/LandingScreen';
@@ -16,10 +15,7 @@ import { ManagementMenu } from './components/ManagementMenu';
 import { UpdateNotification } from './components/UpdateNotification';
 import { MainLayout } from './components/MainLayout';
 
-// Tipos
 import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
-
-// Serviços
 import { generateDescription } from './services/geminiService';
 import { 
     getCurrentUser, getUserProjects, saveProject, deleteProject, 
@@ -36,7 +32,6 @@ function App() {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [prefillEmail, setPrefillEmail] = useState('');
 
-  // === MODO ESCURO AUTOMÁTICO ===
   useEffect(() => {
     const applyTheme = () => {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -50,7 +45,6 @@ function App() {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   }, []);
 
-  // Inicialização
   useEffect(() => {
     const initApp = async () => {
       const user = getCurrentUser();
@@ -131,60 +125,98 @@ function App() {
       setActiveProject(savedProject);
       setCurrentRoute(AppRoute.PROJECT_DETAILS);
       setIsNewProjectModalOpen(false);
-    } catch (e: any) { alert('Erro ao criar projeto.'); }
+    } catch (e: any) {
+      console.error("ERRO AO CRIAR PROJETO:", e);
+      if (e.code === 'permission-denied') {
+          alert("Permissão negada pelo Firebase. Verifique as Regras de Segurança no Console.");
+      } else {
+          alert(`Erro ao criar projeto: ${e.message || e}`);
+      }
+    }
   };
 
   const handlePhotoCaptured = async (photo: Photo) => {
-    if (!currentUser) return;
+    if (!currentUser) {
+        alert("Sessão expirada. Por favor, faça login novamente.");
+        return;
+    }
+
+    // Validação básica da foto
+    if (!photo || !photo.url) {
+        alert("Erro: Dados da foto inválidos.");
+        return;
+    }
+
+    console.log("📸 Iniciando salvamento...", photo.id);
+
     try {
-      if (!activeProject) {
+      let targetProject = activeProject;
+      let isNewDraft = false;
+
+      // 1. Se não houver projeto, cria um rascunho
+      if (!targetProject) {
+          console.log("⚠️ Criando rascunho...");
           const draft: Project = {
               id: crypto.randomUUID(),
               userId: currentUser.id,
-              title: 'Imóvel Rascunho',
-              address: 'Sem Morada',
+              title: 'Rascunho ' + new Date().toLocaleTimeString(),
+              address: 'Localização não definida',
               status: 'In Progress',
-              photos: [photo],
+              photos: [], 
               createdAt: Date.now(),
-              coverImage: photo.url
+              coverImage: '' 
           };
-          const savedDraft = await saveProject(draft); 
-          setProjects([savedDraft, ...projects]);
-          setActiveProject(savedDraft);
-          return;
+          targetProject = draft;
+          isNewDraft = true;
       }
-      
-      // CORREÇÃO: Tipagem explícita para evitar erro "desc implicitly has an 'any' type"
-      generateDescription(photo.url).then((desc: string) => {
-          console.log("Descrição gerada:", desc);
-      }).catch((err: any) => {
-          console.warn("Erro na descrição:", err);
-      });
 
-      const updatedProject = {
-          ...activeProject,
-          photos: [...activeProject.photos, photo],
-          coverImage: activeProject.coverImage || photo.url
-      };
-      setActiveProject(updatedProject);
+      // 2. Adiciona a foto ao array do projeto
+      const currentPhotos = Array.isArray(targetProject.photos) ? targetProject.photos : [];
+      const updatedPhotos = [...currentPhotos, photo];
       
-      saveProject(updatedProject).then((saved: Project) => {
-          // CORREÇÃO: Uso correto de setProjects com função de callback tipada
-          setProjects((prev: Project[]) => prev.map((p: Project) => p.id === activeProject.id ? saved : p));
-      });
-    } catch (e: any) { alert(`Erro: ${e.message}`); }
+      const projectToSave = {
+          ...targetProject,
+          photos: updatedPhotos,
+          coverImage: targetProject.coverImage || photo.url
+      };
+
+      // 3. Atualiza UI IMEDIATAMENTE (Optimistic Update)
+      setActiveProject(projectToSave);
+      if (isNewDraft) {
+          setProjects([projectToSave, ...projects]);
+      } else {
+          setProjects(prev => prev.map(p => p.id === projectToSave.id ? projectToSave : p));
+      }
+
+      // 4. Salva no Banco de Dados
+      console.log("💾 Enviando para Firebase...");
+      await saveProject(projectToSave);
+      console.log("✅ Salvo no Firebase com sucesso!");
+
+      // 5. Tenta IA em background (SEM TRAVAR O APP SE FALHAR)
+      // O erro 403 vai aparecer no console, mas não vai impedir o salvamento da foto
+      try {
+          const desc = await generateDescription(photo.url);
+          console.log("IA Descrição:", desc);
+      } catch (aiError) {
+          console.warn("⚠️ IA Falhou (403 ou outro), mas a foto foi salva:", aiError);
+      }
+
+    } catch (e: any) {
+      console.error("❌ ERRO CRÍTICO AO SALVAR:", e);
+      alert(`Falha ao salvar: ${e.message || "Erro desconhecido"}`);
+    }
   };
 
   const handleSaveEditedPhoto = async (updatedPhoto: Photo) => {
       if (!activeProject) return;
       try {
-        const updatedPhotos = activeProject.photos.map(p => p.id === updatedPhoto.id ? updatedPhoto : p);
-        const updatedProject = { ...activeProject, photos: updatedPhotos, coverImage: updatedPhotos[0].url };
+        const currentPhotos = Array.isArray(activeProject.photos) ? activeProject.photos : [];
+        const updatedPhotos = currentPhotos.map(p => p.id === updatedPhoto.id ? updatedPhoto : p);
+        const updatedProject = { ...activeProject, photos: updatedPhotos, coverImage: updatedPhotos[0]?.url || '' };
+        
         const savedProject = await saveProject(updatedProject);
-        
-        // CORREÇÃO: Uso correto de setProjects
-        setProjects((prev: Project[]) => prev.map((p: Project) => p.id === activeProject.id ? savedProject : p));
-        
+        setProjects(projects.map(p => p.id === activeProject.id ? savedProject : p));
         setActiveProject(savedProject);
         setCurrentRoute(AppRoute.PROJECT_DETAILS);
       } catch (e) { alert("Erro ao guardar alterações."); }
@@ -193,8 +225,7 @@ function App() {
   const handleUpdateProject = async (updated: Project) => {
       try {
         const savedProject = await saveProject(updated);
-        // CORREÇÃO: Uso correto de setProjects
-        setProjects((prev: Project[]) => prev.map((p: Project) => p.id === updated.id ? savedProject : p));
+        setProjects(projects.map(p => p.id === updated.id ? savedProject : p));
         setActiveProject(savedProject);
       } catch (e) { alert("Erro ao atualizar projeto."); }
   };
@@ -207,7 +238,10 @@ function App() {
           const userProjects = await getUserProjects(user.id);
           setProjects(userProjects);
           setCurrentRoute(AppRoute.DASHBOARD);
-      } catch (e: any) { alert("Login falhou."); }
+      } catch (e: any) { 
+          console.error("Login error:", e);
+          alert("Login falhou: " + (e.message || "Verifique suas credenciais.")); 
+      }
   };
 
   const handleUpdateUser = async (updatedUser: UserProfile) => {
@@ -284,14 +318,9 @@ function App() {
           <>
             <ProjectList 
                 projects={projects} 
-                // CORREÇÃO: Tipagem explícita para o parâmetro 'p' no callback
                 onSelectProject={(p: Project) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
                 onCreateProject={() => setIsNewProjectModalOpen(true)} 
-                // CORREÇÃO: Tipagem explícita para 'prev' e 'p' no setProjects
-                onDeleteProject={async (id) => { 
-                    await deleteProject(id); 
-                    setProjects((prev: Project[]) => prev.filter((p: Project) => p.id !== id)); 
-                }} 
+                onDeleteProject={async (id) => { await deleteProject(id); setProjects(prev => prev.filter(p => p.id !== id)); }} 
             />
             {isNewProjectModalOpen && <NewProjectModal onClose={() => setIsNewProjectModalOpen(false)} onCreate={handleCreateProject} />}
           </>
