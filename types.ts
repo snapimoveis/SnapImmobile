@@ -102,4 +102,85 @@ export interface Project {
 // =====================================================
 export enum ToolMode {
   CROP = 'crop',
-  FILTER = 'fi
+  FILTER = 'filter',
+  ADJUST = 'adjust',
+  TEXT = 'text',
+  DRAW = 'draw',
+  WATERMARK = 'watermark',
+  MAGIC_ERASE = 'magic_erase',
+  VIRTUAL_STAGING = 'virtual_staging'
+}
+
+
+
+// =====================================================
+// COMPANY SETTINGS
+// =====================================================
+export interface CompanySettings {
+  id?: string;
+  name: string;
+  logoUrl?: string;
+  taxId?: string;
+  address?: string;
+  website?: string;
+  email?: string;
+  phone?: string;
+  primaryColor?: string;
+  backgroundColor?: string;
+  allowUserWatermark?: boolean;
+  virtualTourDays?: string[];
+  [key: string]: any;
+}
+
+
+
+// =====================================================
+// INVOICE
+// =====================================================
+export interface Invoice {
+  id: string;
+  number: string;
+  date: string;
+  amount: number;
+  status: 'paid' | 'pending' | 'failed';
+  url?: string;
+  items?: string[];
+}
+
+
+
+// =====================================================
+// DEVICE
+// =====================================================
+export interface Device {
+  id: string;
+  userId?: string;
+  name: string;
+  type: string;
+  model?: string;
+  userName?: string;
+  lastAccess?: number;
+  lastActive: number;
+  current?: boolean;
+  ip?: string;
+  status?: 'active' | 'inactive' | 'Active' | 'Blocked';
+}
+
+
+
+// =====================================================
+// APP ROUTES
+// =====================================================
+export enum AppRoute {
+  LANDING = 'LANDING',
+  LOGIN = 'LOGIN',
+  REGISTER = 'REGISTER',
+  WELCOME = 'WELCOME',
+  DASHBOARD = 'DASHBOARD',
+  PROJECT_DETAILS = 'PROJECT_DETAILS',
+  CAMERA = 'CAMERA',
+  EDITOR = 'EDITOR',
+  TOUR_VIEWER = 'TOUR_VIEWER',
+  SETTINGS = 'SETTINGS',
+  MENU = 'MENU'
+}
