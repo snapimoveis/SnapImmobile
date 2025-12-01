@@ -63,11 +63,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
   useEffect(() => {
     mountedRef.current = true;
 
+    // sons
     shutterSound.current = new Audio("/iphone-camera-capture-6448.mp3");
     shutterSound.current.preload = "auto";
+    shutterSound.current.load();
 
     countdownBeep.current = new Audio("/countdown-beep.mp3");
     countdownBeep.current.preload = "auto";
+    countdownBeep.current.load();
 
     const updateOrientation = () =>
       safeSet(() => setIsLandscape(window.innerWidth > window.innerHeight));
@@ -90,7 +93,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   }, [previewImage]);
 
   // ─────────────────────────────────────
-  // DETECTAR CAMERAS TRASEIRAS (0.5 / 1x)
+  // DETECTAR CÂMERAS TRASEIRAS (0.5 / 1x)
   // ─────────────────────────────────────
   const detectBackCameras = async () => {
     try {
@@ -102,23 +105,34 @@ export const CameraView: React.FC<CameraViewProps> = ({
       let ultra: MediaDeviceInfo | undefined;
       let wide: MediaDeviceInfo | undefined;
 
-      // tenta identificar pelo nome
       videos.forEach((cam) => {
         const label = cam.label.toLowerCase();
-        if (!ultra && (label.includes("ultra") || label.includes("0.5"))) {
+
+        // ultra-wide (0.5x)
+        if (!ultra && (label.includes("0.5") || label.includes("ultra"))) {
           ultra = cam;
-        } else if (
+        }
+
+        // wide (1x) traseira
+        if (
           !wide &&
           (label.includes("back") ||
-            label.includes("triple") ||
-            label.includes("wide"))
+            label.includes("wide") ||
+            label.includes("1.") ||
+            label.includes("main")) &&
+          !label.includes("front")
         ) {
           wide = cam;
         }
       });
 
-      // Fallbacks
-      if (!wide) wide = videos[0];
+      // fallbacks seguros
+      if (!wide) {
+        // prefere qualquer que não seja "front"
+        wide =
+          videos.find((v) => !v.label.toLowerCase().includes("front")) ||
+          videos[0];
+      }
       if (!ultra && videos.length > 1) {
         ultra = videos.find((c) => c.deviceId !== wide!.deviceId);
       }
@@ -130,7 +144,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
       return { wide, ultra };
     } catch (e) {
-      console.warn("Não foi possível enumerar câmeras:", e);
+      console.warn("Erro a detectar lentes:", e);
     }
   };
 
@@ -179,7 +193,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       safeSet(() => setLens(targetLens));
     } catch (err) {
       console.error("Erro ao iniciar câmara:", err);
-      alert("Não foi possível acessar a câmara.");
+      alert("Não foi possível aceder à câmara.");
     }
   };
 
@@ -221,7 +235,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     const settings: any = track.getSettings?.() || {};
 
     try {
-      // 1) foco single-shot se existir
+      // foco single-shot se existir
       if (caps.focusMode && caps.focusMode.includes("single-shot")) {
         await track.applyConstraints({
           advanced: [{ focusMode: "single-shot" }],
@@ -232,13 +246,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
         } as any);
       }
 
-      // 2) ajuste suave de exposição (estilo Samsung)
+      // ajuste suave de exposição (estilo Samsung)
       if (caps.exposureCompensation) {
         const mid =
           (caps.exposureCompensation.max + caps.exposureCompensation.min) /
           2;
-        const newEv =
-          (settings.exposureCompensation || 0) > mid ? mid - 0.5 : mid + 0.5;
+        const current = settings.exposureCompensation || 0;
+        const newEv = current > mid ? mid - 0.5 : mid + 0.5;
+
         await track.applyConstraints({
           advanced: [{ exposureCompensation: newEv }],
         } as any);
@@ -415,7 +430,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   };
 
   // ─────────────────────────────────────
-  // GUARDAR FOTO
+  // GUARDAR FOTO (objeto compatível Firestore)
   // ─────────────────────────────────────
   const savePhoto = async (finalUrl: string, originalUrl: string) => {
     if (hasSaved) return;
@@ -423,19 +438,20 @@ export const CameraView: React.FC<CameraViewProps> = ({
     const newPhoto: Photo = {
       id: crypto.randomUUID(),
       url: finalUrl,
-      originalUrl,
+      originalUrl: originalUrl || "",
       name: `SNAP_${Date.now()}.jpg`,
       createdAt: Date.now(),
       type: "hdr",
+      // se o teu tipo Photo tiver timestamp opcional, isto é seguro
       timestamp: Date.now(),
     };
 
     try {
       await onPhotoCaptured(newPhoto);
       safeSet(() => setHasSaved(true));
-    } catch (e) {
+    } catch (e: any) {
       console.error("Erro ao guardar foto:", e);
-      alert("Erro ao guardar foto.");
+      alert("Erro ao guardar foto: " + (e?.message || "desconhecido"));
     }
   };
 
