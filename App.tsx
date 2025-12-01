@@ -1,10 +1,10 @@
-// ... (Imports remain the same, only updating handlePhotoCaptured and App component)
 import React, { useState, useEffect } from 'react';
 import { HashRouter } from 'react-router-dom';
+// IMPORTANTE: Verifique se esses componentes existem e estão exportados corretamente
 import { ProjectList } from './components/ProjectList';
 import { CameraView } from './components/CameraView';
 import { Editor } from './components/Editor';
-import { ProjectDetail } from './components/ProjectDetail'; 
+import ProjectDetail from './components/ProjectDetail'; 
 import { TourViewer } from './components/TourViewer';
 import { NewProjectModal } from './components/NewProjectModal';
 import { LandingScreen } from './components/LandingScreen';
@@ -16,6 +16,7 @@ import { ManagementMenu } from './components/ManagementMenu';
 import { UpdateNotification } from './components/UpdateNotification';
 import { MainLayout } from './components/MainLayout';
 
+// IMPORTANTE: Verifique se o arquivo types.ts está em src/types.ts e exporta tudo corretamente
 import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
 import { generateDescription } from './services/geminiService';
 import { 
@@ -33,6 +34,7 @@ function App() {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [prefillEmail, setPrefillEmail] = useState('');
 
+  // === MODO ESCURO AUTOMÁTICO ===
   useEffect(() => {
     const applyTheme = () => {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -46,6 +48,7 @@ function App() {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   }, []);
 
+  // Inicialização
   useEffect(() => {
     const initApp = async () => {
       const user = getCurrentUser();
@@ -109,15 +112,17 @@ function App() {
   const handleCreateProject = async (details: ProjectDetailsType & { title: string, address: string }) => {
     if (!currentUser) return;
     
+    // GARANTIA: Nenhum campo undefined
     const newProject: Project = {
       id: crypto.randomUUID(),
       userId: currentUser.id,
-      title: details.title,
-      address: details.address,
+      title: details.title || 'Sem título',
+      address: details.address || '',
       details: { ...details },
       status: 'In Progress',
       photos: [],
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      coverImage: ''
     };
     
     try {
@@ -129,7 +134,7 @@ function App() {
     } catch (e: any) {
       console.error("ERRO AO CRIAR PROJETO:", e);
       if (e.code === 'permission-denied') {
-          alert("Permissão negada pelo Firebase. Verifique as Regras de Segurança no Console.");
+          alert("Permissão negada pelo Firebase.");
       } else {
           alert(`Erro ao criar projeto: ${e.message || e}`);
       }
@@ -138,65 +143,65 @@ function App() {
 
   const handlePhotoCaptured = async (photo: Photo) => {
     if (!currentUser) {
-        alert("Sessão expirada. Por favor, faça login novamente.");
+        alert("Sessão expirada. Faça login novamente.");
         return;
     }
 
-    console.log("📸 App: Recebida foto para salvar:", photo.id);
+    if (!photo || !photo.url) {
+        alert("Erro: Foto inválida.");
+        return;
+    }
+
+    console.log("📸 Processando foto...", photo.id);
 
     try {
-      let targetProject = activeProject;
-      let isNewDraft = false;
-
-      if (!targetProject) {
-          console.log("⚠️ Criando rascunho para a foto...");
+      // Caso 1: Rascunho (Se não houver projeto ativo)
+      if (!activeProject) {
           const draft: Project = {
               id: crypto.randomUUID(),
               userId: currentUser.id,
               title: 'Rascunho ' + new Date().toLocaleTimeString(),
               address: 'Localização não definida',
               status: 'In Progress',
-              photos: [], 
+              photos: [photo],
               createdAt: Date.now(),
-              coverImage: '' 
+              coverImage: photo.url
           };
-          targetProject = draft;
-          isNewDraft = true;
+          
+          const savedDraft = await saveProject(draft); 
+          setProjects([savedDraft, ...projects]);
+          setActiveProject(savedDraft);
+          return;
       }
 
-      // SAFE ARRAY UPDATE: Ensure photos array exists
-      const currentPhotos = Array.isArray(targetProject.photos) ? targetProject.photos : [];
+      // Caso 2: Adicionar ao projeto existente
+      // GARANTIA: Array seguro, evitando erro com undefined
+      const currentPhotos = Array.isArray(activeProject.photos) ? activeProject.photos : [];
       const updatedPhotos = [...currentPhotos, photo];
       
       const updatedProject = {
-          ...targetProject,
+          ...activeProject,
           photos: updatedPhotos,
-          // Use the new photo as cover if there isn't one
-          coverImage: targetProject.coverImage || photo.url 
+          coverImage: activeProject.coverImage || photo.url 
       };
 
-      console.log("💾 App: Salvando projeto atualizado...", updatedProject.id);
-
-      // 1. Update Local State (Optimistic)
+      // Atualiza UI
       setActiveProject(updatedProject);
-      if (isNewDraft) {
-           setProjects([updatedProject, ...projects]);
-      } else {
-           setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
-      }
+      setProjects(prev => prev.map(p => p.id === activeProject.id ? updatedProject : p));
 
-      // 2. Persist to Firebase
+      // Salva no DB
       await saveProject(updatedProject);
-      console.log("✅ App: Salvo no Firebase com sucesso!");
+      console.log("✅ Foto salva!");
 
-      // 3. Background Tasks
+      // Descrição IA em background
       generateDescription(photo.url).then((desc) => {
           console.log("IA:", desc);
       }).catch(() => {});
 
     } catch (e: any) {
-      console.error("❌ APP ERRO CRÍTICO:", e);
-      alert(`Erro ao salvar a foto: ${e.message}`);
+      console.error("❌ ERRO AO SALVAR:", e);
+      // Mostra alerta visual para debug
+      alert(`Erro ao salvar: ${e.message || JSON.stringify(e)}`);
     }
   };
 
@@ -310,7 +315,7 @@ function App() {
           <>
             <ProjectList 
                 projects={projects} 
-                onSelectProject={(p) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
+                onSelectProject={(p: Project) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
                 onCreateProject={() => setIsNewProjectModalOpen(true)} 
                 onDeleteProject={async (id) => { await deleteProject(id); setProjects(prev => prev.filter(p => p.id !== id)); }} 
             />
