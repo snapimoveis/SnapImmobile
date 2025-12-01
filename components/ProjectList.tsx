@@ -1,6 +1,6 @@
 import React from 'react';
 import { Project } from '../types';
-import { Plus, Search, MapPin, Camera, Image as ImageIcon, ChevronRight, Bed, Bath, Square } from 'lucide-react';
+import { Search, MapPin, Camera, Image as ImageIcon, ChevronRight, Bed, Bath, Square } from 'lucide-react';
 import { Card, Button } from './ui';
 
 interface ProjectListProps {
@@ -18,129 +18,114 @@ export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProj
 
   const recentProjects = [...projects].sort((a, b) => b.createdAt - a.createdAt).slice(0, 3);
 
-  // ESTADO VAZIO COM LOGO
   if (projects.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] text-center p-6 animate-in fade-in zoom-in duration-500">
-        {/* Logo em vez de ícone de câmera */}
-        <img src="/brand/logo_color.png" alt="Snap Immobile" className="h-16 w-auto mb-6 dark:hidden opacity-80" />
-        <img src="/brand/logo_color.png" alt="Snap Immobile" className="h-16 w-auto mb-6 hidden dark:block brightness-0 invert opacity-80" />
-        
+        <div className="w-24 h-24 bg-brand-gray-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-6">
+          <Camera size={40} className="text-gray-400" />
+        </div>
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Sem imóveis recentes</h2>
-        <p className="text-gray-500 dark:text-gray-400 max-w-xs mb-8">Comece por criar o seu primeiro imóvel para capturar fotos incríveis.</p>
-        <Button onClick={onCreateProject} variant="secondary">
-          + Novo imóvel
-        </Button>
+        <p className="text-gray-500 dark:text-gray-400 max-w-xs mb-8 text-sm">Comece por criar o seu primeiro imóvel para capturar fotos incríveis.</p>
+        {/* Botão auxiliar caso o FAB não seja óbvio */}
       </div>
     );
   }
 
   return (
-    <div className="min-h-full pb-24 bg-brand-gray-50 dark:bg-black text-gray-900 dark:text-white transition-colors duration-300">
+    <div className="min-h-full text-gray-900 dark:text-white transition-colors duration-300">
       
-      {/* HEADER */}
-      <div className="pt-6 px-6 pb-4 flex justify-between items-center sticky top-0 z-20 bg-brand-gray-50/90 dark:bg-brand-dark/90 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-           {/* Logo pequeno no mobile para branding */}
-           <div className="md:hidden">
-              <img src="/brand/logo_color.png" className="h-8 w-auto dark:hidden" alt="Logo" />
-              <img src="/brand/logo_color.png" className="h-8 w-auto hidden dark:block brightness-0 invert" alt="Logo" />
-           </div>
-           <div className="hidden md:block">
-             <h1 className="text-2xl font-bold tracking-tight">Início</h1>
-             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Bem-vindo ao seu painel</p>
-           </div>
+      {/* Barra de Pesquisa (Agora logo abaixo do Header principal) */}
+      <div className="px-4 py-4 bg-white dark:bg-[#121212] border-b border-gray-100 dark:border-white/5 mb-6">
+        <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search size={18} className="text-gray-400" />
+            </div>
+            <input 
+                type="text" 
+                placeholder="Pesquisar imóveis..." 
+                className="w-full pl-10 pr-4 py-2.5 bg-brand-gray-100 dark:bg-white/10 border-none rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/50 text-gray-900 dark:text-white placeholder-gray-500"
+            />
         </div>
-        <button className="p-3 bg-white dark:bg-white/10 border border-gray-100 dark:border-transparent rounded-xl text-brand-purple dark:text-gray-300 shadow-sm hover:bg-gray-50 transition-colors">
-            <Search size={20} />
-        </button>
       </div>
 
-      <div className="px-6 space-y-10">
+      <div className="px-4 space-y-8 pb-24">
         
         {/* ATIVIDADE RECENTE */}
         {recentProjects.length > 0 && (
           <div>
-              <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Atividade recente</h2>
+              <div className="flex justify-between items-center mb-3 px-1">
+                  <h2 className="text-base font-bold text-gray-900 dark:text-white">Actividade recente</h2>
               </div>
-              <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 -mx-6 px-6">
+              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4">
                   {recentProjects.map(proj => (
-                      <div key={proj.id} onClick={() => onSelectProject(proj)} className="shrink-0 w-40 cursor-pointer active:scale-95 transition-transform group">
-                          <div className="aspect-square rounded-2xl overflow-hidden bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-white/10 relative shadow-sm group-hover:border-brand-purple/50 transition-colors">
+                      <div key={proj.id} onClick={() => onSelectProject(proj)} className="shrink-0 w-36 cursor-pointer active:scale-95 transition-transform group">
+                          <div className="aspect-square rounded-xl overflow-hidden bg-gray-200 dark:bg-[#1a1a1a] border border-gray-100 dark:border-white/5 relative">
                               {proj.coverImage ? (
-                                  <img src={proj.coverImage} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
+                                  <img src={proj.coverImage} className="w-full h-full object-cover" alt="" />
                               ) : (
-                                  <div className="w-full h-full flex items-center justify-center"><ImageIcon size={24} className="text-gray-300 dark:text-gray-600"/></div>
+                                  <div className="w-full h-full flex items-center justify-center"><ImageIcon size={24} className="text-gray-400"/></div>
                               )}
-                              <div className="absolute bottom-2 left-2 bg-white/90 dark:bg-black/60 backdrop-blur-md p-1.5 rounded-lg border border-white/20 shadow-sm">
-                                  <MapPin size={12} className="text-brand-purple dark:text-white" />
+                              <div className="absolute bottom-1.5 left-1.5 bg-black/50 backdrop-blur-sm p-1 rounded-md">
+                                  <MapPin size={10} className="text-white" />
                               </div>
                           </div>
-                          <p className="mt-2 text-xs font-bold text-gray-700 dark:text-gray-300 truncate px-1 group-hover:text-brand-purple transition-colors">{proj.title}</p>
+                          <p className="mt-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 truncate px-0.5">{proj.title}</p>
+                          <p className="text-[10px] text-gray-400 px-0.5">{formatDate(proj.createdAt)}</p>
                       </div>
                   ))}
               </div>
           </div>
         )}
 
-        {/* TODOS OS IMÓVEIS */}
-        <div className="space-y-8">
-            <div className="flex justify-between items-end">
-               <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Todos os imóveis</h2>
-               <button onClick={onCreateProject} className="text-xs font-bold text-brand-purple hover:underline">+ Novo</button>
+        {/* LISTA VERTICAL (Estilo Referência) */}
+        <div className="space-y-6">
+            <div className="px-1">
+               <h2 className="text-base font-bold text-gray-900 dark:text-white">Todos os imóveis</h2>
             </div>
             
             {projects.map((project) => (
-                <Card 
+                <div 
                     key={project.id} 
                     onClick={() => onSelectProject(project)}
-                    hoverEffect
-                    className="flex flex-col"
+                    className="cursor-pointer group active:scale-[0.98] transition-transform"
                 >
-                    {/* Imagem */}
-                    <div className="relative aspect-[16/9] bg-gray-100 dark:bg-white/5 overflow-hidden">
+                    {/* Título FORA do card, estilo referência */}
+                    <div className="mb-2 px-1">
+                        <h3 className="text-lg font-bold leading-tight text-gray-900 dark:text-white">{project.title}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{formatDate(project.createdAt)}</p>
+                    </div>
+
+                    {/* Card Imagem */}
+                    <div className="aspect-[4/3] w-full bg-white dark:bg-[#121212] rounded-2xl overflow-hidden relative shadow-sm border border-gray-200 dark:border-white/10">
                         {project.coverImage ? (
                             <img src={project.coverImage} className="w-full h-full object-cover" alt={project.title} />
                         ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 dark:text-gray-600">
+                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 dark:text-gray-600 bg-gray-50 dark:bg-white/5">
                                 <Camera size={32} strokeWidth={1.5} />
                             </div>
                         )}
-                        
-                        <div className="absolute top-3 left-3">
-                             <span className="px-2.5 py-1 bg-white/90 dark:bg-black/80 backdrop-blur-md rounded-lg text-[10px] font-bold uppercase text-brand-purple shadow-sm">
-                                {project.status === 'Completed' ? 'Concluído' : 'Ativo'}
-                             </span>
-                        </div>
-                        
-                        <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1">
-                             <Camera size={12} /> {project.photos.length}
-                        </div>
-                    </div>
 
-                    {/* Info */}
-                    <div className="p-4">
-                        <div className="flex justify-between items-start mb-2">
-                             <h3 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-1">{project.title}</h3>
-                             <ChevronRight size={18} className="text-gray-300" />
+                        {/* Menu de 3 pontos (visual) */}
+                        <div className="absolute top-3 right-3 bg-white/90 dark:bg-black/60 backdrop-blur-md p-1.5 rounded-full shadow-sm">
+                            <div className="flex gap-0.5">
+                                <div className="w-1 h-1 bg-gray-800 dark:bg-white rounded-full"></div>
+                                <div className="w-1 h-1 bg-gray-800 dark:bg-white rounded-full"></div>
+                                <div className="w-1 h-1 bg-gray-800 dark:bg-white rounded-full"></div>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-xs mb-4">
-                             <MapPin size={12} />
-                             <span className="truncate">{project.address || 'Endereço não informado'}</span>
-                             <span className="mx-1">•</span>
-                             <span>{formatDate(project.createdAt)}</span>
+                        
+                        {/* Badge de Fotos */}
+                        <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 border border-white/10">
+                             <Camera size={12} /> 
+                             <span>{project.photos.length}</span>
                         </div>
 
-                        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-white/10 text-xs text-gray-600 dark:text-gray-400">
-                             <div className="flex gap-4">
-                                <span className="flex items-center gap-1"><Bed size={14} className="text-brand-purple"/> {project.details?.rooms || '-'}</span>
-                                <span className="flex items-center gap-1"><Bath size={14} className="text-brand-purple"/> {project.details?.bathrooms || '-'}</span>
-                                <span className="flex items-center gap-1"><Square size={14} className="text-brand-purple"/> {project.details?.area || '-'} m²</span>
-                             </div>
+                        {/* Marca d'água Nodalview Style (Opcional) */}
+                        <div className="absolute bottom-3 right-3 opacity-50">
+                             {/* <span className="text-[8px] font-black text-white uppercase tracking-widest drop-shadow-md">SNAP</span> */}
                         </div>
                     </div>
-                </Card>
+                </div>
             ))}
         </div>
       </div>
