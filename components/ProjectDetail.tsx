@@ -1,118 +1,119 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  Menu, // Icone de Hamburguer/Lista
-  Camera, 
-  Play
-} from 'lucide-react';
-import { Project, Photo } from '../types';
+import React from 'react';
+import { Project } from '../types';
+import { Plus, Search, MapPin, Camera, Bed, Bath, Square } from 'lucide-react';
+import { Button } from './ui'; // Importando os componentes novos
 
-interface ProjectDetailProps {
-  initialProject: Project;
-  onBack: () => void;
-  onAddPhoto: () => void;
-  onEditPhoto: (photo: Photo) => void;
-  onUpdateProject: (project: Project) => void;
-  onViewTour: () => void;
+interface ProjectListProps {
+  projects: Project[];
+  onSelectProject: (project: Project) => void;
+  onCreateProject: () => void;
+  onDeleteProject: (id: string) => void;
 }
 
-export const ProjectDetail: React.FC<ProjectDetailProps> = ({ 
-  initialProject, 
-  onBack, 
-  onAddPhoto, 
-  onEditPhoto
-}) => {
-  const [project, setProject] = useState<Project>(initialProject);
-
-  useEffect(() => {
-    setProject(initialProject);
-  }, [initialProject]);
-
-  const displayPhotos = project.photos || [];
-
-  // Formatação de data estilo "08 outubro, 2025"
-  const dateStr = new Date(project.createdAt).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
+export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProject, onCreateProject }) => {
+  
+  // Estado vazio com visual melhorado
+  if (projects.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[80vh] p-6 animate-in fade-in duration-500">
+        <div className="w-32 h-32 bg-brand-purple/10 rounded-full flex items-center justify-center mb-6 animate-bounce-slow">
+          <Camera size={48} className="text-brand-purple" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Nenhum imóvel encontrado</h2>
+        <p className="text-gray-500 dark:text-gray-400 text-center max-w-md mb-8">
+          Comece a construir o seu portefólio imobiliário. Crie o seu primeiro imóvel para capturar fotos profissionais.
+        </p>
+        <Button onClick={onCreateProject} variant="secondary" size="lg">
+          <Plus size={20} className="mr-2" />
+          Criar Novo Imóvel
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#121212] flex flex-col transition-colors duration-300">
+    <div className="min-h-full pb-24 bg-brand-gray-50 dark:bg-black transition-colors duration-300">
       
-      {/* --- HEADER --- */}
-      {/* Fundo escuro conforme imagem */}
-      <header className="bg-gray-50 dark:bg-[#1a1a1a] pt-4 px-4 pb-4 sticky top-0 z-20">
-        <div className="flex items-center justify-between mb-4 text-gray-900 dark:text-white">
-            <button onClick={onBack} className="p-2 -ml-2">
-                <ArrowLeft size={24} />
-            </button>
-            
-            <div className="text-center">
-                <h1 className="text-base font-bold">{project.title}</h1>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{dateStr}</p>
-            </div>
-
-            <button className="p-2 -mr-2">
-                <Menu size={24} />
-            </button>
+      {/* Header da Lista */}
+      <div className="sticky top-0 z-20 bg-brand-gray-50/90 dark:bg-black/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b border-gray-200 dark:border-white/10">
+        <div>
+          <h1 className="text-2xl font-bold text-brand-purple dark:text-white">IMÓVEIS</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{projects.length} Imóveis listados</p>
         </div>
-
-        {/* --- ABAS GRANDES (Azul e Cinza) --- */}
-        <div className="grid grid-cols-2 gap-3 h-12">
-            {/* Aba Fotos (Azul) */}
-            <button className="bg-blue-600 rounded-md flex items-center justify-center gap-2 text-white shadow-sm relative overflow-hidden">
-                <div className="flex items-center gap-2 z-10">
-                    <Camera size={18} fill="currentColor" />
-                    <span className="font-bold">{displayPhotos.length}</span>
-                </div>
-                {/* Indicador de seleção visual */}
-                <div className="absolute bottom-0 w-full h-1 bg-white/30"></div>
-            </button>
-
-            {/* Aba Tours (Cinza) */}
-            <button className="bg-gray-200 dark:bg-[#2a2a2a] rounded-md flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400 shadow-sm">
-                <Play size={18} fill="currentColor" />
-                <span className="font-bold">0</span>
-            </button>
+        <div className="flex gap-3">
+             <button className="p-2.5 text-brand-purple bg-white dark:bg-white/10 rounded-xl shadow-sm hover:bg-gray-50 transition-colors">
+                <Search size={20} />
+             </button>
+             <button className="p-2.5 text-brand-purple bg-white dark:bg-white/10 rounded-xl shadow-sm hover:bg-gray-50 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+             </button>
         </div>
-      </header>
-
-      {/* --- GRID DE CONTEÚDO --- */}
-      <main className="flex-1 p-1">
-          {/* Grid de 3 Colunas com espaçamento mínimo (gap-1) como na foto */}
-          <div className="grid grid-cols-3 gap-1 pb-24">
-            {displayPhotos.map((photo: Photo) => (
-                <div 
-                    key={photo.id}
-                    onClick={() => onEditPhoto(photo)}
-                    className="relative aspect-square bg-gray-100 dark:bg-[#202020] overflow-hidden cursor-pointer"
-                >
-                  <img 
-                    src={photo.url} 
-                    alt="thumb" 
-                    className="w-full h-full object-cover" 
-                    loading="lazy" 
-                  />
-                </div>
-            ))}
-            
-            {/* Placeholders para grid vazia */}
-            {displayPhotos.length === 0 && Array.from({length:9}).map((_, i) => (
-                <div key={i} className="aspect-square bg-gray-100 dark:bg-[#1a1a1a] flex items-center justify-center opacity-30">
-                    <Camera size={20} className="text-gray-400" />
-                </div>
-            ))}
-          </div>
-      </main>
-
-      {/* --- BOTÃO FLUTUANTE (Pílula) --- */}
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30">
-        <button 
-            onClick={onAddPhoto}
-            className="flex items-center gap-3 bg-gray-800 dark:bg-[#2a2a2a] text-white px-6 py-3 rounded-full font-medium text-sm shadow-xl active:scale-95 transition-transform"
-        >
-            <Camera size={18} />
-            <span>Iniciar captura</span>
-        </button>
       </div>
 
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {projects.map((project) => (
+          <div 
+            key={project.id} 
+            onClick={() => onSelectProject(project)}
+            className="group bg-white dark:bg-[#121212] rounded-2xl shadow-card hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden border border-transparent hover:border-brand-purple/30 flex flex-col"
+          >
+            {/* Imagem de Capa */}
+            <div className="relative aspect-[4/3] overflow-hidden bg-gray-200 dark:bg-white/5">
+              {project.coverImage ? (
+                <img 
+                  src={project.coverImage} 
+                  alt={project.title} 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                  <Camera size={40} strokeWidth={1.5} />
+                  <span className="text-xs mt-2">Sem foto</span>
+                </div>
+              )}
+              
+              {/* Etiqueta de Status */}
+              <div className="absolute top-3 left-3">
+                 <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide shadow-sm ${
+                    project.status === 'Completed' ? 'bg-green-500 text-white' : 'bg-white/90 text-brand-purple backdrop-blur-md'
+                 }`}>
+                    {project.status === 'Completed' ? 'Concluído' : 'Ativo'}
+                 </span>
+              </div>
+
+              {/* Contador de Fotos */}
+              <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1">
+                 <Camera size={12} /> {project.photos.length}
+              </div>
+            </div>
+
+            {/* Informações */}
+            <div className="p-5 flex-1 flex flex-col">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight mb-1 line-clamp-1">{project.title}</h3>
+              <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-sm mb-4">
+                 <MapPin size={14} className="shrink-0" />
+                 <span className="truncate">{project.address || 'Endereço não informado'}</span>
+              </div>
+
+              {/* Detalhes Rápidos (Ícones) */}
+              <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 text-xs">
+                 <div className="flex items-center gap-1.5">
+                    <Bed size={16} className="text-brand-purple" /> 
+                    <span>{project.details?.rooms || '-'}</span>
+                 </div>
+                 <div className="flex items-center gap-1.5">
+                    <Bath size={16} className="text-brand-purple" /> 
+                    <span>{project.details?.bathrooms || '-'}</span>
+                 </div>
+                 <div className="flex items-center gap-1.5">
+                    <Square size={16} className="text-brand-purple" /> 
+                    <span>{project.details?.area || '-'} m²</span>
+                 </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
