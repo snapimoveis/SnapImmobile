@@ -6,34 +6,41 @@ import {
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
     signOut, updateProfile, deleteUser 
 } from 'firebase/auth';
-import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage'; // Importações do Storage
+import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { app } from './firebaseConfig';
 import { Project, UserProfile, CompanySettings, Device, Invoice, Photo } from '../types';
 
 const db = getFirestore(app);
 const auth = getAuth(app);
-const storage = getStorage(app); // Inicializa Storage
+const storage = getStorage(app);
 
-// === HELPER: Upload de Imagem ===
-const uploadImageToStorage = async (base64Image: string, path: string): Promise<string> => {
-    // Se já for uma URL http, não faz nada
-    if (base64Image.startsWith('http')) return base64Image;
+// === HELPER: Upload de Imagem Seguro ===
+const uploadImageToStorage = async (base64Image: string | undefined, path: string): Promise<string> => {
+    if (!base64Image) return '';
+    // Se já é uma URL do Firebase ou http, não precisa de upload
+    if (base64Image.startsWith('http') || base64Image.startsWith('https')) return base64Image;
     
-    // Se for base64, faz upload
-    const storageRef = ref(storage, path);
+    // Se não for base64 válido (ex: blob:), tenta converter ou ignora
+    if (!base64Image.startsWith('data:image')) {
+        console.warn("Formato de imagem não suportado para upload direto:", base64Image.substring(0, 20));
+        return ''; 
+    }
+    
     try {
+        const storageRef = ref(storage, path);
+        // Upload da string base64
         await uploadString(storageRef, base64Image, 'data_url');
+        // Obter a URL pública
         const downloadURL = await getDownloadURL(storageRef);
         return downloadURL;
     } catch (error) {
-        console.error("Erro ao fazer upload da imagem:", error);
-        throw new Error("Falha no upload da imagem.");
+        console.error("Erro crítico no upload da imagem:", error);
+        // Em caso de erro, não podemos salvar o base64 gigante no Firestore
+        throw new Error("Falha ao fazer upload da imagem. Verifique sua conexão.");
     }
 };
 
-// === USER MANAGEMENT ===
-// (Mantenha as funções de user iguais, vou focar no projeto)
-
+// ... (Funções de User Management mantêm-se iguais) ...
 export const registerUser = async (userProfile: UserProfile, password?: string): Promise<UserProfile> => {
     if (!password) throw new Error("Senha é obrigatória para registro");
     const userCredential = await createUserWithEmailAndPassword(auth, userProfile.email, password);
@@ -49,7 +56,6 @@ export const loginUser = async (email: string, password?: string): Promise<UserP
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     const userDoc = await getDoc(doc(db, "users", user.uid));
-    
     if (userDoc.exists()) {
         return userDoc.data() as UserProfile;
     } else {
@@ -96,8 +102,7 @@ export const deleteUserAccount = async (email: string, userId: string) => {
     }
 };
 
-// === COMPANY SETTINGS ===
-// (Mantenha igual)
+// ... (Funções de Company Settings mantêm-se iguais) ...
 export const getCompanySettings = async (): Promise<CompanySettings> => {
     const q = query(collection(db, "companies"), limit(1));
     const querySnapshot = await getDocs(q);
@@ -122,7 +127,6 @@ export const saveCompanySettings = async (settings: CompanySettings): Promise<vo
         const path = `companies/${settings.id || 'default'}/logo_${Date.now()}`;
         settings.logoUrl = await uploadImageToStorage(settings.logoUrl, path);
     }
-
     if (settings.id && settings.id !== 'default') {
         await updateDoc(doc(db, "companies", settings.id), { ...settings });
     } else {
@@ -130,65 +134,73 @@ export const saveCompanySettings = async (settings: CompanySettings): Promise<vo
     }
 };
 
-// === PROJECTS ===
-
 export const getUserProjects = async (userId: string): Promise<Project[]> => {
     const q = query(collection(db, "projects"), where("userId", "==", userId));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
 };
 
-// AQUI ESTÁ A CORREÇÃO PRINCIPAL PARA O ERRO DE TAMANHO
+// === CORREÇÃO CRÍTICA: SAVE PROJECT ===
 export const saveProject = async (project: Project): Promise<Project> => {
+    console.log("Iniciando salvamento do projeto:", project.id);
+    
+    // Cria uma cópia profunda para não mutar o estado original da UI
+    // e para garantir que modificamos apenas o que vai para o banco
+    const projectToSave = JSON.parse(JSON.stringify(project)) as Project;
     const projectRef = doc(db, "projects", project.id);
 
-    // 1. Processar Fotos (Upload de Base64 para Storage)
-    // Não queremos salvar o base64 gigante no Firestore
-    if (project.photos && project.photos.length > 0) {
+    // 1. Upload das Fotos do Projeto
+    if (projectToSave.photos && projectToSave.photos.length > 0) {
         const processedPhotos: Photo[] = [];
         
-        for (const photo of project.photos) {
-            // Se a URL for data:image (base64), faz upload e substitui pela URL
-            if (photo.url.startsWith('data:')) {
+        for (const photo of projectToSave.photos) {
+            if (photo.url && photo.url.startsWith('data:')) {
+                console.log(`Fazendo upload da foto ${photo.id}...`);
                 const path = `projects/${project.id}/photos/${photo.id}_${Date.now()}.jpg`;
-                console.log("Uploading photo to:", path);
                 const publicUrl = await uploadImageToStorage(photo.url, path);
                 processedPhotos.push({ ...photo, url: publicUrl });
             } else {
                 processedPhotos.push(photo);
             }
         }
-        project.photos = processedPhotos;
+        projectToSave.photos = processedPhotos;
     }
 
-    // 2. Processar Cover Image
-    if (project.coverImage && project.coverImage.startsWith('data:')) {
-        // Se a capa for uma das fotos já processadas, pega a URL dela
-        const matchingPhoto = project.photos.find(p => p.id === project.coverImage || p.url === project.coverImage); // Simplificação
+    // 2. Upload da Imagem de Capa (se for diferente das fotos ou se ainda estiver em base64)
+    if (projectToSave.coverImage && projectToSave.coverImage.startsWith('data:')) {
+        console.log("Fazendo upload da imagem de capa...");
+        // Tenta encontrar se esta capa já foi salva como foto normal
+        const existingPhoto = projectToSave.photos.find(p => p.id === project.coverImage || p.url === project.coverImage); // Usa project original para comparar IDs se necessário
         
-        // Se não achou ou é uma string base64 isolada, faz upload
-        // Mas geralmente a capa é a URL da primeira foto
-        if (project.photos.length > 0) {
-            project.coverImage = project.photos[0].url;
+        if (existingPhoto && existingPhoto.url.startsWith('http')) {
+            // Se já existe uma foto salva, usa a URL dela
+            projectToSave.coverImage = existingPhoto.url;
         } else {
-             const path = `projects/${project.id}/cover_${Date.now()}.jpg`;
-             project.coverImage = await uploadImageToStorage(project.coverImage, path);
+            // Se é uma nova imagem isolada, faz upload
+            const path = `projects/${project.id}/cover_${Date.now()}.jpg`;
+            projectToSave.coverImage = await uploadImageToStorage(projectToSave.coverImage, path);
         }
     }
 
-    // 3. Salvar no Firestore (agora com URLs curtas)
-    const cleanProject = JSON.parse(JSON.stringify(project)); // Remove undefined
-    await setDoc(projectRef, cleanProject, { merge: true });
+    // 3. Garantir que não enviamos undefined (Firebase não aceita)
+    // O JSON.parse/stringify acima já removeu undefined, mas garantimos aqui
+    const cleanData = Object.fromEntries(
+        Object.entries(projectToSave).filter(([_, v]) => v !== undefined)
+    );
+
+    // 4. Salvar no Firestore
+    console.log("Gravando dados no Firestore...");
+    await setDoc(projectRef, cleanData, { merge: true });
+    console.log("Projeto salvo com sucesso!");
     
-    return project;
+    return projectToSave;
 };
 
 export const deleteProject = async (projectId: string): Promise<void> => {
     await deleteDoc(doc(db, "projects", projectId));
 };
 
-// === BILLING & DEVICES (MOCK) ===
-// (Mantenha igual)
+// ... (Funções Mock mantêm-se iguais) ...
 export const getInvoices = async (): Promise<Invoice[]> => {
     return [
         { id: 'INV-001', number: '2025/001', date: '2025-10-01', amount: 29.90, status: 'paid' },
