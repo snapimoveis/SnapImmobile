@@ -9,7 +9,7 @@ export interface UserProfile {
   cpf?: string;
   company?: string;
   createdAt: number;
-  password?: string;
+  password?: string; // Opcional, usado apenas no registo
   avatar?: string;
   lastActive?: number;
   watermarkUrl?: string;
@@ -101,7 +101,7 @@ export interface Device {
   lastActive: number;
   current?: boolean;
   ip?: string;
-  status?: 'active' | 'inactive' | 'Active' | 'Blocked'; 
+  status?: 'active' | 'inactive' | 'Active' | 'Blocked';
 }
 
 export interface CompanySettings {
@@ -116,8 +116,8 @@ export interface CompanySettings {
   primaryColor?: string;
   backgroundColor?: string;
   allowUserWatermark?: boolean;
-  virtualTourDays?: string[]; 
-  [key: string]: any; 
+  virtualTourDays?: string[];
+  [key: string]: any;
 }
 
 // === ROTAS DA APP ===
