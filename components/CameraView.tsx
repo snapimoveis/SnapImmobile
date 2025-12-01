@@ -17,9 +17,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState<string>('');
   const [processingProgress, setProcessingProgress] = useState(0);
-  const [hasSaved, setHasSaved] = useState(false); // Novo estado para evitar múltiplos salvamentos
+  const [hasSaved, setHasSaved] = useState(false); 
 
-  const [hdrProfile, setHdrProfile] = useState<'interior' | 'exterior'>('interior');
   const [flashVisual, setFlashVisual] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [isLandscape, setIsLandscape] = useState(false);
@@ -29,6 +28,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const [capturedPreviews, setCapturedPreviews] = useState<{ url: string; ev: string }[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null);
+  
+  // Default HDR profile
+  const [hdrProfile, setHdrProfile] = useState<'interior' | 'exterior'>('interior');
 
   useEffect(() => {
     const checkOrientation = () => {
@@ -42,7 +44,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   useEffect(() => {
     if (!previewImage) {
         startCamera();
-        setHasSaved(false); // Resetar estado de salvo ao voltar para câmera
+        setHasSaved(false);
     }
     return () => {
         stopCamera();
@@ -56,13 +58,13 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       const constraints = {
         video: { 
             facingMode: 'environment', 
+            // Ideal aspect ratio for photos
             aspectRatio: { ideal: 1.333333 },
             width: { ideal: 4032 },
             height: { ideal: 3024 }
         }
       };
 
-      // Tenta obter a câmera
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
       if (stream) {
@@ -72,7 +74,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             videoRef.current.onloadedmetadata = () => setIsStreaming(true);
         }
         
-        // Tenta aplicar configurações avançadas se suportado
         const track = stream.getVideoTracks()[0];
         const capabilities: any = track.getCapabilities?.() || {};
         if (capabilities.colorTemperature) {
@@ -139,14 +140,14 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       if (videoWidth === 0 || videoHeight === 0) return;
 
       const targetRatio = 4 / 3;
-      const currentRatio = videoWidth / videoHeight;
       
       let w = videoWidth;
       let h = videoHeight;
       let sx = 0;
       let sy = 0;
 
-      if (currentRatio > targetRatio) {
+      // Calculate crop to maintain aspect ratio without distortion
+      if (videoWidth / videoHeight > targetRatio) {
           w = videoHeight * targetRatio;
           sx = (videoWidth - w) / 2;
       } else {
@@ -190,13 +191,13 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         ctx.filter = `brightness(${brightnessValues[i]}) saturate(1.25) contrast(1.1)`; 
         
         setFlashVisual(true);
-        setTimeout(() => setFlashVisual(false), 50);
+        await new Promise(r => setTimeout(r, 50));
+        setFlashVisual(false);
 
         drawCroppedFrame(video, canvas, ctx);
         ctx.filter = 'none';
 
-        // Alta qualidade para a IA
-        const frameData = canvas.toDataURL('image/jpeg', 0.95);
+        const frameData = canvas.toDataURL('image/jpeg', 0.90); // Slight compression for speed
         capturedBlobs.push(frameData);
         
         if (i % 2 === 0) {
@@ -204,19 +205,19 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         }
         
         setProcessingProgress(((i + 1) / 9) * 40);
-        await new Promise(r => setTimeout(r, 100)); // Delay maior para estabilizar
+        await new Promise(r => setTimeout(r, 80)); 
     }
 
-    // Reset EV
     if (supportsEV) try { await track.applyConstraints({ advanced: [{ exposureCompensation: 0 }] } as any); } catch(e){}
 
     setProcessingStep('Processando IA...');
     setProcessingProgress(50);
 
     try {
-        // Usa as 3 melhores exposições (Escura, Média, Clara)
+        // Use best exposures for fusion
         const fusionPayload = [capturedBlobs[1], capturedBlobs[4], capturedBlobs[7]];
         
+        // Call AI Service
         const finalImage = await enhanceImage(fusionPayload, hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior');
         
         if (!finalImage || finalImage.length < 1000) {
@@ -226,16 +227,12 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         setProcessingStep('Finalizando...');
         setProcessingProgress(100);
         
-        // Define o preview para o usuário ver
         setPreviewImage(finalImage); 
-
-        // Salva automaticamente após sucesso
         handleSavePhoto(finalImage, capturedBlobs[4]);
 
     } catch (e) {
         console.error("Erro na fusão:", e);
-        alert("Erro ao processar a foto. Usando a captura original.");
-        // Fallback: usa a foto média (exposição 0) se a IA falhar
+        // Silent fallback to keep UX smooth
         const original = capturedBlobs[4];
         setPreviewImage(original);
         handleSavePhoto(original, original);
@@ -246,25 +243,29 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   };
 
   const handleSavePhoto = async (finalUrl: string, originalUrl: string) => {
-      if (hasSaved) return; // Evita duplo salvamento
+      if (hasSaved) return; 
       setHasSaved(true);
       
-      console.log("Salvando foto no sistema...");
+      console.log("📸 CameraView: Enviando foto para App.tsx...");
       
       try {
-          await onPhotoCaptured({
+          const newPhoto: Photo = {
               id: crypto.randomUUID(),
               url: finalUrl,
               originalUrl: originalUrl,
               name: `SNAP_${Date.now()}.jpg`,
               createdAt: Date.now(),
               type: 'hdr',
-              timestamp: Date.now()
-          });
-          console.log("Foto enviada para o componente pai com sucesso.");
+              // Important: Ensure timestamp is present
+              timestamp: Date.now() 
+          };
+
+          // Call the parent function
+          await onPhotoCaptured(newPhoto);
+          console.log("✅ CameraView: Foto enviada com sucesso.");
       } catch (error) {
-          console.error("Erro ao chamar onPhotoCaptured:", error);
-          alert("Erro ao salvar a foto na galeria.");
+          console.error("❌ CameraView: Erro ao enviar foto:", error);
+          alert("Erro ao processar a foto.");
       }
   };
 
@@ -281,10 +282,10 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             <div className="relative w-full h-full flex items-center justify-center bg-[#121212]">
                 <img src={previewImage} className="max-w-full max-h-full object-contain" alt="Resultado HDR" />
                 
-                <div className="absolute top-6 right-6">
+                <div className="absolute top-6 right-6 z-50">
                     <button 
                         onClick={() => setPreviewImage(null)} 
-                        className="p-3 bg-black/50 backdrop-blur-md rounded-full text-white border border-white/20"
+                        className="p-3 bg-black/50 backdrop-blur-md rounded-full text-white border border-white/20 shadow-lg"
                     >
                         <X size={24} />
                     </button>
@@ -305,7 +306,14 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       {/* FERRAMENTAS */}
       <div className={`bg-black z-30 flex items-center justify-between ${isLandscape ? 'flex-col w-20 h-full py-6 pl-safe' : 'flex-row h-20 w-full px-6 pt-safe'}`}>
          <button onClick={onClose} className="p-3 bg-gray-800/50 rounded-full"><X size={20} /></button>
-         <button onClick={() => setShowGrid(!showGrid)} className={`p-3 rounded-full ${showGrid ? 'text-yellow-400 bg-yellow-400/10' : 'text-white/60'}`}><Grid3X3 size={20} /></button>
+         
+         <div className="flex gap-4">
+            <button onClick={() => setHdrProfile(p => p === 'interior' ? 'exterior' : 'interior')} className="px-3 py-1 rounded-full bg-gray-800/50 text-xs font-bold uppercase border border-white/20">
+                {hdrProfile}
+            </button>
+            <button onClick={() => setShowGrid(!showGrid)} className={`p-3 rounded-full ${showGrid ? 'text-yellow-400 bg-yellow-400/10' : 'text-white/60'}`}><Grid3X3 size={20} /></button>
+         </div>
+
          {isLandscape && <div className="w-6 h-6 opacity-0"></div>}
       </div>
 
@@ -316,19 +324,16 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             <canvas ref={canvasRef} className="hidden" />
             <div className={`absolute inset-0 bg-white transition-opacity duration-75 pointer-events-none ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
 
-            {/* Mira de Foco */}
             {focusPoint && (
                 <div className="absolute w-16 h-16 border-2 border-yellow-400 opacity-0 animate-ping pointer-events-none" style={{ left: focusPoint.x - 32, top: focusPoint.y - 32 }} />
             )}
 
-            {/* Countdown */}
             {countdown !== null && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
                     <span className="text-[100px] font-bold animate-ping">{countdown}</span>
                 </div>
             )}
 
-            {/* Grid */}
             {showGrid && (
                 <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-30 pointer-events-none">
                     <div className="border-r border-b border-white"></div>
@@ -342,7 +347,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 </div>
             )}
 
-            {/* Previews Laterais */}
             {isProcessing && capturedPreviews.length > 0 && (
                 <div className="absolute top-4 left-4 bottom-4 w-16 flex flex-col gap-2 overflow-hidden z-40">
                     {capturedPreviews.map((prev, idx) => (
@@ -351,7 +355,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 </div>
             )}
 
-            {/* Botões Zoom */}
             <div className="absolute bottom-4 right-4 flex flex-col gap-2">
                 <button onClick={(e) => {e.stopPropagation(); handleZoom(1)}} className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${zoom === 1 ? 'bg-yellow-400 text-black' : 'bg-black/50 text-white'}`}>1x</button>
                 <button onClick={(e) => {e.stopPropagation(); handleZoom(0.5)}} className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${zoom === 0.5 ? 'bg-yellow-400 text-black' : 'bg-black/50 text-white'}`}>.5</button>
@@ -372,7 +375,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         </button>
       </div>
 
-      {/* LOADING OVERLAY */}
       {isProcessing && !previewImage && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
             <div className="w-16 h-16 border-4 border-white/20 border-t-yellow-400 rounded-full animate-spin mb-4"></div>
