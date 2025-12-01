@@ -1,25 +1,28 @@
 // === PERFIL DO UTILIZADOR ===
+export interface UserPreferences {
+  language: string;
+  notifications: boolean;
+  marketing: boolean;
+  theme: "light" | "dark" | "system";
+}
+
 export interface UserProfile {
   id: string;
-  role: 'admin' | 'editor' | 'viewer' | 'Administrador' | 'Fotografo';
+  role: "admin" | "editor" | "viewer" | "Administrador" | "Fotografo";
   firstName: string;
   lastName: string;
   email: string;
-  phone?: string;
-  cpf?: string;
-  company?: string;
+  phone?: string | null;
+  cpf?: string | null;
+  company?: string | null;
   createdAt: number;
-  password?: string; // Opcional, usado apenas no registo
-  avatar?: string;
-  lastActive?: number;
-  watermarkUrl?: string;
-  deviceId?: string;
-  preferences: {
-    language: string;
-    notifications: boolean;
-    marketing: boolean;
-    theme: 'light' | 'dark' | 'system';
-  };
+  avatar?: string | null;
+  lastActive?: number | null;
+  watermarkUrl?: string | null;
+  deviceId?: string | null;
+
+  // preferences nunca pode ser undefined no app
+  preferences: UserPreferences;
 }
 
 // === FOTOS E MEDIA ===
@@ -28,10 +31,10 @@ export interface Photo {
   url: string;
   name: string;
   type?: string;
-  createdAt?: number;
-  originalUrl?: string;
-  linkedTo?: string;
-  timestamp?: number;
+  createdAt: number;
+  originalUrl: string;
+  linkedTo?: string | null;
+  timestamp: number;
 }
 
 // === CONTACTOS ===
@@ -41,17 +44,17 @@ export interface Contact {
   email: string;
   phone: string;
   role: string;
-  notes?: string;
+  notes?: string | null;
 }
 
 // === PROJETOS ===
 export interface ProjectDetails {
-  rooms?: number;
-  area?: number;
-  price?: number;
-  description?: string;
-  bathrooms?: number;
-  year?: number;
+  rooms?: number | null;
+  area?: number | null;
+  price?: number | null;
+  description?: string | null;
+  bathrooms?: number | null;
+  year?: number | null;
 }
 
 export interface Project {
@@ -60,34 +63,36 @@ export interface Project {
   title: string;
   address: string;
   details?: ProjectDetails;
-  status: 'In Progress' | 'Completed' | 'Archived';
+  status: "In Progress" | "Completed" | "Archived";
   photos: Photo[];
   contacts?: Contact[];
   createdAt: number;
-  coverImage?: string;
+
+  // sempre ter algo: string válida
+  coverImage: string;
 }
 
 // === EDITOR ===
 export enum ToolMode {
-  CROP = 'crop',
-  FILTER = 'filter',
-  ADJUST = 'adjust',
-  TEXT = 'text',
-  DRAW = 'draw',
-  WATERMARK = 'watermark',
-  MAGIC_ERASE = 'magic_erase',
-  VIRTUAL_STAGING = 'virtual_staging'
+  CROP = "crop",
+  FILTER = "filter",
+  ADJUST = "adjust",
+  TEXT = "text",
+  DRAW = "draw",
+  WATERMARK = "watermark",
+  MAGIC_ERASE = "magic_erase",
+  VIRTUAL_STAGING = "virtual_staging",
 }
 
-// === CONFIGURAÇÕES E FATURAÇÃO ===
+// === CONFIGURAÇÕES ===
 export interface Invoice {
   id: string;
   number: string;
   date: string;
   amount: number;
-  status: 'paid' | 'pending' | 'failed';
-  url?: string;
-  items?: string[];
+  status: "paid" | "pending" | "failed";
+  url?: string | null;
+  items?: string[] | null;
 }
 
 export interface Device {
@@ -95,42 +100,42 @@ export interface Device {
   userId?: string;
   name: string;
   type: string;
-  model?: string;
-  userName?: string;
-  lastAccess?: number;
+  model?: string | null;
+  userName?: string | null;
+  lastAccess?: number | null;
   lastActive: number;
   current?: boolean;
-  ip?: string;
-  status?: 'active' | 'inactive' | 'Active' | 'Blocked';
+  ip?: string | null;
+  status?: "active" | "inactive" | "Active" | "Blocked";
 }
 
 export interface CompanySettings {
   id?: string;
   name: string;
-  logoUrl?: string;
-  taxId?: string;
-  address?: string;
-  website?: string;
-  email?: string;
-  phone?: string;
-  primaryColor?: string;
-  backgroundColor?: string;
+  logoUrl?: string | null;
+  taxId?: string | null;
+  address?: string | null;
+  website?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  primaryColor?: string | null;
+  backgroundColor?: string | null;
   allowUserWatermark?: boolean;
   virtualTourDays?: string[];
   [key: string]: any;
 }
 
-// === ROTAS DA APP ===
+// === ROTAS ===
 export enum AppRoute {
-  LANDING = 'LANDING',
-  LOGIN = 'LOGIN',
-  REGISTER = 'REGISTER',
-  WELCOME = 'WELCOME',
-  DASHBOARD = 'DASHBOARD',
-  PROJECT_DETAILS = 'PROJECT_DETAILS',
-  CAMERA = 'CAMERA',
-  EDITOR = 'EDITOR',
-  TOUR_VIEWER = 'TOUR_VIEWER',
-  SETTINGS = 'SETTINGS',
-  MENU = 'MENU'
+  LANDING = "LANDING",
+  LOGIN = "LOGIN",
+  REGISTER = "REGISTER",
+  WELCOME = "WELCOME",
+  DASHBOARD = "DASHBOARD",
+  PROJECT_DETAILS = "PROJECT_DETAILS",
+  CAMERA = "CAMERA",
+  EDITOR = "EDITOR",
+  TOUR_VIEWER = "TOUR_VIEWER",
+  SETTINGS = "SETTINGS",
+  MENU = "MENU",
 }
