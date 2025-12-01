@@ -23,13 +23,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack, onReg
   };
 
   return (
-    <div className="min-h-screen bg-brand-gray-50 dark:bg-brand-dark flex flex-col font-sans justify-center p-6 transition-colors duration-300">
+    <div className="min-h-screen bg-brand-gray-50 dark:bg-black flex flex-col font-sans justify-center p-6 transition-colors duration-300">
       <div className="flex-1 flex flex-col justify-center max-w-md mx-auto w-full">
         
         <div className="flex flex-col items-center mb-10 animate-in slide-in-from-bottom-4 duration-500">
-          <div className="w-24 h-24 bg-brand-purple rounded-[2rem] flex items-center justify-center mb-6 shadow-xl shadow-brand-purple/30 transform rotate-3 hover:rotate-0 transition-transform duration-300">
-             <span className="text-white font-bold text-4xl tracking-tighter">S</span>
-          </div>
+          
+          {/* CORREÇÃO: Logo da Marca em vez do ícone S */}
+          {/* Modo Claro: Logo Colorido */}
+          <img 
+            src="/brand/logo_color.png" 
+            alt="Snap Immobile" 
+            className="h-28 w-auto object-contain mb-6 dark:hidden" 
+          />
+          {/* Modo Escuro: Logo Branco (usando filtro se não tiver imagem branca) */}
+          <img 
+            src="/brand/logo_color.png" 
+            alt="Snap Immobile" 
+            className="h-28 w-auto object-contain mb-6 hidden dark:block brightness-0 invert" 
+          />
+          
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 text-center">Bem-vindo de volta!</h1>
           <p className="text-gray-500 dark:text-gray-400 text-center">Entre na sua conta para continuar a gerir os seus imóveis.</p>
         </div>
