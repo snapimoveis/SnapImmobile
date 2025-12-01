@@ -14,6 +14,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const streamRef = useRef<MediaStream | null>(null);
   const mountedRef = useRef(true);
 
+  // Soms (Opcional - carregados apenas se existirem)
+  const shutterSound = useRef<HTMLAudioElement | null>(null);
+
   // Estados de UI
   const [isStreaming, setIsStreaming] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -30,8 +33,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null);
   const [hdrProfile, setHdrProfile] = useState<'interior' | 'exterior'>('interior');
+  const [showHoldSteady, setShowHoldSteady] = useState(false);
 
-  // Prevenir atualizações de estado em componentes desmontados
+  // Função segura para atualizar estado apenas se montado
   const safeSetState = useCallback((fn: any) => {
     if (mountedRef.current) {
         if (typeof fn === 'function') {
@@ -42,6 +46,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
 
   useEffect(() => {
     mountedRef.current = true;
+    // Carregar som se existir
+    try { shutterSound.current = new Audio("/iphone-camera-capture-6448.mp3"); } catch (e) {}
+
     const checkOrientation = () => {
         if (mountedRef.current) setIsLandscape(window.innerWidth > window.innerHeight);
     };
@@ -52,13 +59,10 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       mountedRef.current = false;
       window.removeEventListener('resize', checkOrientation);
       stopCamera();
-      // Limpeza de memória
+      // Limpeza de memória de blobs se existirem
       if (previewImage && previewImage.startsWith('blob:')) {
           URL.revokeObjectURL(previewImage);
       }
-      capturedPreviews.forEach(p => {
-          if (p.url.startsWith('blob:')) URL.revokeObjectURL(p.url);
-      });
     };
   }, []);
 
@@ -76,13 +80,13 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     if (streamRef.current) return;
 
     try {
-      // Tenta a melhor resolução possível (4K ou Full HD)
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: 'environment',
-          width: { ideal: 4096 },
+          // Tenta resolução alta (4K), faz fallback automático se não suportado
+          width: { ideal: 4096 }, 
           height: { ideal: 2160 },
-          aspectRatio: { ideal: 4 / 3 } // Ratio padrão de fotos
+          aspectRatio: { ideal: 4 / 3 } 
         },
         audio: false
       };
@@ -93,18 +97,19 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
-            if (mountedRef.current) setIsStreaming(true);
+            safeSetState(() => setIsStreaming(true));
         };
       }
 
-      // Configurar Zoom
+      // Ler capacidades da câmara (Zoom, Foco, etc.)
       const track = stream.getVideoTracks()[0];
       const capabilities: any = track.getCapabilities?.() || {};
+      
       if (capabilities.zoom) {
-          if (mountedRef.current) {
+          safeSetState(() => {
               setMaxZoom(capabilities.zoom.max || 5);
               setZoom(capabilities.zoom.min || 1);
-          }
+          });
       }
 
     } catch (err) {
@@ -122,7 +127,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-    if (mountedRef.current) setIsStreaming(false);
+    safeSetState(() => setIsStreaming(false));
   };
 
   const handleTapToFocus = async (e: React.MouseEvent | React.TouchEvent) => {
@@ -142,21 +147,17 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const x = clientX - rect.left;
     const y = clientY - rect.top;
 
-    setFocusPoint({ x, y });
-    setTimeout(() => {
-        if (mountedRef.current) setFocusPoint(null);
-    }, 1500);
+    safeSetState(() => setFocusPoint({ x, y }));
+    setTimeout(() => safeSetState(() => setFocusPoint(null)), 1500);
 
     const track = streamRef.current.getVideoTracks()[0];
     const capabilities: any = track.getCapabilities?.() || {};
 
+    // Tenta focar no ponto (se o hardware suportar)
     if (capabilities.focusMode?.includes('continuous')) {
         try {
-            // Tenta focar (alguns browsers suportam focusMode 'manual' ou 'continuous' com pontos)
             await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] } as any);
-        } catch (err) {
-            console.warn("Foco manual não suportado");
-        }
+        } catch (err) {}
     }
   };
 
@@ -165,7 +166,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
       const track = streamRef.current.getVideoTracks()[0];
       const clampedZoom = Math.min(Math.max(newZoom, 1), maxZoom);
       
-      setZoom(clampedZoom);
+      safeSetState(() => setZoom(clampedZoom));
       try {
           await track.applyConstraints({ advanced: [{ zoom: clampedZoom }] } as any);
       } catch (e) {}
@@ -177,7 +178,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     
-    // Melhorar qualidade
+    // Alta qualidade para o processamento
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     
@@ -189,12 +190,16 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
   const capturePhotoSequence = async () => {
     if (!videoRef.current || !canvasRef.current || !streamRef.current) return;
 
-    setIsProcessing(true);
-    setCapturedPreviews([]);
-    setProcessingStep('Capturando (HDR)...');
+    safeSetState(() => {
+        setIsProcessing(true);
+        setCapturedPreviews([]);
+        setProcessingStep('Capturando (HDR)...');
+        setShowHoldSteady(true);
+    });
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
+    // 'willReadFrequently' otimiza leitura de pixels
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     
     if (!ctx) return;
@@ -203,17 +208,17 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
     const capabilities: any = track.getCapabilities?.() || {};
     const supportsEV = !!capabilities.exposureCompensation;
 
-    // Sequência otimizada para imobiliário (menos exposições, mas mais eficazes)
-    // Reduzi para 5 para ser mais rápido no mobile, mas mantendo a gama dinâmica
-    const evSequence = supportsEV ? [-2, -1, 0, 1, 2] : [0, 0, 0]; 
-    const brightnessValues = [0.6, 0.8, 1.0, 1.2, 1.4]; // Simulação de EV se hardware falhar
+    // Sequência de exposições (-2, -1, 0, +1, +2)
+    const evSequence = [-2, -1, 0, 1, 2]; 
+    // Simulação de brilho via filtro CSS se EV não suportado
+    const brightnessValues = [0.6, 0.8, 1.0, 1.2, 1.4]; 
     
     const capturedBlobs: string[] = [];
     const totalShots = evSequence.length;
 
     try {
         for (let i = 0; i < totalShots; i++) {
-            // Ajustar EV Hardware se possível
+            // Ajustar EV Hardware
             if (supportsEV) {
                 try {
                     await track.applyConstraints({ 
@@ -222,24 +227,27 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 } catch (e) {}
             }
 
-            // Feedback Visual (Flash)
-            setFlashVisual(true);
-            await new Promise(r => setTimeout(r, 50)); // Pequeno delay para o sensor ajustar
-            setFlashVisual(false);
+            // Efeito visual de obturador
+            safeSetState(() => setFlashVisual(true));
+            try { shutterSound.current?.play(); } catch {}
+            await new Promise(r => setTimeout(r, 50)); 
+            safeSetState(() => setFlashVisual(false));
 
-            // Captura
+            // Capturar frame com filtro simulado
             const filter = `brightness(${brightnessValues[i]}) contrast(1.1) saturate(1.2)`;
             drawFrame(video, canvas, ctx, filter);
             
-            // Comprimir como JPEG 0.9 para equilibrar qualidade/tamanho
+            // Exportar (0.9 quality para bom equilíbrio)
             const frameData = canvas.toDataURL('image/jpeg', 0.90);
             capturedBlobs.push(frameData);
 
-            // Adicionar preview
-            setCapturedPreviews(prev => [...prev, { url: frameData, ev: evSequence[i].toString() }]);
-            setProcessingProgress(((i + 1) / totalShots) * 50);
+            // Atualizar UI
+            safeSetState(() => {
+                setCapturedPreviews(prev => [...prev, { url: frameData, ev: evSequence[i].toString() }]);
+                setProcessingProgress(((i + 1) / totalShots) * 50);
+            });
             
-            // Delay para o próximo shot
+            // Delay para estabilizar exposição
             await new Promise(r => setTimeout(r, 150));
         }
 
@@ -248,15 +256,19 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             try { await track.applyConstraints({ advanced: [{ exposureCompensation: 0 }] } as any); } catch (e) {}
         }
 
-        setProcessingStep('Processando IA...');
-        setProcessingProgress(60);
+        safeSetState(() => {
+            setProcessingStep('Processando IA...');
+            setProcessingProgress(60);
+            setShowHoldSteady(false);
+        });
 
-        // Tenta fundir com IA
-        let finalImage = capturedBlobs[Math.floor(totalShots / 2)]; // Padrão: foto do meio
+        // Fusão IA (Usa a mais escura, média e clara)
+        let finalImage = capturedBlobs[2]; // Default: foto do meio (EV 0)
         try {
-            // Envia a mais escura, a média e a mais clara para fusão
-            const imagesToFuse = [capturedBlobs[0], capturedBlobs[Math.floor(totalShots/2)], capturedBlobs[totalShots-1]];
-            const aiResult = await enhanceImage(imagesToFuse, hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior');
+            const aiResult = await enhanceImage(
+                [capturedBlobs[0], capturedBlobs[2], capturedBlobs[4]], 
+                hdrProfile === 'interior' ? 'hp_hdr_interior' : 'hp_hdr_exterior'
+            );
             if (aiResult && aiResult.length > 1000) {
                 finalImage = aiResult;
             }
@@ -264,17 +276,19 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             console.warn("IA Falhou, usando original:", aiError);
         }
 
-        setProcessingStep('Finalizando...');
-        setProcessingProgress(100);
-        setPreviewImage(finalImage);
+        safeSetState(() => {
+            setProcessingStep('Finalizando...');
+            setProcessingProgress(100);
+            setPreviewImage(finalImage);
+        });
 
-        // Salva automaticamente
-        await handleSavePhoto(finalImage, capturedBlobs[Math.floor(totalShots / 2)]);
+        // Salvar
+        await handleSavePhoto(finalImage, capturedBlobs[2]);
 
     } catch (error) {
         console.error("Erro fatal na captura:", error);
-        alert("Ocorreu um erro ao capturar as fotos. Tente novamente.");
-        setIsProcessing(false);
+        alert("Ocorreu um erro ao capturar. Tente novamente.");
+        safeSetState(() => setIsProcessing(false));
     }
   };
 
@@ -293,29 +307,30 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         };
 
         await onPhotoCaptured(newPhoto);
-        if (mountedRef.current) setHasSaved(true);
+        safeSetState(() => setHasSaved(true));
     } catch (err) {
         console.error("Erro ao salvar:", err);
         alert("Erro ao guardar a foto na base de dados.");
     } finally {
-        if (mountedRef.current) setIsProcessing(false);
+        safeSetState(() => setIsProcessing(false));
     }
   };
 
   const handleShutterClick = () => {
     if (isProcessing) return;
-    setCountdown(3);
+    safeSetState(() => setCountdown(3));
+    
     let count = 3;
     const timer = setInterval(() => {
         count--;
         if (count > 0) {
-            if (mountedRef.current) setCountdown(count);
+            safeSetState(() => setCountdown(count));
         } else {
             clearInterval(timer);
-            if (mountedRef.current) {
+            safeSetState(() => {
                 setCountdown(null);
                 capturePhotoSequence();
-            }
+            });
         }
     }, 1000);
   };
@@ -326,11 +341,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
         <img src={previewImage} className="max-w-full max-h-full object-contain" alt="Preview" />
         
         <button 
-            onClick={() => {
-                // Limpar memória do blob anterior se existir
-                if (previewImage.startsWith('blob:')) URL.revokeObjectURL(previewImage);
-                setPreviewImage(null);
-            }} 
+            onClick={() => setPreviewImage(null)} 
             className="absolute top-6 right-6 p-3 bg-black/50 rounded-full text-white backdrop-blur-md border border-white/20"
         >
             <X size={24} />
@@ -375,10 +386,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
             <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
             <canvas ref={canvasRef} className="hidden" />
             
-            {/* Flash Effect */}
             <div className={`absolute inset-0 bg-white pointer-events-none transition-opacity duration-75 ${flashVisual ? 'opacity-80' : 'opacity-0'}`} />
 
-            {/* Foco Visual */}
             {focusPoint && (
                 <div 
                     className="absolute w-16 h-16 border-2 border-brand-orange rounded-full opacity-0 animate-ping pointer-events-none" 
@@ -386,7 +395,6 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 />
             )}
 
-            {/* Grid */}
             {showGrid && (
                 <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none">
                     <div className="border-r border-b border-white/20"></div>
@@ -400,20 +408,28 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 </div>
             )}
 
-            {/* Countdown */}
             {countdown !== null && (
                 <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-[2px]">
                     <span className="text-[120px] font-black text-white drop-shadow-lg animate-pulse">{countdown}</span>
                 </div>
             )}
             
-            {/* Zoom Controls (Floating) */}
+            {/* Controles Zoom Flutuantes */}
             {maxZoom > 1 && (
                 <div className="absolute bottom-6 right-6 flex flex-col gap-3 bg-black/40 backdrop-blur-md p-1.5 rounded-full border border-white/10">
                     <button onClick={(e) => {e.stopPropagation(); handleZoom(1)}} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${zoom === 1 ? 'bg-white text-black' : 'text-white hover:bg-white/20'}`}>1x</button>
                     <button onClick={(e) => {e.stopPropagation(); handleZoom(2)}} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${zoom === 2 ? 'bg-white text-black' : 'text-white hover:bg-white/20'}`}>2x</button>
                     <button onClick={(e) => {e.stopPropagation(); handleZoom(0.5)}} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${zoom === 0.5 ? 'bg-white text-black' : 'text-white hover:bg-white/20'}`}>.5</button>
                 </div>
+            )}
+
+            {/* Aviso de Estabilidade */}
+            {showHoldSteady && (
+               <div className="absolute top-10 left-0 right-0 flex justify-center pointer-events-none">
+                  <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full text-sm font-bold animate-pulse border border-white/10">
+                     Segure firme...
+                  </div>
+               </div>
             )}
         </div>
       </div>
@@ -437,11 +453,10 @@ export const CameraView: React.FC<CameraViewProps> = ({ onPhotoCaptured, onClose
                 <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">{Math.round(processingProgress)}%</div>
             </div>
             <div className="mt-6 text-white font-bold text-lg tracking-widest uppercase animate-pulse">{processingStep}</div>
-            <p className="text-white/40 text-xs mt-2">Mantenha o dispositivo estável</p>
             
-            {/* Mini Previews do que está sendo capturado */}
-            <div className="mt-8 flex gap-2 h-16">
-                {capturedPreviews.map((prev, i) => (
+            {/* Mini Previews */}
+            <div className="mt-8 flex gap-2 h-16 justify-center">
+                {capturedPreviews.slice(-3).map((prev, i) => (
                     <img key={i} src={prev.url} className="h-full aspect-[3/4] object-cover rounded border border-white/20 animate-in fade-in slide-in-from-bottom-2" alt={`Frame ${i}`} />
                 ))}
             </div>
