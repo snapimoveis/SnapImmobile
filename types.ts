@@ -1,141 +1,105 @@
-// === PERFIL DO UTILIZADOR ===
-export interface UserPreferences {
-  language: string;
-  notifications: boolean;
-  marketing: boolean;
-  theme: "light" | "dark" | "system";
-}
-
+// =====================================================
+// USER PROFILE — totalmente compatível com Firebase
+// =====================================================
 export interface UserProfile {
   id: string;
-  role: "admin" | "editor" | "viewer" | "Administrador" | "Fotografo";
+  role: 'admin' | 'editor' | 'viewer' | 'Administrador' | 'Fotografo';
   firstName: string;
   lastName: string;
   email: string;
-  phone?: string | null;
-  cpf?: string | null;
-  company?: string | null;
+  phone?: string;
+  cpf?: string;
+  company?: string;
   createdAt: number;
-  avatar?: string | null;
-  lastActive?: number | null;
-  watermarkUrl?: string | null;
-  deviceId?: string | null;
+  
+  // Campos opcionais permitidos pelo Firestore
+  avatar?: string;
+  lastActive?: number;
+  watermarkUrl?: string;
+  deviceId?: string;
 
-  // preferences nunca pode ser undefined no app
-  preferences: UserPreferences;
+  preferences: {
+    language: string;
+    notifications: boolean;
+    marketing: boolean;
+    theme: 'light' | 'dark' | 'system';
+  };
 }
 
-// === FOTOS E MEDIA ===
+
+
+// =====================================================
+// PHOTO — compatível com CameraView e storage.ts
+// =====================================================
 export interface Photo {
   id: string;
   url: string;
   name: string;
-  type?: string;
-  createdAt: number;
-  originalUrl: string;
-  linkedTo?: string | null;
-  timestamp: number;
+  type?: string;         // 'hdr', 'original', etc.
+  createdAt?: number;    
+  timestamp?: number;     // necessário para ordenação
+  originalUrl?: string;   // só usada antes do upload
 }
 
-// === CONTACTOS ===
+
+
+// =====================================================
+// CONTACT
+// =====================================================
 export interface Contact {
   id: string;
   name: string;
   email: string;
   phone: string;
   role: string;
-  notes?: string | null;
+  notes?: string;
 }
 
-// === PROJETOS ===
+
+
+// =====================================================
+// PROJECT DETAILS — usado no formulário de criação
+// =====================================================
 export interface ProjectDetails {
-  rooms?: number | null;
-  area?: number | null;
-  price?: number | null;
-  description?: string | null;
-  bathrooms?: number | null;
-  year?: number | null;
+  rooms?: number;
+  area?: number;
+  price?: number;
+  description?: string;
+  bathrooms?: number;
+  year?: number;
 }
 
+
+
+// =====================================================
+// PROJECT — compatível 100% com a versão final do storage.ts
+// =====================================================
 export interface Project {
   id: string;
   userId: string;
+
   title: string;
   address: string;
+
   details?: ProjectDetails;
-  status: "In Progress" | "Completed" | "Archived";
-  photos: Photo[];
+
+  status: 'In Progress' | 'Completed' | 'Archived';
+
+  photos: Photo[];      // array sempre existente
+
   contacts?: Contact[];
+
   createdAt: number;
 
-  // sempre ter algo: string válida
-  coverImage: string;
+  // Firestore nunca permite undefined → deixar opcional porém presente
+  coverImage?: string | null;
 }
 
-// === EDITOR ===
+
+
+// =====================================================
+// EDITOR (no modelo original)
+// =====================================================
 export enum ToolMode {
-  CROP = "crop",
-  FILTER = "filter",
-  ADJUST = "adjust",
-  TEXT = "text",
-  DRAW = "draw",
-  WATERMARK = "watermark",
-  MAGIC_ERASE = "magic_erase",
-  VIRTUAL_STAGING = "virtual_staging",
-}
-
-// === CONFIGURAÇÕES ===
-export interface Invoice {
-  id: string;
-  number: string;
-  date: string;
-  amount: number;
-  status: "paid" | "pending" | "failed";
-  url?: string | null;
-  items?: string[] | null;
-}
-
-export interface Device {
-  id: string;
-  userId?: string;
-  name: string;
-  type: string;
-  model?: string | null;
-  userName?: string | null;
-  lastAccess?: number | null;
-  lastActive: number;
-  current?: boolean;
-  ip?: string | null;
-  status?: "active" | "inactive" | "Active" | "Blocked";
-}
-
-export interface CompanySettings {
-  id?: string;
-  name: string;
-  logoUrl?: string | null;
-  taxId?: string | null;
-  address?: string | null;
-  website?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  primaryColor?: string | null;
-  backgroundColor?: string | null;
-  allowUserWatermark?: boolean;
-  virtualTourDays?: string[];
-  [key: string]: any;
-}
-
-// === ROTAS ===
-export enum AppRoute {
-  LANDING = "LANDING",
-  LOGIN = "LOGIN",
-  REGISTER = "REGISTER",
-  WELCOME = "WELCOME",
-  DASHBOARD = "DASHBOARD",
-  PROJECT_DETAILS = "PROJECT_DETAILS",
-  CAMERA = "CAMERA",
-  EDITOR = "EDITOR",
-  TOUR_VIEWER = "TOUR_VIEWER",
-  SETTINGS = "SETTINGS",
-  MENU = "MENU",
-}
+  CROP = 'crop',
+  FILTER = 'fi
