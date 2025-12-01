@@ -1,7 +1,7 @@
 import React from 'react';
 import { Project } from '../types';
-import { Plus, Search, MapPin, Camera, Bed, Bath, Square } from 'lucide-react';
-import { Button } from './ui'; // Importando os componentes novos
+import { Plus, Search, MapPin, Camera, Image as ImageIcon, ChevronRight } from 'lucide-react';
+import { Card, Button } from './ui'; // Use os novos componentes UI
 
 interface ProjectListProps {
   projects: Project[];
@@ -12,107 +12,105 @@ interface ProjectListProps {
 
 export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProject, onCreateProject }) => {
   
-  // Estado vazio com visual melhorado
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
+  };
+
+  // Top 3 recentes
+  const recentProjects = [...projects].sort((a, b) => b.createdAt - a.createdAt).slice(0, 3);
+
   if (projects.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-[80vh] p-6 animate-in fade-in duration-500">
-        <div className="w-32 h-32 bg-brand-purple/10 rounded-full flex items-center justify-center mb-6 animate-bounce-slow">
-          <Camera size={48} className="text-brand-purple" />
+      <div className="flex flex-col items-center justify-center h-[70vh] text-center p-6 animate-in fade-in zoom-in duration-500">
+        <div className="w-24 h-24 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full flex items-center justify-center mb-6 shadow-sm">
+          <Camera size={40} className="text-gray-300 dark:text-gray-500" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Nenhum imóvel encontrado</h2>
-        <p className="text-gray-500 dark:text-gray-400 text-center max-w-md mb-8">
-          Comece a construir o seu portefólio imobiliário. Crie o seu primeiro imóvel para capturar fotos profissionais.
-        </p>
-        <Button onClick={onCreateProject} variant="secondary" size="lg">
-          <Plus size={20} className="mr-2" />
-          Criar Novo Imóvel
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Sem imóveis recentes</h2>
+        <p className="text-gray-500 dark:text-gray-400 max-w-xs mb-8">Comece por criar o seu primeiro imóvel para capturar fotos incríveis.</p>
+        <Button onClick={onCreateProject} variant="secondary">
+          + Novo imóvel
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-full pb-24 bg-brand-gray-50 dark:bg-black transition-colors duration-300">
+    <div className="min-h-full pb-24 bg-brand-gray-50 dark:bg-black text-gray-900 dark:text-white transition-colors duration-300">
       
-      {/* Header da Lista */}
-      <div className="sticky top-0 z-20 bg-brand-gray-50/90 dark:bg-black/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b border-gray-200 dark:border-white/10">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-purple dark:text-white">IMÓVEIS</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{projects.length} Imóveis listados</p>
-        </div>
-        <div className="flex gap-3">
-             <button className="p-2.5 text-brand-purple bg-white dark:bg-white/10 rounded-xl shadow-sm hover:bg-gray-50 transition-colors">
-                <Search size={20} />
-             </button>
-             <button className="p-2.5 text-brand-purple bg-white dark:bg-white/10 rounded-xl shadow-sm hover:bg-gray-50 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-             </button>
-        </div>
+      {/* HEADER */}
+      <div className="pt-6 px-6 pb-4 flex justify-between items-center">
+        <h1 className="text-2xl font-bold tracking-tight">Início</h1>
+        <button className="p-3 bg-white dark:bg-white/10 border border-gray-100 dark:border-transparent rounded-full text-gray-500 dark:text-gray-300 shadow-sm hover:bg-gray-50 transition-colors">
+            <Search size={20} />
+        </button>
       </div>
 
-      <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {projects.map((project) => (
-          <div 
-            key={project.id} 
-            onClick={() => onSelectProject(project)}
-            className="group bg-white dark:bg-[#121212] rounded-2xl shadow-card hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden border border-transparent hover:border-brand-purple/30 flex flex-col"
-          >
-            {/* Imagem de Capa */}
-            <div className="relative aspect-[4/3] overflow-hidden bg-gray-200 dark:bg-white/5">
-              {project.coverImage ? (
-                <img 
-                  src={project.coverImage} 
-                  alt={project.title} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                  <Camera size={40} strokeWidth={1.5} />
-                  <span className="text-xs mt-2">Sem foto</span>
-                </div>
-              )}
-              
-              {/* Etiqueta de Status */}
-              <div className="absolute top-3 left-3">
-                 <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide shadow-sm ${
-                    project.status === 'Completed' ? 'bg-green-500 text-white' : 'bg-white/90 text-brand-purple backdrop-blur-md'
-                 }`}>
-                    {project.status === 'Completed' ? 'Concluído' : 'Ativo'}
-                 </span>
+      <div className="px-6 space-y-10">
+        
+        {/* ATIVIDADE RECENTE (Scroll Horizontal) */}
+        {recentProjects.length > 0 && (
+          <div>
+              <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Actividade recente</h2>
               </div>
-
-              {/* Contador de Fotos */}
-              <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1">
-                 <Camera size={12} /> {project.photos.length}
+              <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 -mx-6 px-6">
+                  {recentProjects.map(proj => (
+                      <div key={proj.id} onClick={() => onSelectProject(proj)} className="shrink-0 w-40 cursor-pointer active:scale-95 transition-transform">
+                          <div className="aspect-square rounded-2xl overflow-hidden bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-white/10 relative shadow-sm">
+                              {proj.coverImage ? (
+                                  <img src={proj.coverImage} className="w-full h-full object-cover" alt="" />
+                              ) : (
+                                  <div className="w-full h-full flex items-center justify-center"><ImageIcon size={24} className="text-gray-300 dark:text-gray-600"/></div>
+                              )}
+                              <div className="absolute bottom-2 left-2 bg-white/90 dark:bg-black/60 backdrop-blur-md p-1.5 rounded-lg border border-white/20 shadow-sm">
+                                  <MapPin size={12} className="text-brand-purple dark:text-white" />
+                              </div>
+                          </div>
+                          <p className="mt-2 text-xs font-bold text-gray-700 dark:text-gray-300 truncate px-1">{proj.title}</p>
+                      </div>
+                  ))}
               </div>
-            </div>
-
-            {/* Informações */}
-            <div className="p-5 flex-1 flex flex-col">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight mb-1 line-clamp-1">{project.title}</h3>
-              <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-sm mb-4">
-                 <MapPin size={14} className="shrink-0" />
-                 <span className="truncate">{project.address || 'Endereço não informado'}</span>
-              </div>
-
-              {/* Detalhes Rápidos (Ícones) */}
-              <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 text-xs">
-                 <div className="flex items-center gap-1.5">
-                    <Bed size={16} className="text-brand-purple" /> 
-                    <span>{project.details?.rooms || '-'}</span>
-                 </div>
-                 <div className="flex items-center gap-1.5">
-                    <Bath size={16} className="text-brand-purple" /> 
-                    <span>{project.details?.bathrooms || '-'}</span>
-                 </div>
-                 <div className="flex items-center gap-1.5">
-                    <Square size={16} className="text-brand-purple" /> 
-                    <span>{project.details?.area || '-'} m²</span>
-                 </div>
-              </div>
-            </div>
           </div>
-        ))}
+        )}
+
+        {/* TODOS OS IMÓVEIS (Lista Vertical de Cards) */}
+        <div className="space-y-8">
+            <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Todos os imóveis</h2>
+            {projects.map((project) => (
+                <div 
+                    key={project.id} 
+                    onClick={() => onSelectProject(project)}
+                    className="cursor-pointer group"
+                >
+                    {/* Título fora do card (Estilo Nodalview) */}
+                    <div className="mb-3 px-1 flex justify-between items-end">
+                        <div>
+                          <h3 className="text-lg font-bold leading-tight text-gray-900 dark:text-white">{project.title}</h3>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{formatDate(project.createdAt)}</p>
+                        </div>
+                        <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-purple transition-colors" />
+                    </div>
+
+                    {/* Card Imagem Grande */}
+                    <div className="aspect-[4/3] w-full bg-white dark:bg-[#121212] rounded-3xl overflow-hidden relative shadow-md border border-gray-100 dark:border-white/10">
+                        {project.coverImage ? (
+                            <img src={project.coverImage} className="w-full h-full object-cover opacity-95 group-hover:opacity-100 transition-opacity" alt={project.title} />
+                        ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 dark:text-gray-600 bg-gray-50 dark:bg-white/5">
+                                <Camera size={48} strokeWidth={1} />
+                                <span className="text-xs mt-2 font-medium">Sem foto de capa</span>
+                            </div>
+                        )}
+
+                        {/* Badge de Fotos */}
+                        <div className="absolute bottom-4 left-4 bg-white/90 dark:bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-2 text-gray-900 dark:text-white border border-white/20 shadow-sm">
+                            <Camera size={14} className="text-brand-purple dark:text-white" />
+                            <span className="text-xs font-bold">{project.photos.length}</span>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
       </div>
     </div>
   );
