@@ -1,6 +1,7 @@
 import React from 'react';
 import { Project } from '../types';
-import { Plus, Search, Settings, Camera, MapPin, MoreVertical } from 'lucide-react';
+import { Plus, Search, MapPin, Camera, Bed, Bath, Square } from 'lucide-react';
+import { Button } from './ui'; // Importando os componentes novos
 
 interface ProjectListProps {
   projects: Project[];
@@ -9,122 +10,110 @@ interface ProjectListProps {
   onDeleteProject: (id: string) => void;
 }
 
-export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProject, onCreateProject, onDeleteProject }) => {
+export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProject, onCreateProject }) => {
   
-  // Função auxiliar para formatar data estilo "8 de outubro de 2025"
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
-  };
-
+  // Estado vazio com visual melhorado
   if (projects.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-[70vh] text-center p-6 dark:text-white">
-        <div className="w-20 h-20 bg-gray-200 dark:bg-white/10 rounded-full flex items-center justify-center mb-6">
-          <Camera size={40} className="text-gray-500 dark:text-gray-300" />
+      <div className="flex flex-col items-center justify-center h-[80vh] p-6 animate-in fade-in duration-500">
+        <div className="w-32 h-32 bg-brand-purple/10 rounded-full flex items-center justify-center mb-6 animate-bounce-slow">
+          <Camera size={48} className="text-brand-purple" />
         </div>
-        <h2 className="text-xl font-bold mb-2">Sem imóveis recentes</h2>
-        <p className="text-gray-500 dark:text-gray-400 max-w-xs mb-8">Comece por criar o seu primeiro imóvel.</p>
-        <button 
-          onClick={onCreateProject}
-          className="bg-gray-900 dark:bg-white text-white dark:text-black font-medium py-3 px-8 rounded-full shadow-lg active:scale-95 transition-transform"
-        >
-          + Novo imóvel
-        </button>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Nenhum imóvel encontrado</h2>
+        <p className="text-gray-500 dark:text-gray-400 text-center max-w-md mb-8">
+          Comece a construir o seu portefólio imobiliário. Crie o seu primeiro imóvel para capturar fotos profissionais.
+        </p>
+        <Button onClick={onCreateProject} variant="secondary" size="lg">
+          <Plus size={20} className="mr-2" />
+          Criar Novo Imóvel
+        </Button>
       </div>
     );
   }
 
-  // Filtrar os 3 projetos mais recentes para a "Atividade recente"
-  const recentProjects = [...projects].sort((a, b) => b.createdAt - a.createdAt).slice(0, 3);
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#121212] pb-24 text-gray-900 dark:text-white transition-colors duration-300">
+    <div className="min-h-full pb-24 bg-brand-gray-50 dark:bg-black transition-colors duration-300">
       
-      {/* --- HEADER --- */}
-      <div className="pt-4 px-4 pb-2 flex justify-between items-center">
-        <Search size={24} className="text-gray-600 dark:text-gray-300" />
-        <Settings size={24} className="text-gray-600 dark:text-gray-300" />
-      </div>
-
-      <div className="p-4 space-y-8">
-        
-        {/* --- ATIVIDADE RECENTE (Scroll Horizontal) --- */}
+      {/* Header da Lista */}
+      <div className="sticky top-0 z-20 bg-brand-gray-50/90 dark:bg-black/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b border-gray-200 dark:border-white/10">
         <div>
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-bold">Actividade recente</h2>
-                <button className="text-gray-400 hover:text-white"><span className="sr-only">Fechar</span>×</button>
-            </div>
-            
-            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-                {recentProjects.map(proj => (
-                    <div key={proj.id} onClick={() => onSelectProject(proj)} className="shrink-0 w-32 cursor-pointer active:opacity-80">
-                        <div className="aspect-square rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800 relative">
-                            {proj.coverImage ? (
-                                <img src={proj.coverImage} className="w-full h-full object-cover" alt="" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center"><Camera size={24} className="text-gray-400"/></div>
-                            )}
-                            <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm p-1 rounded-md">
-                                <MapPin size={12} className="text-white" />
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
+          <h1 className="text-2xl font-bold text-brand-purple dark:text-white">IMÓVEIS</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{projects.length} Imóveis listados</p>
         </div>
+        <div className="flex gap-3">
+             <button className="p-2.5 text-brand-purple bg-white dark:bg-white/10 rounded-xl shadow-sm hover:bg-gray-50 transition-colors">
+                <Search size={20} />
+             </button>
+             <button className="p-2.5 text-brand-purple bg-white dark:bg-white/10 rounded-xl shadow-sm hover:bg-gray-50 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+             </button>
+        </div>
+      </div>
 
-        {/* --- LISTA DE PROJETOS (Cards Grandes) --- */}
-        <div className="space-y-8">
-            {projects.map((project) => (
-                <div 
-                    key={project.id} 
-                    onClick={() => onSelectProject(project)}
-                    className="cursor-pointer active:scale-[0.99] transition-transform"
-                >
-                    {/* Título e Data FORA da imagem, em cima */}
-                    <div className="mb-2 px-1">
-                        <h3 className="text-xl font-bold leading-tight">{project.title}</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(project.createdAt)}</p>
-                    </div>
-
-                    {/* Imagem Grande */}
-                    <div className="aspect-[4/3] w-full bg-gray-200 dark:bg-gray-800 rounded-2xl overflow-hidden relative shadow-sm">
-                        {project.coverImage ? (
-                            <img src={project.coverImage} className="w-full h-full object-cover" alt={project.title} />
-                        ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                                <Camera size={48} strokeWidth={1} />
-                            </div>
-                        )}
-
-                        {/* Badge de Fotos (Canto inferior esquerdo) */}
-                        <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1.5 text-white">
-                            <Camera size={14} />
-                            <span className="text-xs font-bold">{project.photos.length}</span>
-                        </div>
-
-                        {/* Marca d'água simulada (opcional, como na foto) */}
-                        <div className="absolute bottom-3 right-3 opacity-60">
-                             {/* <span className="text-[10px] font-bold text-white tracking-widest uppercase">NODALVIEW</span> */}
-                        </div>
-                    </div>
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {projects.map((project) => (
+          <div 
+            key={project.id} 
+            onClick={() => onSelectProject(project)}
+            className="group bg-white dark:bg-[#121212] rounded-2xl shadow-card hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden border border-transparent hover:border-brand-purple/30 flex flex-col"
+          >
+            {/* Imagem de Capa */}
+            <div className="relative aspect-[4/3] overflow-hidden bg-gray-200 dark:bg-white/5">
+              {project.coverImage ? (
+                <img 
+                  src={project.coverImage} 
+                  alt={project.title} 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                  <Camera size={40} strokeWidth={1.5} />
+                  <span className="text-xs mt-2">Sem foto</span>
                 </div>
-            ))}
-        </div>
+              )}
+              
+              {/* Etiqueta de Status */}
+              <div className="absolute top-3 left-3">
+                 <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide shadow-sm ${
+                    project.status === 'Completed' ? 'bg-green-500 text-white' : 'bg-white/90 text-brand-purple backdrop-blur-md'
+                 }`}>
+                    {project.status === 'Completed' ? 'Concluído' : 'Ativo'}
+                 </span>
+              </div>
 
+              {/* Contador de Fotos */}
+              <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1">
+                 <Camera size={12} /> {project.photos.length}
+              </div>
+            </div>
+
+            {/* Informações */}
+            <div className="p-5 flex-1 flex flex-col">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight mb-1 line-clamp-1">{project.title}</h3>
+              <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-sm mb-4">
+                 <MapPin size={14} className="shrink-0" />
+                 <span className="truncate">{project.address || 'Endereço não informado'}</span>
+              </div>
+
+              {/* Detalhes Rápidos (Ícones) */}
+              <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 text-xs">
+                 <div className="flex items-center gap-1.5">
+                    <Bed size={16} className="text-brand-purple" /> 
+                    <span>{project.details?.rooms || '-'}</span>
+                 </div>
+                 <div className="flex items-center gap-1.5">
+                    <Bath size={16} className="text-brand-purple" /> 
+                    <span>{project.details?.bathrooms || '-'}</span>
+                 </div>
+                 <div className="flex items-center gap-1.5">
+                    <Square size={16} className="text-brand-purple" /> 
+                    <span>{project.details?.area || '-'} m²</span>
+                 </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
-
-      {/* --- FAB (Botão Flutuante Central) --- */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-        <button 
-            onClick={onCreateProject}
-            className="flex items-center gap-2 bg-gray-900 dark:bg-[#202020] text-white px-6 py-3.5 rounded-full shadow-2xl border border-gray-700 active:scale-95 transition-transform"
-        >
-            <Plus size={20} />
-            <span className="font-medium text-sm">+ Novo imóvel</span>
-        </button>
-      </div>
-
     </div>
   );
 };
