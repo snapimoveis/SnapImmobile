@@ -32,7 +32,6 @@ function App() {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [prefillEmail, setPrefillEmail] = useState('');
 
-  // === MODO ESCURO AUTOMÁTICO ===
   useEffect(() => {
     const applyTheme = () => {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -46,20 +45,17 @@ function App() {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   }, []);
 
-  // Inicialização
   useEffect(() => {
     const initApp = async () => {
       const user = getCurrentUser();
       if (user) {
         setCurrentUser(user);
         try {
-          console.log("Carregando projetos para o utilizador:", user.id);
           const userProjects = await getUserProjects(user.id);
-          console.log("Projetos carregados:", userProjects.length);
           setProjects(userProjects);
           setCurrentRoute(AppRoute.DASHBOARD);
         } catch (e) {
-          console.error("Falha ao carregar projetos:", e);
+          console.error("Failed to load projects", e);
         }
       }
     };
@@ -110,43 +106,33 @@ function App() {
   };
 
   const handleCreateProject = async (details: ProjectDetailsType & { title: string, address: string }) => {
-    if (!currentUser) {
-        alert("Erro: Utilizador não autenticado.");
-        return;
-    }
+    if (!currentUser) return;
     
-    // Limpeza de dados para evitar undefined no Firebase
-    const cleanDetails = {
-        rooms: details.rooms || 0,
-        area: details.area || 0,
-        price: details.price || 0,
-        bathrooms: details.bathrooms || 0,
-        description: details.description || ''
-    };
-
     const newProject: Project = {
       id: crypto.randomUUID(),
       userId: currentUser.id,
-      title: details.title || 'Novo Projeto',
-      address: details.address || '',
-      details: cleanDetails,
+      title: details.title,
+      address: details.address,
+      details: { ...details },
       status: 'In Progress',
       photos: [],
-      createdAt: Date.now(),
-      coverImage: ''
+      createdAt: Date.now()
     };
-
+    
     try {
-      console.log("Criando projeto:", newProject);
+      console.log("Tentando criar projeto:", newProject);
       const savedProject = await saveProject(newProject); 
       setProjects([savedProject, ...projects]);
       setActiveProject(savedProject);
       setCurrentRoute(AppRoute.PROJECT_DETAILS);
       setIsNewProjectModalOpen(false);
-      console.log("Projeto criado com sucesso!");
     } catch (e: any) {
       console.error("ERRO AO CRIAR PROJETO:", e);
-      alert(`Erro ao criar projeto: ${e.message}`);
+      if (e.code === 'permission-denied') {
+          alert("Permissão negada pelo Firebase. Verifique as Regras de Segurança no Console.");
+      } else {
+          alert(`Erro ao criar projeto: ${e.message || e}`);
+      }
     }
   };
 
@@ -156,73 +142,68 @@ function App() {
         return;
     }
 
-    console.log("📸 Iniciando salvamento da foto...");
-    console.log("Dados da foto:", photo);
+    // Validação básica da foto antes de tentar salvar
+    if (!photo || !photo.url) {
+        console.error("Foto inválida recebida:", photo);
+        alert("Erro: Dados da foto inválidos.");
+        return;
+    }
+
+    console.log("📸 A salvar foto...", photo.id);
 
     try {
-      // 1. Se não houver projeto ativo, criar um rascunho
-      if (!activeProject) {
-          console.log("⚠️ Nenhum projeto ativo. Criando rascunho...");
-          const draftId = crypto.randomUUID();
+      let targetProject = activeProject;
+      let isNewDraft = false;
+
+      // 1. Se não houver projeto, cria um rascunho
+      if (!targetProject) {
+          console.log("⚠️ Criando rascunho...");
           const draft: Project = {
-              id: draftId,
+              id: crypto.randomUUID(),
               userId: currentUser.id,
               title: 'Rascunho ' + new Date().toLocaleTimeString(),
               address: 'Localização não definida',
               status: 'In Progress',
-              photos: [photo], // Adiciona a foto diretamente
+              photos: [], // Começa vazio, adicionamos a foto depois
               createdAt: Date.now(),
               coverImage: photo.url
           };
-          
-          // Tenta salvar no Firestore
-          const savedDraft = await saveProject(draft); 
-          console.log("✅ Projeto Rascunho salvo no DB:", savedDraft.id);
-          
-          // Atualiza estado local
-          setProjects([savedDraft, ...projects]);
-          setActiveProject(savedDraft);
-          return;
+          targetProject = draft;
+          isNewDraft = true;
       }
 
-      // 2. Adicionar ao projeto existente
-      console.log("📂 Adicionando ao projeto existente:", activeProject.id);
+      // 2. Adiciona a foto ao array do projeto
+      const updatedPhotos = [...(targetProject.photos || []), photo];
       
-      // Cria uma cópia limpa do projeto atualizado
-      const updatedPhotos = [...(activeProject.photos || []), photo];
-      const updatedProject = {
-          ...activeProject,
+      const projectToSave = {
+          ...targetProject,
           photos: updatedPhotos,
-          // Se não tiver capa, define esta foto como capa
-          coverImage: activeProject.coverImage || photo.url 
+          coverImage: targetProject.coverImage || photo.url
       };
 
-      // Atualiza UI imediatamente (Optimistic Update)
-      setActiveProject(updatedProject);
-      
-      // Atualiza lista geral
-      setProjects(prev => prev.map(p => p.id === activeProject.id ? updatedProject : p));
+      // 3. Atualiza UI IMEDIATAMENTE (Feedback visual instantâneo)
+      setActiveProject(projectToSave);
+      if (isNewDraft) {
+          setProjects([projectToSave, ...projects]);
+      } else {
+          setProjects(prev => prev.map(p => p.id === projectToSave.id ? projectToSave : p));
+      }
 
-      // Salva no DB
-      await saveProject(updatedProject);
-      console.log("✅ Foto salva no projeto com sucesso!");
+      // 4. Salva no Banco de Dados
+      console.log("💾 Enviando para Firebase...");
+      await saveProject(projectToSave);
+      console.log("✅ Salvo no Firebase com sucesso!");
 
-      // (Opcional) Gera descrição em background
+      // 5. (Opcional) Tenta melhorar com IA em segundo plano
+      // Não bloqueia o fluxo principal se falhar
       generateDescription(photo.url).then((desc) => {
-          console.log("Descrição IA gerada:", desc);
-      }).catch(() => {}); // Ignora erro de IA silenciosamente
+          console.log("Descrição IA:", desc);
+      }).catch(err => console.warn("IA falhou (ignorado):", err));
 
     } catch (e: any) {
       console.error("❌ ERRO CRÍTICO AO SALVAR:", e);
-      
-      // Feedback visível ao usuário
-      if (e.code === 'permission-denied') {
-          alert("Erro de Permissão: O banco de dados recusou a gravação.");
-      } else if (e.code === 'storage/quota-exceeded') {
-          alert("Erro: Espaço de armazenamento cheio.");
-      } else {
-          alert(`Falha ao salvar foto: ${e.message || e}`);
-      }
+      alert(`Falha ao salvar: ${e.message || "Erro desconhecido"}`);
+      // Em caso de erro, poderíamos reverter o estado local, mas por enquanto mantemos para não perder a foto visualmente
     }
   };
 
@@ -289,7 +270,6 @@ function App() {
 
   const isAuthRoute = [AppRoute.LANDING, AppRoute.WELCOME, AppRoute.REGISTER, AppRoute.LOGIN].includes(currentRoute);
   const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
-  
   const header = null;
 
   const renderContent = () => {
@@ -310,7 +290,8 @@ function App() {
                 initialProject={activeProject} 
                 onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} 
                 onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} 
-                onEditPhoto={(p) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }} 
+                // Tipagem explícita para o parâmetro p
+                onEditPhoto={(p: Photo) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }} 
                 onUpdateProject={handleUpdateProject} 
                 onViewTour={() => setCurrentRoute(AppRoute.TOUR_VIEWER)} 
             />
@@ -335,7 +316,7 @@ function App() {
           <>
             <ProjectList 
                 projects={projects} 
-                onSelectProject={(p) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
+                onSelectProject={(p: Project) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
                 onCreateProject={() => setIsNewProjectModalOpen(true)} 
                 onDeleteProject={async (id) => { await deleteProject(id); setProjects(prev => prev.filter(p => p.id !== id)); }} 
             />
