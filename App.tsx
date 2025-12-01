@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter } from 'react-router-dom';
-// Importação corrigida
-import { ProjectList } from './components/ProjectList'; 
+import { ProjectList } from './components/ProjectList';
 import { CameraView } from './components/CameraView';
 import { Editor } from './components/Editor';
+// CORREÇÃO: Usando chaves {} para importação nomeada
 import { ProjectDetail } from './components/ProjectDetail'; 
 import { TourViewer } from './components/TourViewer';
 import { NewProjectModal } from './components/NewProjectModal';
@@ -148,9 +148,10 @@ function App() {
           setActiveProject(savedDraft);
           return;
       }
-      generateDescription(photo.url).then((desc: string) => {
-          console.log("Descrição gerada:", desc);
-      });
+      
+      // Chama a IA sem bloquear
+      generateDescription(photo.url).then((desc) => console.log(desc)).catch(() => {});
+
       const updatedProject = {
           ...activeProject,
           photos: [...activeProject.photos, photo],
@@ -158,7 +159,8 @@ function App() {
       };
       setActiveProject(updatedProject);
       saveProject(updatedProject).then((saved) => {
-          setProjects(projects.map(p => p.id === activeProject.id ? saved : p));
+          // CORREÇÃO: Tipagem explícita aqui também
+          setProjects(prev => prev.map((p: Project) => p.id === activeProject.id ? saved : p));
       });
     } catch (e: any) { alert(`Erro: ${e.message}`); }
   };
@@ -243,6 +245,7 @@ function App() {
                 initialProject={activeProject} 
                 onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} 
                 onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} 
+                // CORREÇÃO: Tipagem explícita (p: Photo)
                 onEditPhoto={(p: Photo) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }} 
                 onUpdateProject={handleUpdateProject} 
                 onViewTour={() => setCurrentRoute(AppRoute.TOUR_VIEWER)} 
@@ -268,10 +271,10 @@ function App() {
           <>
             <ProjectList 
                 projects={projects} 
+                // CORREÇÃO: Tipagem explícita (p: Project)
                 onSelectProject={(p: Project) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
                 onCreateProject={() => setIsNewProjectModalOpen(true)} 
-                // CORREÇÃO: Tipagem explícita para o parâmetro 'id'
-                onDeleteProject={async (id: string) => { await deleteProject(id); setProjects(prev => prev.filter(p => p.id !== id)); }} 
+                onDeleteProject={async (id) => { await deleteProject(id); setProjects(prev => prev.filter(p => p.id !== id)); }} 
             />
             {isNewProjectModalOpen && <NewProjectModal onClose={() => setIsNewProjectModalOpen(false)} onCreate={handleCreateProject} />}
           </>
