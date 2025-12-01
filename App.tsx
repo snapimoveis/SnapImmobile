@@ -1,309 +1,75 @@
-import React, { useState, useEffect } from 'react';
-import { HashRouter } from 'react-router-dom';
-import { ProjectList } from './components/ProjectList';
-import { CameraView } from './components/CameraView';
-import { Editor } from './components/Editor';
-import { ProjectDetail } from './components/ProjectDetail'; 
-import { TourViewer } from './components/TourViewer';
-import { NewProjectModal } from './components/NewProjectModal';
-import { LandingScreen } from './components/LandingScreen';
-import { SettingsScreen } from './components/SettingsScreen';
-import { WelcomeScreen } from './components/WelcomeScreen';
-import { RegisterScreen } from './components/RegisterScreen';
-import { LoginScreen } from './components/LoginScreen';
-import { ManagementMenu } from './components/ManagementMenu';
-import { UpdateNotification } from './components/UpdateNotification';
-import { MainLayout } from './components/MainLayout';
-
-import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
-import { generateDescription } from './services/geminiService';
-import { 
-    getCurrentUser, getUserProjects, saveProject, deleteProject, 
-    logoutUser, registerUser, loginUser, saveUserSession, updateUser, deleteUserAccount
-} from './services/storage';
-
-function App() {
-  const [currentRoute, setCurrentRoute] = useState<AppRoute>(AppRoute.LANDING);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [selectedRole, setSelectedRole] = useState<string>('');
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [activePhoto, setActivePhoto] = useState<Photo | null>(null);
-  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
-  const [prefillEmail, setPrefillEmail] = useState('');
-
-  useEffect(() => {
-    const applyTheme = () => {
-      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (isDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    };
-    applyTheme();
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
-  }, []);
-
-  useEffect(() => {
-    const initApp = async () => {
-      const user = getCurrentUser();
-      if (user) {
-        setCurrentUser(user);
-        try {
-          const userProjects = await getUserProjects(user.id);
-          setProjects(userProjects);
-          setCurrentRoute(AppRoute.DASHBOARD);
-        } catch (e) {
-          console.error("Failed to load projects", e);
-        }
-      }
-    };
-    initApp();
-  }, []);
-
-  const handleRoleSelect = (role: string) => {
-    setSelectedRole(role);
-    setCurrentRoute(AppRoute.REGISTER);
-  };
-
-  const handleRegistrationSubmit = async (data: any) => {
-    try {
-        const tempUser: UserProfile = {
-            id: crypto.randomUUID(), 
-            role: selectedRole as any,
-            firstName: data.firstName,
-            lastName: data.lastName,
-            email: data.email,
-            phone: data.phone,
-            cpf: data.cpf,
-            company: data.company,
-            createdAt: Date.now(),
-            password: data.password,
-            preferences: {
-                language: 'pt-PT',
-                notifications: true,
-                marketing: false,
-                theme: 'light'
-            }
-        };
-
-        const newUser = await registerUser(tempUser, data.password);
-        saveUserSession(newUser);
-        setCurrentUser(newUser);
-        setProjects([]);
-        setCurrentRoute(AppRoute.DASHBOARD);
-    } catch (e: any) {
-        if (e.code === 'auth/email-already-in-use' || e.message?.includes('email-already-in-use')) {
-            alert("Este e-mail já está registado. Redirecionando para o login...");
-            setPrefillEmail(data.email);
-            setCurrentRoute(AppRoute.LOGIN);
-            return;
-        } 
-        console.error("Erro no registo:", e);
-        alert("Erro ao criar conta: " + (e.message || "Tente novamente."));
-    }
-  };
-
-  const handleCreateProject = async (details: ProjectDetailsType & { title: string, address: string }) => {
-    if (!currentUser) return;
-    
-    const newProject: Project = {
-      id: crypto.randomUUID(),
-      userId: currentUser.id,
-      title: details.title,
-      address: details.address,
-      details: { ...details },
-      status: 'In Progress',
-      photos: [],
-      createdAt: Date.now()
-    };
-    
-    try {
-      console.log("Tentando criar projeto:", newProject);
-      const savedProject = await saveProject(newProject); 
-      setProjects([savedProject, ...projects]);
-      setActiveProject(savedProject);
-      setCurrentRoute(AppRoute.PROJECT_DETAILS);
-      setIsNewProjectModalOpen(false);
-    } catch (e: any) {
-      // LOG CRÍTICO PARA DIAGNÓSTICO
-      console.error("ERRO AO CRIAR PROJETO:", e);
-      
-      if (e.code === 'permission-denied') {
-          alert("Permissão negada pelo Firebase. Verifique as Regras de Segurança no Console.");
-      } else {
-          alert(`Erro ao criar projeto: ${e.message || e}`);
-      }
-    }
-  };
+// ... (Mantenha os imports iguais, apenas atualize a função handlePhotoCaptured)
 
   const handlePhotoCaptured = async (photo: Photo) => {
-    if (!currentUser) return;
+    if (!currentUser) {
+        alert("Erro: Utilizador não autenticado. Faça login novamente.");
+        return;
+    }
+    
+    console.log("📸 Iniciando processo de salvamento da foto:", photo.id);
+
     try {
+      // Caso 1: Criar Projeto Rascunho se não existir
       if (!activeProject) {
+          console.log("⚠️ Nenhum projeto ativo. Criando rascunho...");
           const draft: Project = {
               id: crypto.randomUUID(),
               userId: currentUser.id,
-              title: 'Imóvel Rascunho',
-              address: 'Sem Morada',
+              title: 'Imóvel Rascunho ' + new Date().toLocaleTimeString(),
+              address: 'Localização não definida',
               status: 'In Progress',
-              photos: [photo],
+              photos: [photo], // A foto vai aqui
               createdAt: Date.now(),
               coverImage: photo.url
           };
+          
+          // Salva no Firestore
           const savedDraft = await saveProject(draft); 
+          console.log("✅ Projeto Rascunho criado com sucesso:", savedDraft.id);
+          
+          // Atualiza Estado
           setProjects([savedDraft, ...projects]);
           setActiveProject(savedDraft);
           return;
       }
-      generateDescription(photo.url).then((desc: string) => {
-          console.log("Descrição gerada:", desc);
-      });
+
+      // Caso 2: Adicionar ao Projeto Existente
+      console.log("📂 Adicionando ao projeto:", activeProject.title);
+      
+      // Gera descrição em background (não bloqueia o salvamento)
+      generateDescription(photo.url).then((desc) => {
+          console.log("🤖 Descrição IA:", desc);
+      }).catch(err => console.warn("⚠️ Erro na descrição IA (ignorado):", err));
+
+      // Cria o objeto atualizado
       const updatedProject = {
           ...activeProject,
           photos: [...activeProject.photos, photo],
-          coverImage: activeProject.coverImage || photo.url
+          // Se não tiver capa, usa esta foto
+          coverImage: activeProject.coverImage || photo.url 
       };
+
+      // Atualiza o estado local imediatamente (UI mais rápida)
       setActiveProject(updatedProject);
-      saveProject(updatedProject).then((saved) => {
-          setProjects(projects.map(p => p.id === activeProject.id ? saved : p));
-      });
-    } catch (e: any) { alert(`Erro: ${e.message}`); }
-  };
-
-  const handleSaveEditedPhoto = async (updatedPhoto: Photo) => {
-      if (!activeProject) return;
-      try {
-        const updatedPhotos = activeProject.photos.map(p => p.id === updatedPhoto.id ? updatedPhoto : p);
-        const updatedProject = { ...activeProject, photos: updatedPhotos, coverImage: updatedPhotos[0].url };
-        const savedProject = await saveProject(updatedProject);
-        setProjects(projects.map(p => p.id === activeProject.id ? savedProject : p));
-        setActiveProject(savedProject);
-        setCurrentRoute(AppRoute.PROJECT_DETAILS);
-      } catch (e) { alert("Erro ao guardar alterações."); }
-  };
-
-  const handleUpdateProject = async (updated: Project) => {
-      try {
-        const savedProject = await saveProject(updated);
-        setProjects(projects.map(p => p.id === updated.id ? savedProject : p));
-        setActiveProject(savedProject);
-      } catch (e) { alert("Erro ao atualizar projeto."); }
-  };
-
-  const handleLoginSubmit = async (email: string, password?: string) => {
-      try {
-          const user = await loginUser(email, password);
-          saveUserSession(user);
-          setCurrentUser(user);
-          const userProjects = await getUserProjects(user.id);
-          setProjects(userProjects);
-          setCurrentRoute(AppRoute.DASHBOARD);
-      } catch (e: any) { alert("Login falhou."); }
-  };
-
-  const handleUpdateUser = async (updatedUser: UserProfile) => {
-      try {
-          const savedUser = await updateUser(updatedUser);
-          saveUserSession(savedUser);
-          setCurrentUser(savedUser);
-      } catch (e) { alert("Erro ao atualizar perfil."); }
-  };
-
-  const handleDeleteAccount = async () => {
-      if (currentUser) {
-          try {
-              await deleteUserAccount(currentUser.email, currentUser.id);
-              await handleLogout();
-          } catch(e) { alert("Erro ao apagar conta."); }
-      }
-  };
-
-  const handleLogout = async () => { await logoutUser(); setCurrentUser(null); setCurrentRoute(AppRoute.LANDING); };
-
-  const handleCentralCameraAction = () => {
-      if (currentRoute === AppRoute.PROJECT_DETAILS && activeProject) {
-          setCurrentRoute(AppRoute.CAMERA);
-      } else {
-          setIsNewProjectModalOpen(true);
-      }
-  };
-
-  const isAuthRoute = [AppRoute.LANDING, AppRoute.WELCOME, AppRoute.REGISTER, AppRoute.LOGIN].includes(currentRoute);
-  const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
-  const header = null;
-
-  const renderContent = () => {
-    switch (currentRoute) {
-      case AppRoute.LANDING: return <LandingScreen onLogin={() => setCurrentRoute(AppRoute.LOGIN)} onFreeTrial={() => setCurrentRoute(AppRoute.WELCOME)} />;
-      case AppRoute.LOGIN: return <LoginScreen initialEmail={prefillEmail} onLogin={handleLoginSubmit} onBack={() => setCurrentRoute(AppRoute.LANDING)} onRegisterClick={() => setCurrentRoute(AppRoute.WELCOME)} />;
-      case AppRoute.WELCOME: return <WelcomeScreen onNext={handleRoleSelect} onBack={() => setCurrentRoute(AppRoute.LANDING)} />;
-      case AppRoute.REGISTER: return <RegisterScreen role={selectedRole} onSubmit={handleRegistrationSubmit} onBack={() => setCurrentRoute(AppRoute.WELCOME)} />;
-      case AppRoute.CAMERA:
-        return <CameraView onClose={() => setCurrentRoute(activeProject ? AppRoute.PROJECT_DETAILS : AppRoute.DASHBOARD)} onPhotoCaptured={handlePhotoCaptured} />;
-      case AppRoute.EDITOR:
-        return activePhoto ? <Editor photo={activePhoto} onSave={handleSaveEditedPhoto} onCancel={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : <div>Erro: Nenhuma foto</div>;
       
-      case AppRoute.PROJECT_DETAILS:
-        if (!activeProject) return <div>Carregando...</div>;
-        return (
-            <ProjectDetail 
-                initialProject={activeProject} 
-                onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} 
-                onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} 
-                onEditPhoto={(p) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }} 
-                onUpdateProject={handleUpdateProject} 
-                onViewTour={() => setCurrentRoute(AppRoute.TOUR_VIEWER)} 
-            />
-        );
+      // Persiste no Firestore
+      await saveProject(updatedProject);
+      console.log("✅ Foto salva no projeto com sucesso!");
 
-      case AppRoute.TOUR_VIEWER:
-         return activeProject ? <TourViewer project={activeProject} onClose={() => setCurrentRoute(AppRoute.PROJECT_DETAILS)} /> : null;
+      // Atualiza a lista geral de projetos
+      setProjects(prev => prev.map(p => p.id === activeProject.id ? updatedProject : p));
 
-      case AppRoute.SETTINGS:
-          return <SettingsScreen 
-                    currentUser={currentUser} 
-                    onUpdateUser={handleUpdateUser} 
-                    onDeleteAccount={handleDeleteAccount} 
-                 />;
-
-      case AppRoute.MENU:
-          return <ManagementMenu onClose={() => setCurrentRoute(AppRoute.DASHBOARD)} onNavigate={(r: string) => r === 'SETTINGS' ? setCurrentRoute(AppRoute.SETTINGS) : setCurrentRoute(AppRoute.DASHBOARD)} onLogout={handleLogout} />;
-
-      case AppRoute.DASHBOARD:
-      default:
-        return (
-          <>
-            <ProjectList 
-                projects={projects} 
-                onSelectProject={(p) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
-                onCreateProject={() => setIsNewProjectModalOpen(true)} 
-                onDeleteProject={async (id) => { await deleteProject(id); setProjects(prev => prev.filter(p => p.id !== id)); }} 
-            />
-            {isNewProjectModalOpen && <NewProjectModal onClose={() => setIsNewProjectModalOpen(false)} onCreate={handleCreateProject} />}
-          </>
-        );
+    } catch (e: any) {
+      console.error("❌ ERRO CRÍTICO AO SALVAR FOTO:", e);
+      
+      if (e.code === 'permission-denied') {
+          alert("Erro de Permissão: O Firebase bloqueou o salvamento. Verifique se está logado.");
+      } else if (e.code === 'storage/quota-exceeded') {
+          alert("Erro: Cota de armazenamento excedida.");
+      } else {
+          alert(`Erro ao salvar a foto: ${e.message || e}`);
+      }
     }
   };
 
-  return (
-    <HashRouter>
-      <UpdateNotification />
-      {(isAuthRoute || isFullScreenTool) ? (
-          <div className="h-screen w-full bg-black overflow-hidden">{renderContent()}</div>
-      ) : (
-          <MainLayout 
-             currentRoute={currentRoute} 
-             onNavigate={setCurrentRoute} 
-             onLogout={handleLogout}
-             onCameraAction={handleCentralCameraAction} 
-             headerComponent={header}
-          >
-             {renderContent()}
-          </MainLayout>
-      )}
-    </HashRouter>
-  );
-}
-export default App;
+// ... (Resto do ficheiro igual)
