@@ -6,6 +6,7 @@ import {
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
     signOut, updateProfile, deleteUser 
 } from 'firebase/auth';
+// Importações do Storage
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { app } from './firebaseConfig';
 import { Project, UserProfile, CompanySettings, Device, Invoice, Photo } from '../types';
@@ -14,30 +15,33 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
-// HELPER: Upload seguro
+// === HELPER: Upload de Imagem Seguro ===
 const uploadImageToStorage = async (base64Image: string | undefined, path: string): Promise<string> => {
     if (!base64Image) return '';
-    if (base64Image.startsWith('http')) return base64Image; // Já é URL
+    // Se já é uma URL curta (http...), retorna ela mesma
+    if (base64Image.startsWith('http')) return base64Image;
     
-    // Se não for base64 de imagem, retorna vazio para não quebrar o banco
+    // Se não for imagem válida, retorna vazio para evitar erro de tamanho
     if (!base64Image.startsWith('data:image')) {
-        console.warn("Formato de imagem inválido para upload, ignorando.");
+        console.warn("Imagem inválida para upload, ignorando.");
         return ''; 
     }
     
     try {
         const storageRef = ref(storage, path);
+        // Upload da string gigante
         await uploadString(storageRef, base64Image, 'data_url');
+        // Obter a URL curta e pública
         const downloadURL = await getDownloadURL(storageRef);
         return downloadURL;
     } catch (error) {
-        console.error("Erro no upload da imagem:", error);
-        // Em caso de erro no upload, retornamos string vazia para não salvar o base64 gigante
+        console.error("Erro no upload:", error);
+        // Em caso de falha, retorna vazio para não travar o banco com base64 gigante
         return ''; 
     }
 };
 
-// ... (Funções de User mantêm-se iguais) ...
+// ... (Funções de User Management mantêm-se iguais) ...
 
 export const registerUser = async (userProfile: UserProfile, password?: string): Promise<UserProfile> => {
     if (!password) throw new Error("Senha obrigatória");
@@ -101,7 +105,8 @@ export const deleteUserAccount = async (email: string, userId: string) => {
     }
 };
 
-// ... (Company Settings mantêm-se iguais) ...
+// ... (Company Settings) ...
+
 export const getCompanySettings = async (): Promise<CompanySettings> => {
     const q = query(collection(db, "companies"), limit(1));
     const querySnapshot = await getDocs(q);
@@ -132,29 +137,26 @@ export const saveCompanySettings = async (settings: CompanySettings): Promise<vo
     }
 };
 
-// ... (Projects) ...
-
 export const getUserProjects = async (userId: string): Promise<Project[]> => {
     const q = query(collection(db, "projects"), where("userId", "==", userId));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
 };
 
-// === FUNÇÃO DE SALVAR PROJETO (CRÍTICA) ===
+// === CORREÇÃO DO SAVE PROJECT ===
 export const saveProject = async (project: Project): Promise<Project> => {
     const projectRef = doc(db, "projects", project.id);
-    
-    // Clone profundo para não afetar o estado da UI enquanto processamos
+    // Clone para não alterar a UI
     const projectToSave = JSON.parse(JSON.stringify(project)) as Project;
 
-    // 1. Upload das Fotos
+    // 1. Processar Fotos (Upload Base64 -> URL)
     if (projectToSave.photos && projectToSave.photos.length > 0) {
         const processedPhotos: Photo[] = [];
         for (const photo of projectToSave.photos) {
             if (photo.url && photo.url.startsWith('data:')) {
                 const path = `projects/${project.id}/photos/${photo.id}_${Date.now()}.jpg`;
-                // Se o upload falhar, a URL fica vazia, mas NÃO salvamos o base64 gigante
                 const publicUrl = await uploadImageToStorage(photo.url, path);
+                // Se upload falhar, url fica vazia, mas evita erro de tamanho
                 processedPhotos.push({ ...photo, url: publicUrl });
             } else {
                 processedPhotos.push(photo);
@@ -163,26 +165,20 @@ export const saveProject = async (project: Project): Promise<Project> => {
         projectToSave.photos = processedPhotos;
     }
 
-    // 2. Upload da Capa
+    // 2. Processar Capa
     if (projectToSave.coverImage && projectToSave.coverImage.startsWith('data:')) {
         // Verifica se a capa é uma das fotos já processadas
-        const matchingPhoto = projectToSave.photos.find(p => p.id === project.coverImage || p.url === project.coverImage); // Compara com original se preciso
+        const existingPhoto = projectToSave.photos.find(p => p.id === project.coverImage || p.url === project.coverImage);
         
-        if (matchingPhoto && matchingPhoto.url.startsWith('http')) {
-             projectToSave.coverImage = matchingPhoto.url;
+        if (existingPhoto && existingPhoto.url.startsWith('http')) {
+             projectToSave.coverImage = existingPhoto.url;
         } else {
              const path = `projects/${project.id}/cover_${Date.now()}.jpg`;
-             const coverUrl = await uploadImageToStorage(projectToSave.coverImage, path);
-             projectToSave.coverImage = coverUrl;
+             projectToSave.coverImage = await uploadImageToStorage(projectToSave.coverImage, path);
         }
     }
-    
-    // SEGURANÇA FINAL: Se ainda sobrar algum base64 gigante, removemos para não travar o banco
-    if (projectToSave.coverImage && projectToSave.coverImage.length > 500000) {
-        console.warn("Imagem de capa muito grande detectada após processamento. Removendo para salvar.");
-        projectToSave.coverImage = '';
-    }
 
+    // 3. Salvar no Firestore (Agora seguro e leve)
     await setDoc(projectRef, projectToSave, { merge: true });
     return projectToSave;
 };
