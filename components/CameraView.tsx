@@ -14,6 +14,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
   onPhotoCaptured,
   onClose,
 }) => {
+  // ───────────────────────────────────────────────
+  // REFs
+  // ───────────────────────────────────────────────
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -25,7 +28,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   const safeSet = (fn: () => void) => mountedRef.current && fn();
 
-  // Estado principal
+  // ───────────────────────────────────────────────
+  // STATE
+  // ───────────────────────────────────────────────
   const [isStreaming, setIsStreaming] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState("");
@@ -33,61 +38,38 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const [hasSaved, setHasSaved] = useState(false);
 
   const [flashVisual, setFlashVisual] = useState(false);
-  const [isLandscape, setIsLandscape] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
 
-  const [showGrid, setShowGrid] = useState(true);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(
-    null
-  );
-  const [capturedPreviews, setCapturedPreviews] = useState<
-    { url: string; ev: string }[]
-  >([]);
+  const [ focusPoint, setFocusPoint ] = useState<{ x: number; y: number } | null>(null);
+  const [ showGrid, setShowGrid ] = useState(true);
+  const [ hdrProfile, setHdrProfile ] = useState<"interior" | "exterior">("interior");
+  const [ showHoldSteady, setShowHoldSteady ] = useState(false);
 
-  const [showHoldSteady, setShowHoldSteady] = useState(false);
-  const [hdrProfile, setHdrProfile] = useState<"interior" | "exterior">(
-    "interior"
-  );
-
-  // Lentes iPhone
+  // Lentes detectadas
   const [lens, setLens] = useState<LensType>("wide");
-  const [wideDeviceId, setWideDeviceId] = useState<string | undefined>(
-    undefined
-  );
-  const [ultraDeviceId, setUltraDeviceId] = useState<string | undefined>(
-    undefined
-  );
+  const [wideDeviceId, setWideDeviceId] = useState<string | null>(null);
+  const [ultraDeviceId, setUltraDeviceId] = useState<string | null>(null);
 
-  // =====================================
+  // ───────────────────────────────────────────────
   // INIT
-  // =====================================
+  // ───────────────────────────────────────────────
   useEffect(() => {
     mountedRef.current = true;
 
-    // sons WAV + política de autoplay do Safari
+    // sons
     shutterSound.current = new Audio("/iphone-camera-capture-6448.wav");
-    shutterSound.current.preload = "auto";
-    shutterSound.current.muted = false;
-
     countdownBeep.current = new Audio("/mixkit-simple-game-countdown-921.wav");
-    countdownBeep.current.preload = "auto";
-    countdownBeep.current.muted = false;
 
-    const handleResize = () =>
-      safeSet(() => setIsLandscape(window.innerWidth > window.innerHeight));
-    handleResize();
-
-    window.addEventListener("resize", handleResize);
+    startCamera("wide");
 
     return () => {
       mountedRef.current = false;
       stopCamera();
-      window.removeEventListener("resize", handleResize);
     };
   }, []);
 
-  // Reinicia câmera ao fechar o preview
+  // Quando fecha o preview, reinicia a câmera
   useEffect(() => {
     if (!previewImage) {
       startCamera(lens);
@@ -95,53 +77,38 @@ export const CameraView: React.FC<CameraViewProps> = ({
     }
   }, [previewImage]);
 
-  // =====================================
-  // DETECTAR LENTES
-  // =====================================
+  // ───────────────────────────────────────────────
+  // DETECTAR CÂMERAS (0.5x e 1x)
+  // ───────────────────────────────────────────────
   const detectBackCameras = async () => {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videos = devices.filter((d) => d.kind === "videoinput");
 
-    let wideCam: MediaDeviceInfo | undefined;
-    let ultraCam: MediaDeviceInfo | undefined;
+    let wide: MediaDeviceInfo | undefined;
+    let ultra: MediaDeviceInfo | undefined;
 
     videos.forEach((cam) => {
-      const lbl = cam.label.toLowerCase();
+      const l = cam.label.toLowerCase();
 
-      // Ultra-wide (0.5x)
-      if (!ultraCam && (lbl.includes("0.5") || lbl.includes("ultra"))) {
-        ultraCam = cam;
-      }
+      if (!ultra && (l.includes("0.5") || l.includes("ultra"))) ultra = cam;
 
-      // Wide (1x)
-      if (
-        !wideCam &&
-        !lbl.includes("front") &&
-        (lbl.includes("back") ||
-          lbl.includes("wide") ||
-          lbl.includes("1.") ||
-          lbl.includes("main"))
-      ) {
-        wideCam = cam;
+      if (!wide && !l.includes("front") && (l.includes("back") || l.includes("1.") || l.includes("wide"))) {
+        wide = cam;
       }
     });
 
-    // Fallbacks
-    if (!wideCam)
-      wideCam = videos.find((v) => !v.label.toLowerCase().includes("front"));
+    if (!wide) wide = videos.find(v => !v.label.toLowerCase().includes("front")) || videos[0];
+    if (!ultra && videos.length > 1) ultra = videos.find(v => v.deviceId !== wide!.deviceId);
 
-    if (!ultraCam)
-      ultraCam = videos.find((v) => v.deviceId !== wideCam?.deviceId);
+    setWideDeviceId(wide?.deviceId || null);
+    setUltraDeviceId(ultra?.deviceId || null);
 
-    setWideDeviceId(wideCam?.deviceId);
-    setUltraDeviceId(ultraCam?.deviceId);
-
-    return { wideCam, ultraCam };
+    return { wide, ultra };
   };
 
-  // =====================================
+  // ───────────────────────────────────────────────
   // START CAMERA
-  // =====================================
+  // ───────────────────────────────────────────────
   const startCamera = async (targetLens: LensType) => {
     stopCamera();
 
@@ -149,22 +116,18 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
     if (!wideDeviceId && !ultraDeviceId) {
       const cams = await detectBackCameras();
-      deviceId =
-        targetLens === "ultra"
-          ? cams.ultraCam?.deviceId
-          : cams.wideCam?.deviceId;
+      deviceId = targetLens === "ultra"
+        ? cams.ultra?.deviceId || cams.wide?.deviceId
+        : cams.wide?.deviceId;
     } else {
-      deviceId =
-        targetLens === "ultra" ? ultraDeviceId ?? wideDeviceId : wideDeviceId;
+      deviceId = targetLens === "ultra" ? ultraDeviceId || wideDeviceId! : wideDeviceId!;
     }
 
     const constraints: MediaStreamConstraints = {
       video: {
         deviceId: deviceId ? { exact: deviceId } : undefined,
-        facingMode: undefined, // força NÃO usar câmera frontal
-        width: { ideal: 3840 },
-        height: { ideal: 2160 },
-        aspectRatio: 4 / 3
+        width: { ideal: 4032 },
+        height: { ideal: 3024 }
       }
     };
 
@@ -179,32 +142,34 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
       setLens(targetLens);
     } catch (err) {
-      console.error("Erro ao iniciar câmera:", err);
-      alert("Não foi possível aceder à câmara.");
+      console.error("Erro ao iniciar câmara:", err);
+      alert("Erro ao aceder à câmara.");
     }
   };
 
+  // ───────────────────────────────────────────────
+  // STOP CAMERA
+  // ───────────────────────────────────────────────
   const stopCamera = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
     if (videoRef.current) videoRef.current.srcObject = null;
     setIsStreaming(false);
   };
 
-  // =====================================
-  // TAP-TO-FOCUS — cast seguro
-  // =====================================
+  // ───────────────────────────────────────────────
+  // TAP TO FOCUS
+  // ───────────────────────────────────────────────
   const handleTapToFocus = async (
     e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>
   ) => {
     if (!streamRef.current) return;
 
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const clientX = "touches" in e ? e.touches[0].clientX : (e as any).clientX;
-    const clientY = "touches" in e ? e.touches[0].clientY : (e as any).clientY;
-
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ("touches" in e ? e.touches[0].clientX : e.clientX) - rect.left;
+    const y = ("touches" in e ? e.touches[0].clientY : e.clientY) - rect.top;
 
     setFocusPoint({ x, y });
     setTimeout(() => setFocusPoint(null), 1500);
@@ -214,16 +179,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
     if (caps.focusMode?.includes("single-shot")) {
       try {
-        await (track as any).applyConstraints({
-          advanced: [{ focusMode: "single-shot" }]
-        });
+        await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] as any });
       } catch {}
     }
   };
 
-  // =====================================
+  // ───────────────────────────────────────────────
   // SHUTTER
-  // =====================================
+  // ───────────────────────────────────────────────
   const handleShutterClick = () => {
     if (isProcessing) return;
 
@@ -248,9 +211,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
     }, 1000);
   };
 
-  // =====================================
-  // HDR + IA
-  // =====================================
+  // ───────────────────────────────────────────────
+  // CAPTURAR HDR
+  // ───────────────────────────────────────────────
   const captureHDR = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
@@ -262,65 +225,60 @@ export const CameraView: React.FC<CameraViewProps> = ({
     const ctx = canvas.getContext("2d")!;
     const frames: string[] = [];
 
-    const brightness = [0.6, 0.8, 1, 1.2, 1.3, 1.4];
+    const brightness = [0.6, 0.8, 1.0, 1.15, 1.25];
 
     for (let i = 0; i < brightness.length; i++) {
+      ctx.filter = `brightness(${brightness[i]})`;
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-
-      ctx.filter = `brightness(${brightness[i]}) contrast(1.1) saturate(1.05)`;
-      ctx.drawImage(video, 0, 0);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.filter = "none";
 
       const jpeg = canvas.toDataURL("image/jpeg", 0.95);
       frames.push(jpeg);
 
-      setProcessingProgress(((i + 1) / brightness.length) * 50);
-
-      setFlashVisual(true);
-      await new Promise((r) => setTimeout(r, 60));
-      setFlashVisual(false);
+      setProcessingProgress(((i + 1) / brightness.length) * 40);
     }
 
     setProcessingStep("Processando IA…");
+    setProcessingProgress(75);
 
-    let finalImage = frames[2]; // exposição média
+    let finalImage = frames[Math.floor(frames.length / 2)];
 
     try {
       const ai = await enhanceImage(frames);
-      if (ai?.length > 1000) finalImage = ai;
+      if (ai && ai.length > 1000) finalImage = ai;
     } catch {}
 
-    setProcessingProgress(100);
     setPreviewImage(finalImage);
-
-    await savePhoto(finalImage, frames[2]);
+    await savePhoto(finalImage);
+    setProcessingProgress(100);
     setIsProcessing(false);
   };
 
-  // =====================================
-  // SALVAR FOTO (agora com originalUrl + timestamp)
-  // =====================================
-  const savePhoto = async (url: string, original: string) => {
+  // ───────────────────────────────────────────────
+  // SAVE PHOTO
+  // ───────────────────────────────────────────────
+  const savePhoto = async (url: string) => {
     if (hasSaved) return;
 
     const newPhoto: Photo = {
       id: crypto.randomUUID(),
       url,
-      originalUrl: original,
+      originalUrl: url,
       name: `SNAP_${Date.now()}.jpg`,
+      type: "hdr",
       createdAt: Date.now(),
       timestamp: Date.now(),
-      type: "hdr"
     };
 
     await onPhotoCaptured(newPhoto);
     setHasSaved(true);
   };
 
-  // =====================================
+  // ───────────────────────────────────────────────
   // PREVIEW
-  // =====================================
+  // ───────────────────────────────────────────────
   if (previewImage) {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center z-[200]">
@@ -333,17 +291,19 @@ export const CameraView: React.FC<CameraViewProps> = ({
           <X size={26} />
         </button>
 
-        <div className="absolute bottom-10 bg-green-600 text-white px-6 py-3 rounded-full flex items-center gap-3">
-          <CheckCircle size={22} />
-          FOTO GUARDADA
-        </div>
+        {hasSaved && (
+          <div className="absolute bottom-10 bg-green-600 text-white px-6 py-3 rounded-full flex items-center gap-3">
+            <CheckCircle size={22} />
+            FOTO GUARDADA
+          </div>
+        )}
       </div>
     );
   }
 
-  // =====================================
+  // ───────────────────────────────────────────────
   // UI PRINCIPAL
-  // =====================================
+  // ───────────────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-black text-white flex flex-col z-50">
 
@@ -356,9 +316,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
         </div>
       )}
 
-      {/* Barra superior */}
+      {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-4">
-        <button onClick={onClose} className="p-3 bg-black/40 rounded-full">
+        <button className="p-3 bg-black/40 rounded-full" onClick={onClose}>
           <X size={22} />
         </button>
 
@@ -372,10 +332,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
             {hdrProfile}
           </button>
 
-          <button
-            onClick={() => setShowGrid((g) => !g)}
-            className="p-3 bg-black/40 rounded-full"
-          >
+          <button className="p-3 bg-black/40 rounded-full" onClick={() => setShowGrid((g) => !g)}>
             <Grid3X3 size={20} />
           </button>
         </div>
@@ -385,7 +342,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       <div className="flex-1 relative flex items-center justify-center">
         <div
           onClick={handleTapToFocus}
-          className="relative w-full h-full max-w-[90%] mx-auto bg-black overflow-hidden rounded-xl"
+          className="relative w-full h-full bg-black overflow-hidden"
         >
           <video
             ref={videoRef}
@@ -394,9 +351,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
             className="absolute inset-0 w-full h-full object-cover"
           />
 
-          {flashVisual && (
-            <div className="absolute inset-0 bg-white opacity-80" />
-          )}
+          {flashVisual && <div className="absolute inset-0 bg-white opacity-80" />}
 
           {focusPoint && (
             <div
@@ -413,21 +368,19 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
           {/* GRID */}
           {showGrid && (
-            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-25">
+            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-20">
               {[...Array(9)].map((_, i) => (
                 <div key={i} className="border border-white/20" />
               ))}
             </div>
           )}
 
-          {/* BOTÕES 1x / 0.5x */}
-          <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+          {/* 1x / 0.5x */}
+          <div className="absolute bottom-4 right-4 flex flex-col gap-3">
             <button
               onClick={() => startCamera("wide")}
-              className={`w-12 h-12 rounded-full ${
-                lens === "wide"
-                  ? "bg-white text-black"
-                  : "bg-black/70 text-white"
+              className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold ${
+                lens === "wide" ? "bg-white text-black" : "bg-black/60 text-white"
               }`}
             >
               1x
@@ -435,10 +388,8 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
             <button
               onClick={() => startCamera("ultra")}
-              className={`w-12 h-12 rounded-full ${
-                lens === "ultra"
-                  ? "bg-white text-black"
-                  : "bg-black/70 text-white"
+              className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold ${
+                lens === "ultra" ? "bg-white text-black" : "bg-black/60 text-white"
               }`}
             >
               0.5x
@@ -447,27 +398,22 @@ export const CameraView: React.FC<CameraViewProps> = ({
         </div>
       </div>
 
-      {/* BOTÃO DE CAPTURA */}
+      {/* Shutter */}
       <div className="flex justify-center py-6">
         <button
           onClick={handleShutterClick}
-          disabled={isProcessing}
-          className="w-24 h-24 rounded-full border-4 border-white flex items-center justify-center active:scale-95 transition-transform"
+          className="w-24 h-24 rounded-full border-4 border-white flex items-center justify-center"
         >
           <div className="w-20 h-20 bg-white rounded-full" />
         </button>
       </div>
 
-      {/* OVERLAY PROCESSANDO */}
+      {/* Processing overlay */}
       {isProcessing && (
         <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50">
           <div className="w-16 h-16 border-4 border-white/20 border-t-yellow-400 rounded-full animate-spin mb-4" />
-          <div className="text-yellow-400 font-bold text-xl uppercase">
-            {processingStep}
-          </div>
-          <div className="text-white/60 mt-2">
-            {Math.round(processingProgress)}%
-          </div>
+          <div className="text-yellow-400 text-xl font-bold">{processingStep}</div>
+          <div className="text-white/60 mt-2">{Math.round(processingProgress)}%</div>
         </div>
       )}
 
