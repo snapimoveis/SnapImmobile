@@ -1,6 +1,6 @@
 import React from 'react';
 import { Project } from '../types';
-import { Search, MapPin, Camera, Image as ImageIcon, ChevronRight, Bed, Bath, Square } from 'lucide-react';
+import { Search, MapPin, Camera, Image as ImageIcon, ChevronRight, Bed, Bath, Square, Trash2 } from 'lucide-react';
 import { Card, Button } from './ui';
 
 interface ProjectListProps {
@@ -10,7 +10,7 @@ interface ProjectListProps {
   onDeleteProject: (id: string) => void;
 }
 
-export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProject, onCreateProject }) => {
+export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProject, onCreateProject, onDeleteProject }) => {
   
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -21,21 +21,23 @@ export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProj
   if (projects.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] text-center p-6 animate-in fade-in zoom-in duration-500">
-        <div className="w-24 h-24 bg-brand-gray-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-6">
-          <Camera size={40} className="text-gray-400" />
+        <div className="w-24 h-24 bg-brand-purple/5 border-2 border-brand-purple/20 rounded-full flex items-center justify-center mb-6 shadow-sm">
+          <Camera size={40} className="text-brand-purple" />
         </div>
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Sem imóveis recentes</h2>
         <p className="text-gray-500 dark:text-gray-400 max-w-xs mb-8 text-sm">Comece por criar o seu primeiro imóvel para capturar fotos incríveis.</p>
-        {/* Botão auxiliar caso o FAB não seja óbvio */}
+        <Button onClick={onCreateProject} variant="secondary">
+          + Novo imóvel
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-full text-gray-900 dark:text-white transition-colors duration-300">
+    <div className="min-h-full pb-24 bg-brand-gray-50 dark:bg-black text-gray-900 dark:text-white transition-colors duration-300">
       
-      {/* Barra de Pesquisa (Agora logo abaixo do Header principal) */}
-      <div className="px-4 py-4 bg-white dark:bg-[#121212] border-b border-gray-100 dark:border-white/5 mb-6">
+      {/* Barra de Pesquisa */}
+      <div className="px-4 py-4 bg-white dark:bg-[#121212] border-b border-gray-100 dark:border-white/5 mb-6 sticky top-0 z-10">
         <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search size={18} className="text-gray-400" />
@@ -48,7 +50,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProj
         </div>
       </div>
 
-      <div className="px-4 space-y-8 pb-24">
+      <div className="px-4 space-y-8 pb-32">
         
         {/* ATIVIDADE RECENTE */}
         {recentProjects.length > 0 && (
@@ -58,7 +60,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProj
               </div>
               <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4">
                   {recentProjects.map(proj => (
-                      <div key={proj.id} onClick={() => onSelectProject(proj)} className="shrink-0 w-36 cursor-pointer active:scale-95 transition-transform group">
+                      <div key={proj.id} onClick={() => onSelectProject(proj)} className="shrink-0 w-36 cursor-pointer active:scale-95 transition-transform group relative">
                           <div className="aspect-square rounded-xl overflow-hidden bg-gray-200 dark:bg-[#1a1a1a] border border-gray-100 dark:border-white/5 relative">
                               {proj.coverImage ? (
                                   <img src={proj.coverImage} className="w-full h-full object-cover" alt="" />
@@ -77,55 +79,75 @@ export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProj
           </div>
         )}
 
-        {/* LISTA VERTICAL (Estilo Referência) */}
+        {/* LISTA VERTICAL DE IMÓVEIS */}
         <div className="space-y-6">
             <div className="px-1">
                <h2 className="text-base font-bold text-gray-900 dark:text-white">Todos os imóveis</h2>
             </div>
             
             {projects.map((project) => (
-                <div 
+                <Card 
                     key={project.id} 
                     onClick={() => onSelectProject(project)}
-                    className="cursor-pointer group active:scale-[0.98] transition-transform"
+                    hoverEffect
+                    className="flex flex-col group relative"
                 >
-                    {/* Título FORA do card, estilo referência */}
-                    <div className="mb-2 px-1">
-                        <h3 className="text-lg font-bold leading-tight text-gray-900 dark:text-white">{project.title}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{formatDate(project.createdAt)}</p>
-                    </div>
-
-                    {/* Card Imagem */}
-                    <div className="aspect-[4/3] w-full bg-white dark:bg-[#121212] rounded-2xl overflow-hidden relative shadow-sm border border-gray-200 dark:border-white/10">
+                    {/* Imagem */}
+                    <div className="relative aspect-[16/9] bg-gray-100 dark:bg-white/5 overflow-hidden">
                         {project.coverImage ? (
-                            <img src={project.coverImage} className="w-full h-full object-cover" alt={project.title} />
+                            <img src={project.coverImage} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={project.title} />
                         ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 dark:text-gray-600 bg-gray-50 dark:bg-white/5">
                                 <Camera size={32} strokeWidth={1.5} />
                             </div>
                         )}
-
-                        {/* Menu de 3 pontos (visual) */}
-                        <div className="absolute top-3 right-3 bg-white/90 dark:bg-black/60 backdrop-blur-md p-1.5 rounded-full shadow-sm">
-                            <div className="flex gap-0.5">
-                                <div className="w-1 h-1 bg-gray-800 dark:bg-white rounded-full"></div>
-                                <div className="w-1 h-1 bg-gray-800 dark:bg-white rounded-full"></div>
-                                <div className="w-1 h-1 bg-gray-800 dark:bg-white rounded-full"></div>
-                            </div>
-                        </div>
                         
-                        {/* Badge de Fotos */}
-                        <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 border border-white/10">
-                             <Camera size={12} /> 
-                             <span>{project.photos.length}</span>
+                        <div className="absolute top-3 left-3">
+                             <span className="px-2.5 py-1 bg-white/90 dark:bg-black/80 backdrop-blur-md rounded-lg text-[10px] font-bold uppercase text-brand-purple shadow-sm">
+                                {project.status === 'Completed' ? 'Concluído' : 'Ativo'}
+                             </span>
                         </div>
 
-                        {/* Marca d'água Nodalview Style (Opcional) */}
-                        <div className="absolute bottom-3 right-3 opacity-50">
-                             {/* <span className="text-[8px] font-black text-white uppercase tracking-widest drop-shadow-md">SNAP</span> */}
+                        {/* === BOTÃO DE DELETAR (NOVO) === */}
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation(); // Impede de abrir o projeto ao clicar no lixo
+                                if (window.confirm('Tem a certeza que deseja eliminar este projeto?')) {
+                                    onDeleteProject(project.id);
+                                }
+                            }}
+                            className="absolute top-3 right-3 p-2 bg-white/90 dark:bg-black/60 backdrop-blur-md rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors shadow-sm z-10"
+                        >
+                            <Trash2 size={18} />
+                        </button>
+                        
+                        <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1">
+                             <Camera size={12} /> {project.photos.length}
                         </div>
                     </div>
-                </div>
+
+                    {/* Info */}
+                    <div className="p-4">
+                        <div className="flex justify-between items-start mb-2">
+                             <h3 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-1">{project.title}</h3>
+                             <ChevronRight size={18} className="text-gray-300" />
+                        </div>
+                        <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-xs mb-4">
+                             <MapPin size={12} />
+                             <span className="truncate">{project.address || 'Endereço não informado'}</span>
+                             <span className="mx-1">•</span>
+                             <span>{formatDate(project.createdAt)}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-white/10 text-xs text-gray-600 dark:text-gray-400">
+                             <div className="flex gap-4">
+                                <span className="flex items-center gap-1"><Bed size={14} className="text-brand-purple"/> {project.details?.rooms || '-'}</span>
+                                <span className="flex items-center gap-1"><Bath size={14} className="text-brand-purple"/> {project.details?.bathrooms || '-'}</span>
+                                <span className="flex items-center gap-1"><Square size={14} className="text-brand-purple"/> {project.details?.area || '-'} m²</span>
+                             </div>
+                        </div>
+                    </div>
+                </Card>
             ))}
         </div>
       </div>
