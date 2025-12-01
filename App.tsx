@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter } from 'react-router-dom';
-// Header removido pois não está sendo usado, para limpar erros
 import { ProjectList } from './components/ProjectList';
 import { CameraView } from './components/CameraView';
 import { Editor } from './components/Editor';
-// AGORA TANTO FAZ SE IMPORTA COM {} OU SEM {}
 import { ProjectDetail } from './components/ProjectDetail'; 
 import { TourViewer } from './components/TourViewer';
 import { NewProjectModal } from './components/NewProjectModal';
@@ -34,7 +32,6 @@ function App() {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [prefillEmail, setPrefillEmail] = useState('');
 
-  // === MODO ESCURO AUTOMÁTICO ===
   useEffect(() => {
     const applyTheme = () => {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -48,7 +45,6 @@ function App() {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   }, []);
 
-  // Inicialização
   useEffect(() => {
     const initApp = async () => {
       const user = getCurrentUser();
@@ -111,6 +107,7 @@ function App() {
 
   const handleCreateProject = async (details: ProjectDetailsType & { title: string, address: string }) => {
     if (!currentUser) return;
+    
     const newProject: Project = {
       id: crypto.randomUUID(),
       userId: currentUser.id,
@@ -121,13 +118,24 @@ function App() {
       photos: [],
       createdAt: Date.now()
     };
+    
     try {
+      console.log("Tentando criar projeto:", newProject);
       const savedProject = await saveProject(newProject); 
       setProjects([savedProject, ...projects]);
       setActiveProject(savedProject);
       setCurrentRoute(AppRoute.PROJECT_DETAILS);
       setIsNewProjectModalOpen(false);
-    } catch (e: any) { alert('Erro ao criar projeto.'); }
+    } catch (e: any) {
+      // LOG CRÍTICO PARA DIAGNÓSTICO
+      console.error("ERRO AO CRIAR PROJETO:", e);
+      
+      if (e.code === 'permission-denied') {
+          alert("Permissão negada pelo Firebase. Verifique as Regras de Segurança no Console.");
+      } else {
+          alert(`Erro ao criar projeto: ${e.message || e}`);
+      }
+    }
   };
 
   const handlePhotoCaptured = async (photo: Photo) => {
@@ -244,8 +252,7 @@ function App() {
                 initialProject={activeProject} 
                 onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} 
                 onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} 
-                // CORREÇÃO AQUI: Adicionado tipagem para 'p'
-                onEditPhoto={(p: Photo) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }} 
+                onEditPhoto={(p) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }} 
                 onUpdateProject={handleUpdateProject} 
                 onViewTour={() => setCurrentRoute(AppRoute.TOUR_VIEWER)} 
             />
@@ -270,8 +277,7 @@ function App() {
           <>
             <ProjectList 
                 projects={projects} 
-                // CORREÇÃO AQUI: Adicionado tipagem para 'p'
-                onSelectProject={(p: Project) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
+                onSelectProject={(p) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
                 onCreateProject={() => setIsNewProjectModalOpen(true)} 
                 onDeleteProject={async (id) => { await deleteProject(id); setProjects(prev => prev.filter(p => p.id !== id)); }} 
             />
