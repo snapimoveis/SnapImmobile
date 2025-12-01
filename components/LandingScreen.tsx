@@ -1,86 +1,63 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Mail, Lock } from 'lucide-react';
-import { Button, Input } from './ui';
+import React from 'react';
+import { Button } from './ui';
 
-interface LoginScreenProps {
-  onLogin: (email: string, password?: string) => void;
-  onBack: () => void;
-  onRegisterClick: () => void;
-  initialEmail?: string;
+interface LandingScreenProps {
+  onLogin: () => void;
+  onFreeTrial: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack, onRegisterClick, initialEmail = '' }) => {
-  const [email, setEmail] = useState(initialEmail);
-  const [password, setPassword] = useState('');
-
-  useEffect(() => {
-    if (initialEmail) setEmail(initialEmail);
-  }, [initialEmail]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email) onLogin(email.trim(), password);
-  };
-
+export const LandingScreen: React.FC<LandingScreenProps> = ({ onLogin, onFreeTrial }) => {
   return (
-    <div className="min-h-screen bg-brand-gray-50 dark:bg-brand-dark flex flex-col font-sans justify-center p-6 transition-colors duration-300">
-      <div className="flex-1 flex flex-col justify-center max-w-md mx-auto w-full">
+    <div className="relative h-screen w-full bg-[#2D1B4E] overflow-hidden font-sans">
+      
+      {/* Background Image com Overlay Roxo */}
+      <div className="absolute inset-0 z-0">
+        <img 
+            src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=2653&auto=format&fit=crop" 
+            className="w-full h-full object-cover opacity-20 mix-blend-overlay"
+            alt="Background"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#2D1B4E]/90 via-[#2D1B4E]/80 to-[#2D1B4E]" />
+      </div>
+
+      <div className="relative z-10 flex flex-col h-full px-6 py-12 max-w-md mx-auto justify-center items-center text-center">
         
-        <div className="flex flex-col items-center mb-10 animate-in slide-in-from-bottom-4 duration-500">
-          <div className="w-24 h-24 bg-brand-purple rounded-[2rem] flex items-center justify-center mb-6 shadow-xl shadow-brand-purple/30 transform rotate-3 hover:rotate-0 transition-transform duration-300">
-             <span className="text-white font-bold text-4xl tracking-tighter">S</span>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 text-center">Bem-vindo de volta!</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-center">Entre na sua conta para continuar a gerir os seus imóveis.</p>
+        {/* LOGO GRANDE */}
+        <div className="mb-12 animate-in zoom-in duration-700">
+            {/* Modo Claro (se houver fundo claro) / Modo Escuro (se houver fundo escuro) - Aqui forçamos branco porque o fundo é roxo */}
+            <img 
+              src="/brand/logo_color.png" 
+              alt="Snap Immobile" 
+              className="w-48 h-auto object-contain brightness-0 invert" 
+            />
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 animate-in fade-in duration-700">
-             <Input 
-                type="email" 
-                placeholder="E-Mail" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)}
-                icon={<Mail size={20} />}
-                required
-             />
-             
-             <div>
-               <Input 
-                  type="password" 
-                  placeholder="Senha" 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)}
-                  icon={<Lock size={20} />}
-                  required
-               />
-               <div className="flex justify-end mt-2">
-                  <button type="button" className="text-sm text-brand-purple font-bold hover:underline">
-                      Esqueceu a senha?
-                  </button>
-               </div>
-             </div>
-
-             <div className="pt-4">
-                <Button type="submit" variant="secondary" size="lg" fullWidth>
-                    ENTRAR
-                </Button>
-             </div>
-        </form>
-
-        <div className="mt-8 text-center">
-            <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Não tem conta?{' '}
-                <button type="button" onClick={onRegisterClick} className="text-brand-orange font-bold hover:underline ml-1">
-                    Registe-se
-                </button>
+        <div className="space-y-6 animate-in slide-in-from-bottom-8 duration-1000 delay-300">
+            <h2 className="text-white text-lg font-medium tracking-wide uppercase opacity-90">
+                AUMENTE A SUA VISIBILIDADE
+            </h2>
+            
+            <p className="text-gray-300 text-base leading-relaxed max-w-xs mx-auto">
+                Captação profissional fácil, com qualidade visual através do seu smartphone, para melhorar os seus anúncios de imóveis.
             </p>
         </div>
 
-        <div className="mt-auto pt-10 flex justify-center">
-            <button onClick={onBack} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
-                <ArrowLeft size={18} /> Voltar ao início
-            </button>
+        <div className="mt-16 w-full space-y-4 animate-in fade-in duration-1000 delay-500">
+            <Button onClick={onLogin} variant="outline" size="lg" fullWidth className="border-white text-white hover:bg-white/10">
+                JÁ TEM CONTA? ENTRE AQUI
+            </Button>
+            
+            <div className="flex items-center justify-center gap-4 text-gray-400 text-sm">
+                <div className="h-[1px] w-12 bg-gray-600"></div>
+                <span>OU</span>
+                <div className="h-[1px] w-12 bg-gray-600"></div>
+            </div>
+
+            <Button onClick={onFreeTrial} variant="secondary" size="lg" fullWidth>
+                FAÇA UM TESTE GRATUITO!
+            </Button>
         </div>
+
       </div>
     </div>
   );
