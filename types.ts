@@ -1,186 +1,99 @@
-// =====================================================
-// USER PROFILE — totalmente compatível com Firebase
-// =====================================================
+// -------------------------------------------
+// USER PROFILE
+// -------------------------------------------
+export interface UserPreferences {
+  language: string;
+  notifications: boolean;
+  marketing: boolean;
+  theme: string;
+}
+
 export interface UserProfile {
   id: string;
-  role: 'admin' | 'editor' | 'viewer' | 'Administrador' | 'Fotografo';
+  role: string;
   firstName: string;
   lastName: string;
   email: string;
-  phone?: string;
-  cpf?: string;
-  company?: string;
-  createdAt: number;
-  
-  // Campos opcionais permitidos pelo Firestore
-  avatar?: string;
-  lastActive?: number;
-  watermarkUrl?: string;
-  deviceId?: string;
+  phone?: string | null;
+  cpf?: string | null;
+  company?: string | null;
 
-  preferences: {
-    language: string;
-    notifications: boolean;
-    marketing: boolean;
-    theme: 'light' | 'dark' | 'system';
-  };
+  // ⚠ Campo usado apenas no registo (não salvo no Firestore)
+  password?: string;
+
+  createdAt: number;
+  preferences: UserPreferences;
 }
 
+// -------------------------------------------
+// PROJECT DETAILS
+// -------------------------------------------
+export interface ProjectDetails {
+  rooms?: number | null;
+  area?: number | null;
+  price?: number | null;
+  bathrooms?: number | null;
+  garage?: number | null;
+  description?: string | null;
 
+  // Garantia que não explode erros:
+  address: string;
+}
 
-// =====================================================
-// PHOTO — compatível com CameraView e storage.ts
-// =====================================================
+// -------------------------------------------
+// PHOTO
+// -------------------------------------------
 export interface Photo {
   id: string;
-  url: string;
-  name: string;
-  type?: string;         // 'hdr', 'original', etc.
-  createdAt?: number;    
-  timestamp?: number;     // necessário para ordenação
-  originalUrl?: string;   // só usada antes do upload
+  url: string;             // URL final
+  name: string;            // Nome do ficheiro
+  type?: string;           // "hdr" ou "standard"
+  createdAt: number;       // Timestamp do upload
+  timestamp?: number;      // Para ordenação e histórico
+  originalUrl?: string;    // Usado no editor se necessário
 }
 
-
-
-// =====================================================
-// CONTACT
-// =====================================================
-export interface Contact {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: string;
-  notes?: string;
-}
-
-
-
-// =====================================================
-// PROJECT DETAILS — usado no formulário de criação
-// =====================================================
-export interface ProjectDetails {
-  rooms?: number;
-  area?: number;
-  price?: number;
-  description?: string;
-  bathrooms?: number;
-  year?: number;
-}
-
-
-
-// =====================================================
-// PROJECT — compatível 100% com a versão final do storage.ts
-// =====================================================
+// -------------------------------------------
+// PROJECT
+// -------------------------------------------
 export interface Project {
   id: string;
   userId: string;
 
   title: string;
   address: string;
-
-  details?: ProjectDetails;
-
-  status: 'In Progress' | 'Completed' | 'Archived';
-
-  photos: Photo[];      // array sempre existente
-
-  contacts?: Contact[];
+  status: "In Progress" | "Completed";
 
   createdAt: number;
 
-  // Firestore nunca permite undefined → deixar opcional porém presente
+  details: ProjectDetails;
+
+  // Fotos processadas + capa podem ser null
+  photos: Photo[];
   coverImage?: string | null;
 }
 
-
-
-// =====================================================
-// EDITOR (no modelo original)
-// =====================================================
-export enum ToolMode {
-  CROP = 'crop',
-  FILTER = 'filter',
-  ADJUST = 'adjust',
-  TEXT = 'text',
-  DRAW = 'draw',
-  WATERMARK = 'watermark',
-  MAGIC_ERASE = 'magic_erase',
-  VIRTUAL_STAGING = 'virtual_staging'
-}
-
-
-
-// =====================================================
-// COMPANY SETTINGS
-// =====================================================
-export interface CompanySettings {
-  id?: string;
-  name: string;
-  logoUrl?: string;
-  taxId?: string;
-  address?: string;
-  website?: string;
-  email?: string;
-  phone?: string;
-  primaryColor?: string;
-  backgroundColor?: string;
-  allowUserWatermark?: boolean;
-  virtualTourDays?: string[];
-  [key: string]: any;
-}
-
-
-
-// =====================================================
-// INVOICE
-// =====================================================
-export interface Invoice {
-  id: string;
-  number: string;
-  date: string;
-  amount: number;
-  status: 'paid' | 'pending' | 'failed';
-  url?: string;
-  items?: string[];
-}
-
-
-
-// =====================================================
-// DEVICE
-// =====================================================
-export interface Device {
-  id: string;
-  userId?: string;
-  name: string;
-  type: string;
-  model?: string;
-  userName?: string;
-  lastAccess?: number;
-  lastActive: number;
-  current?: boolean;
-  ip?: string;
-  status?: 'active' | 'inactive' | 'Active' | 'Blocked';
-}
-
-
-
-// =====================================================
-// APP ROUTES
-// =====================================================
+// -------------------------------------------
+// ROUTES
+// -------------------------------------------
 export enum AppRoute {
-  LANDING = 'LANDING',
-  LOGIN = 'LOGIN',
-  REGISTER = 'REGISTER',
-  WELCOME = 'WELCOME',
-  DASHBOARD = 'DASHBOARD',
-  PROJECT_DETAILS = 'PROJECT_DETAILS',
-  CAMERA = 'CAMERA',
-  EDITOR = 'EDITOR',
-  TOUR_VIEWER = 'TOUR_VIEWER',
-  SETTINGS = 'SETTINGS',
-  MENU = 'MENU'
+  LANDING = "LANDING",
+  LOGIN = "LOGIN",
+  WELCOME = "WELCOME",
+  REGISTER = "REGISTER",
+  DASHBOARD = "DASHBOARD",
+  PROJECT_DETAILS = "PROJECT_DETAILS",
+  CAMERA = "CAMERA",
+  EDITOR = "EDITOR",
+  MENU = "MENU",
+  SETTINGS = "SETTINGS",
+  TOUR_VIEWER = "TOUR_VIEWER",
+}
+
+// -------------------------------------------
+// EDITOR TOOLS
+// -------------------------------------------
+export enum ToolMode {
+  MAGIC_ERASE = "MAGIC_ERASE",
+  VIRTUAL_STAGING = "VIRTUAL_STAGING",
 }
