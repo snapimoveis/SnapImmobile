@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { ProjectList } from './components/ProjectList';
 import { CameraView } from './components/CameraView';
 import { Editor } from './components/Editor';
+// IMPORTAÇÃO CRÍTICA: Se o ficheiro acima estiver correto, isto vai funcionar
 import { ProjectDetail } from './components/ProjectDetail'; 
 import { TourViewer } from './components/TourViewer';
 import { NewProjectModal } from './components/NewProjectModal';
@@ -14,7 +15,6 @@ import { RegisterScreen } from './components/RegisterScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { ManagementMenu } from './components/ManagementMenu';
 import { UpdateNotification } from './components/UpdateNotification';
-// USAR MainLayout
 import { MainLayout } from './components/MainLayout';
 
 import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
@@ -34,7 +34,6 @@ function App() {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [prefillEmail, setPrefillEmail] = useState('');
 
-  // === MODO ESCURO AUTOMÁTICO ===
   useEffect(() => {
     const applyTheme = () => {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -48,7 +47,6 @@ function App() {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   }, []);
 
-  // Inicialização
   useEffect(() => {
     const initApp = async () => {
       const user = getCurrentUser();
@@ -224,6 +222,7 @@ function App() {
 
   const isAuthRoute = [AppRoute.LANDING, AppRoute.WELCOME, AppRoute.REGISTER, AppRoute.LOGIN].includes(currentRoute);
   const isFullScreenTool = [AppRoute.CAMERA, AppRoute.TOUR_VIEWER, AppRoute.EDITOR, AppRoute.MENU].includes(currentRoute);
+  
   const header = null;
 
   const renderContent = () => {
@@ -269,7 +268,8 @@ function App() {
           <>
             <ProjectList 
                 projects={projects} 
-                onSelectProject={(p) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
+                // CORREÇÃO: Tipagem explícita para o parâmetro p (Project)
+                onSelectProject={(p: Project) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
                 onCreateProject={() => setIsNewProjectModalOpen(true)} 
                 onDeleteProject={async (id) => { await deleteProject(id); setProjects(prev => prev.filter(p => p.id !== id)); }} 
             />
