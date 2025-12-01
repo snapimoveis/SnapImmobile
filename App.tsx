@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter } from 'react-router-dom';
+// Componentes
 import { ProjectList } from './components/ProjectList';
 import { CameraView } from './components/CameraView';
 import { Editor } from './components/Editor';
-// Importação direta do export default e nomeado
 import ProjectDetail from './components/ProjectDetail'; 
 import { TourViewer } from './components/TourViewer';
 import { NewProjectModal } from './components/NewProjectModal';
@@ -16,9 +16,10 @@ import { ManagementMenu } from './components/ManagementMenu';
 import { UpdateNotification } from './components/UpdateNotification';
 import { MainLayout } from './components/MainLayout';
 
-// Importações de Tipos
+// Tipos
 import { AppRoute, Project, Photo, ProjectDetails as ProjectDetailsType, UserProfile } from './types';
-// Importações de Serviços
+
+// Serviços
 import { generateDescription } from './services/geminiService';
 import { 
     getCurrentUser, getUserProjects, saveProject, deleteProject, 
@@ -130,10 +131,7 @@ function App() {
       setActiveProject(savedProject);
       setCurrentRoute(AppRoute.PROJECT_DETAILS);
       setIsNewProjectModalOpen(false);
-    } catch (e: any) {
-      console.error("ERRO AO CRIAR PROJETO:", e);
-      alert('Erro ao criar projeto.'); 
-    }
+    } catch (e: any) { alert('Erro ao criar projeto.'); }
   };
 
   const handlePhotoCaptured = async (photo: Photo) => {
@@ -156,21 +154,23 @@ function App() {
           return;
       }
       
-      // Chama a IA, mas trata o erro silenciosamente para não parar o fluxo
-      generateDescription(photo.url)
-        .then((desc: string) => console.log("Descrição gerada:", desc))
-        .catch((err: any) => console.warn("Erro IA:", err));
+      // CORREÇÃO: Tipagem explícita para evitar erro "desc implicitly has an 'any' type"
+      generateDescription(photo.url).then((desc: string) => {
+          console.log("Descrição gerada:", desc);
+      }).catch((err: any) => {
+          console.warn("Erro na descrição:", err);
+      });
 
       const updatedProject = {
           ...activeProject,
           photos: [...activeProject.photos, photo],
           coverImage: activeProject.coverImage || photo.url
       };
-      
       setActiveProject(updatedProject);
       
       saveProject(updatedProject).then((saved: Project) => {
-          setProjects(prev => prev.map(p => p.id === activeProject.id ? saved : p));
+          // CORREÇÃO: Uso correto de setProjects com função de callback tipada
+          setProjects((prev: Project[]) => prev.map((p: Project) => p.id === activeProject.id ? saved : p));
       });
     } catch (e: any) { alert(`Erro: ${e.message}`); }
   };
@@ -181,7 +181,10 @@ function App() {
         const updatedPhotos = activeProject.photos.map(p => p.id === updatedPhoto.id ? updatedPhoto : p);
         const updatedProject = { ...activeProject, photos: updatedPhotos, coverImage: updatedPhotos[0].url };
         const savedProject = await saveProject(updatedProject);
-        setProjects(projects.map(p => p.id === activeProject.id ? savedProject : p));
+        
+        // CORREÇÃO: Uso correto de setProjects
+        setProjects((prev: Project[]) => prev.map((p: Project) => p.id === activeProject.id ? savedProject : p));
+        
         setActiveProject(savedProject);
         setCurrentRoute(AppRoute.PROJECT_DETAILS);
       } catch (e) { alert("Erro ao guardar alterações."); }
@@ -190,7 +193,8 @@ function App() {
   const handleUpdateProject = async (updated: Project) => {
       try {
         const savedProject = await saveProject(updated);
-        setProjects(projects.map(p => p.id === updated.id ? savedProject : p));
+        // CORREÇÃO: Uso correto de setProjects
+        setProjects((prev: Project[]) => prev.map((p: Project) => p.id === updated.id ? savedProject : p));
         setActiveProject(savedProject);
       } catch (e) { alert("Erro ao atualizar projeto."); }
   };
@@ -203,10 +207,7 @@ function App() {
           const userProjects = await getUserProjects(user.id);
           setProjects(userProjects);
           setCurrentRoute(AppRoute.DASHBOARD);
-      } catch (e: any) { 
-        console.error(e); 
-        alert("Login falhou."); 
-      }
+      } catch (e: any) { alert("Login falhou."); }
   };
 
   const handleUpdateUser = async (updatedUser: UserProfile) => {
@@ -258,7 +259,6 @@ function App() {
                 initialProject={activeProject} 
                 onBack={() => setCurrentRoute(AppRoute.DASHBOARD)} 
                 onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)} 
-                // Tipagem explicita
                 onEditPhoto={(p: Photo) => { setActivePhoto(p); setCurrentRoute(AppRoute.EDITOR); }} 
                 onUpdateProject={handleUpdateProject} 
                 onViewTour={() => setCurrentRoute(AppRoute.TOUR_VIEWER)} 
@@ -284,10 +284,14 @@ function App() {
           <>
             <ProjectList 
                 projects={projects} 
-                // Tipagem explicita
+                // CORREÇÃO: Tipagem explícita para o parâmetro 'p' no callback
                 onSelectProject={(p: Project) => { setActiveProject(p); setCurrentRoute(AppRoute.PROJECT_DETAILS); }} 
                 onCreateProject={() => setIsNewProjectModalOpen(true)} 
-                onDeleteProject={async (id) => { await deleteProject(id); setProjects(prev => prev.filter(p => p.id !== id)); }} 
+                // CORREÇÃO: Tipagem explícita para 'prev' e 'p' no setProjects
+                onDeleteProject={async (id) => { 
+                    await deleteProject(id); 
+                    setProjects((prev: Project[]) => prev.filter((p: Project) => p.id !== id)); 
+                }} 
             />
             {isNewProjectModalOpen && <NewProjectModal onClose={() => setIsNewProjectModalOpen(false)} onCreate={handleCreateProject} />}
           </>
