@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Home, MapPin, Ruler, Bed, Bath } from 'lucide-react';
+import { X, Home, MapPin, Locate } from 'lucide-react';
 import { ProjectDetails } from '../types';
 import { Button, Input } from './ui';
 
@@ -12,30 +12,21 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onCre
   const [formData, setFormData] = useState({
     title: '',
     address: '',
-    area: '',
-    rooms: '',
-    bathrooms: '',
-    price: '',
     description: ''
   });
+  const [isLoadingGeo, setIsLoadingGeo] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    // CORREÇÃO: Função auxiliar para evitar o erro "NaN" (Not a Number) que bloqueia o Firebase
-    const safeNumber = (value: string) => {
-        const num = parseFloat(value);
-        return isNaN(num) ? 0 : num;
-    };
-
     onCreate({
       title: formData.title || 'Sem nome',
       address: formData.address || 'Sem endereço',
-      area: safeNumber(formData.area),
-      rooms: safeNumber(formData.rooms),
-      bathrooms: safeNumber(formData.bathrooms),
-      price: safeNumber(formData.price),
-      description: formData.description || ''
+      // Campos removidos enviados como 0 ou vazio para compatibilidade
+      area: 0,
+      rooms: 0,
+      bathrooms: 0,
+      price: 0,
+      description: formData.description
     });
   };
 
@@ -43,17 +34,60 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onCre
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocalização não é suportada pelo seu navegador.');
+      return;
+    }
+
+    setIsLoadingGeo(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          // Usando OpenStreetMap (Nominatim) para geocodificação reversa gratuita
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const data = await response.json();
+          
+          if (data && data.display_name) {
+            // Tenta formatar o endereço de forma mais limpa
+            const addr = data.address;
+            const street = addr.road || addr.pedestrian || '';
+            const number = addr.house_number || '';
+            const city = addr.city || addr.town || addr.village || '';
+            const formattedAddress = `${street} ${number}, ${city}`.trim().replace(/^, /, '');
+            
+            setFormData(prev => ({ ...prev, address: formattedAddress || data.display_name }));
+          } else {
+             setFormData(prev => ({ ...prev, address: `${latitude}, ${longitude}` }));
+          }
+        } catch (error) {
+          console.error("Erro ao obter endereço:", error);
+          setFormData(prev => ({ ...prev, address: `${latitude}, ${longitude}` }));
+        } finally {
+          setIsLoadingGeo(false);
+        }
+      },
+      (error) => {
+        console.error("Erro de geolocalização:", error);
+        alert('Não foi possível obter a sua localização. Verifique as permissões.');
+        setIsLoadingGeo(false);
+      }
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#1a1a1a] w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-[#1a1a1a] w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
         
+        {/* Cabeçalho Roxo */}
         <div className="bg-brand-purple p-6 relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
                 <Home size={120} />
             </div>
             <div className="relative z-10">
-                <h2 className="text-2xl font-bold text-white">Criar um novo imóvel</h2>
-                <p className="text-purple-200 text-sm mt-1">Preencha os dados para começar a capturar.</p>
+                <h2 className="text-2xl font-bold text-white">Novo Imóvel</h2>
+                <p className="text-purple-200 text-sm mt-1">Comece a capturar agora.</p>
             </div>
             <button 
                 onClick={onClose}
@@ -63,11 +97,9 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onCre
             </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
           
-          <div className="space-y-4">
-              <h3 className="text-sm font-bold text-brand-purple dark:text-white uppercase tracking-wider text-xs">Detalhes do imóvel</h3>
-              
+          <div className="space-y-5">
               <Input 
                   name="title" 
                   label="Nome do Imóvel" 
@@ -75,63 +107,46 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onCre
                   value={formData.title} 
                   onChange={handleChange} 
                   required 
+                  autoFocus
               />
               
-              <Input 
-                  name="address" 
-                  label="Localização" 
-                  placeholder="Endereço completo" 
-                  icon={<MapPin size={18} />}
-                  value={formData.address} 
-                  onChange={handleChange} 
-                  required 
-              />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-              <Input 
-                  name="area" 
-                  label="Área (m²)" 
-                  type="number" 
-                  placeholder="0" 
-                  icon={<Ruler size={18} />}
-                  value={formData.area} 
-                  onChange={handleChange} 
-              />
-              <Input 
-                  name="price" 
-                  label="Preço (€)" 
-                  type="number" 
-                  placeholder="0.00" 
-                  value={formData.price} 
-                  onChange={handleChange} 
-              />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-              <Input 
-                  name="rooms" 
-                  label="Quartos" 
-                  type="number" 
-                  placeholder="0" 
-                  icon={<Bed size={18} />}
-                  value={formData.rooms} 
-                  onChange={handleChange} 
-              />
-              <Input 
-                  name="bathrooms" 
-                  label="Banheiros" 
-                  type="number" 
-                  placeholder="0" 
-                  icon={<Bath size={18} />}
-                  value={formData.bathrooms} 
-                  onChange={handleChange} 
-              />
+              <div className="relative">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 ml-1 mb-1.5">Localização</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                            <MapPin size={18} />
+                        </div>
+                        <input
+                            name="address"
+                            value={formData.address}
+                            onChange={handleChange}
+                            placeholder="Endereço ou coordenadas"
+                            className="w-full bg-brand-gray-100 dark:bg-[#1e1e1e] border-2 border-transparent focus:border-brand-purple focus:bg-white dark:focus:bg-black text-gray-900 dark:text-white placeholder-gray-400 rounded-xl pl-12 pr-4 py-3.5 outline-none transition-all font-medium"
+                            required
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleGetLocation}
+                        disabled={isLoadingGeo}
+                        className="bg-brand-gray-100 dark:bg-[#1e1e1e] hover:bg-brand-purple/10 hover:text-brand-purple text-gray-500 p-3.5 rounded-xl transition-colors border-2 border-transparent focus:border-brand-purple outline-none"
+                        title="Usar localização atual"
+                    >
+                        {isLoadingGeo ? (
+                            <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                            <Locate size={20} />
+                        )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1.5 ml-1">Toque no ícone para usar sua localização atual.</p>
+              </div>
           </div>
 
           <div className="pt-4">
             <Button type="submit" variant="secondary" size="lg" fullWidth>
-                Guardar Imóvel
+                Criar e Capturar
             </Button>
           </div>
 
