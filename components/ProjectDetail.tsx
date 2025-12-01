@@ -12,8 +12,7 @@ interface ProjectDetailProps {
   onViewTour: () => void;
 }
 
-// Define o componente
-const ProjectDetailComponent: React.FC<ProjectDetailProps> = ({ 
+export const ProjectDetail: React.FC<ProjectDetailProps> = ({ 
   initialProject, 
   onBack, 
   onAddPhoto, 
@@ -111,6 +110,5 @@ const ProjectDetailComponent: React.FC<ProjectDetailProps> = ({
   );
 };
 
-// EXPORTAÇÃO DUPLA (Resolve o erro "has no exported member")
-export const ProjectDetail = ProjectDetailComponent;
-export default ProjectDetailComponent;
+// Exportação padrão também, para garantir compatibilidade
+export default ProjectDetail;
