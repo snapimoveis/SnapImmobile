@@ -1,223 +1,276 @@
-import React, { useState } from 'react';
-import { Project } from '../types';
-import { Search, MapPin, Camera, Image as ImageIcon, ChevronRight, Bed, Bath, Square, Trash2, Download, Loader2 } from 'lucide-react';
-import { Card, Button } from './ui';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Camera, Video, Settings, Check, Download, Trash2, X, CheckSquare, Square } from 'lucide-react';
+import { Project, Photo } from '../types';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-interface ProjectListProps {
-  projects: Project[];
-  onSelectProject: (project: Project) => void;
-  onCreateProject: () => void;
-  onDeleteProject: (id: string) => void;
+interface ProjectDetailProps {
+  initialProject: Project;
+  onBack: () => void;
+  onAddPhoto: () => void;
+  onEditPhoto: (photo: Photo) => void;
+  onUpdateProject: (project: Project) => void;
+  onViewTour: () => void;
 }
 
-export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProject, onCreateProject, onDeleteProject }) => {
-  
-  // Estado para controlar qual projeto está sendo baixado
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+const ProjectDetailComponent: React.FC<ProjectDetailProps> = ({ 
+  initialProject, 
+  onBack, 
+  onAddPhoto, 
+  onEditPhoto,
+  onUpdateProject // Necessário para salvar a remoção de fotos
+}) => {
+  const [project, setProject] = useState<Project>(initialProject);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+  const [isDownloading, setIsDownloading] = useState(false);
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
+  useEffect(() => {
+    setProject(initialProject);
+  }, [initialProject]);
+
+  const displayPhotos = project.photos || [];
+
+  // === GESTÃO DE SELEÇÃO ===
+  const toggleSelectionMode = () => {
+      setIsSelectionMode(!isSelectionMode);
+      setSelectedPhotoIds(new Set()); // Limpa seleção ao sair
   };
 
-  const handleDownloadProject = async (e: React.MouseEvent, project: Project) => {
-      e.stopPropagation(); // Impede abrir o projeto
-      if (!project.photos || project.photos.length === 0) {
-          alert("Este projeto não tem fotos para descarregar.");
-          return;
+  const togglePhotoSelection = (photoId: string) => {
+      const newSelection = new Set(selectedPhotoIds);
+      if (newSelection.has(photoId)) {
+          newSelection.delete(photoId);
+      } else {
+          newSelection.add(photoId);
       }
+      setSelectedPhotoIds(newSelection);
+  };
 
-      setDownloadingId(project.id);
+  const selectAll = () => {
+      if (selectedPhotoIds.size === displayPhotos.length) {
+          setSelectedPhotoIds(new Set());
+      } else {
+          const allIds = new Set(displayPhotos.map(p => p.id));
+          setSelectedPhotoIds(allIds);
+      }
+  };
+
+  // === DOWNLOAD ===
+  const handleDownloadSelected = async () => {
+      if (selectedPhotoIds.size === 0) return;
+      setIsDownloading(true);
 
       try {
-          const zip = new JSZip();
-          const folder = zip.folder(project.title.replace(/[^a-z0-9]/gi, '_')); // Nome seguro para pasta
+          const selectedPhotos = displayPhotos.filter(p => selectedPhotoIds.has(p.id));
 
-          // Download de cada foto e adição ao ZIP
-          const promises = project.photos.map(async (photo, index) => {
-              try {
-                  const response = await fetch(photo.url, { mode: 'cors' });
-                  const blob = await response.blob();
-                  const fileName = photo.name || `foto_${index + 1}.jpg`;
-                  // Garante extensão .jpg se não tiver
-                  const finalName = fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.png') 
-                      ? fileName 
-                      : `${fileName}.jpg`;
-                  
-                  folder?.file(finalName, blob);
-              } catch (err) {
-                  console.error(`Erro ao baixar foto ${photo.id}:`, err);
-              }
-          });
+          // Se for apenas 1 foto, baixa direto sem ZIP
+          if (selectedPhotos.length === 1) {
+              const photo = selectedPhotos[0];
+              const response = await fetch(photo.url, { mode: 'cors' });
+              const blob = await response.blob();
+              const fileName = `snap_${project.title}_${Date.now()}.jpg`.replace(/\s+/g, '_');
+              saveAs(blob, fileName);
+          } else {
+              // Múltiplas fotos -> ZIP
+              const zip = new JSZip();
+              const folder = zip.folder(project.title.replace(/[^a-z0-9]/gi, '_')) || zip;
 
-          await Promise.all(promises);
+              const promises = selectedPhotos.map(async (photo, index) => {
+                  try {
+                      const response = await fetch(photo.url, { mode: 'cors' });
+                      const blob = await response.blob();
+                      const name = `foto_${index + 1}.jpg`;
+                      folder.file(name, blob);
+                  } catch (e) {
+                      console.error("Erro ao baixar foto", e);
+                  }
+              });
 
-          const content = await zip.generateAsync({ type: "blob" });
-          saveAs(content, `${project.title}_fotos.zip`);
+              await Promise.all(promises);
+              const content = await zip.generateAsync({ type: "blob" });
+              saveAs(content, `${project.title}_selecao.zip`);
+          }
+          
+          // Opcional: Sair do modo de seleção após download
+          setIsSelectionMode(false);
+          setSelectedPhotoIds(new Set());
 
       } catch (error) {
-          console.error("Erro ao gerar ZIP:", error);
-          alert("Ocorreu um erro ao preparar o download.");
+          alert("Erro ao fazer download. Tente novamente.");
+          console.error(error);
       } finally {
-          setDownloadingId(null);
+          setIsDownloading(false);
       }
   };
 
-  const recentProjects = [...projects].sort((a, b) => b.createdAt - a.createdAt).slice(0, 3);
-
-  if (projects.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[70vh] text-center p-6 animate-in fade-in zoom-in duration-500">
-        <div className="w-24 h-24 bg-brand-purple/5 border-2 border-brand-purple/20 rounded-full flex items-center justify-center mb-6 shadow-sm">
-          <Camera size={40} className="text-brand-purple" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Sem imóveis recentes</h2>
-        <p className="text-gray-500 dark:text-gray-400 max-w-xs mb-8 text-sm">Comece por criar o seu primeiro imóvel para capturar fotos incríveis.</p>
-        <Button onClick={onCreateProject} variant="secondary">
-          + Novo imóvel
-        </Button>
-      </div>
-    );
-  }
+  // === APAGAR SELECIONADAS (Bónus útil) ===
+  const handleDeleteSelected = () => {
+      if (confirm(`Tem certeza que deseja apagar ${selectedPhotoIds.size} fotos?`)) {
+          const remainingPhotos = displayPhotos.filter(p => !selectedPhotoIds.has(p.id));
+          const updatedProject = { ...project, photos: remainingPhotos };
+          
+          setProject(updatedProject);
+          onUpdateProject(updatedProject); // Salva no Firebase através do App.tsx
+          
+          setIsSelectionMode(false);
+          setSelectedPhotoIds(new Set());
+      }
+  };
 
   return (
-    <div className="min-h-full pb-24 bg-brand-gray-50 dark:bg-black text-gray-900 dark:text-white transition-colors duration-300">
+    <div className="min-h-screen bg-brand-gray-50 dark:bg-black flex flex-col transition-colors duration-300 pb-24 md:pb-0">
       
-      {/* Barra de Pesquisa */}
-      <div className="px-4 py-4 bg-white dark:bg-[#121212] border-b border-gray-100 dark:border-white/5 mb-6 sticky top-0 z-10">
-        <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search size={18} className="text-gray-400" />
-            </div>
-            <input 
-                type="text" 
-                placeholder="Pesquisar imóveis..." 
-                className="w-full pl-10 pr-4 py-2.5 bg-brand-gray-100 dark:bg-white/10 border-none rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/50 text-gray-900 dark:text-white placeholder-gray-500"
-            />
-        </div>
-      </div>
+      {/* HEADER */}
+      <header className="bg-white dark:bg-[#121212] px-4 py-4 sticky top-0 z-30 shadow-sm border-b border-gray-200 dark:border-white/5">
+        <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-gray-600 dark:text-gray-300">
+                        <ArrowLeft size={24} />
+                    </button>
+                    {isSelectionMode && (
+                        <span className="text-sm font-bold text-brand-purple ml-2">
+                            {selectedPhotoIds.size} selecionada(s)
+                        </span>
+                    )}
+                </div>
+                
+                <div className="text-center">
+                    <h1 className="text-base font-bold text-gray-900 dark:text-white truncate max-w-[150px]">{project.title}</h1>
+                    {!isSelectionMode && <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[150px]">{project.address}</p>}
+                </div>
 
-      <div className="px-4 space-y-8 pb-32">
-        
-        {/* ATIVIDADE RECENTE */}
-        {recentProjects.length > 0 && (
-          <div>
-              <div className="flex justify-between items-center mb-3 px-1">
-                  <h2 className="text-base font-bold text-gray-900 dark:text-white">Actividade recente</h2>
-              </div>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4">
-                  {recentProjects.map(proj => (
-                      <div key={proj.id} onClick={() => onSelectProject(proj)} className="shrink-0 w-36 cursor-pointer active:scale-95 transition-transform group relative">
-                          <div className="aspect-square rounded-xl overflow-hidden bg-gray-200 dark:bg-[#1a1a1a] border border-gray-100 dark:border-white/5 relative">
-                              {proj.coverImage ? (
-                                  <img src={proj.coverImage} className="w-full h-full object-cover" alt="" />
-                              ) : (
-                                  <div className="w-full h-full flex items-center justify-center"><ImageIcon size={24} className="text-gray-400"/></div>
-                              )}
-                              <div className="absolute bottom-1.5 left-1.5 bg-black/50 backdrop-blur-sm p-1 rounded-md">
-                                  <MapPin size={10} className="text-white" />
-                              </div>
-                          </div>
-                          <p className="mt-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 truncate px-0.5">{proj.title}</p>
-                          <p className="text-[10px] text-gray-400 px-0.5">{formatDate(proj.createdAt)}</p>
-                      </div>
-                  ))}
-              </div>
-          </div>
-        )}
-
-        {/* LISTA VERTICAL DE IMÓVEIS */}
-        <div className="space-y-6">
-            <div className="px-1">
-               <h2 className="text-base font-bold text-gray-900 dark:text-white">Todos os imóveis</h2>
-            </div>
-            
-            {projects.map((project) => (
-                <Card 
-                    key={project.id} 
-                    onClick={() => onSelectProject(project)}
-                    hoverEffect
-                    className="flex flex-col group relative"
+                <button 
+                    onClick={toggleSelectionMode}
+                    className={`p-2 -mr-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-colors ${isSelectionMode ? 'text-brand-purple bg-brand-purple/10' : 'text-gray-600 dark:text-white'}`}
                 >
-                    {/* Imagem */}
-                    <div className="relative aspect-[16/9] bg-gray-100 dark:bg-white/5 overflow-hidden">
-                        {project.coverImage ? (
-                            <img src={project.coverImage} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={project.title} />
+                    {isSelectionMode ? <Check size={24} /> : <CheckSquare size={24} />}
+                </button>
+            </div>
+
+            {/* BARRA DE AÇÕES RÁPIDAS (Escondida em modo de seleção) */}
+            {!isSelectionMode && (
+                <div className="grid grid-cols-3 gap-3">
+                    <button className="bg-brand-orange hover:bg-brand-orange-hover text-white rounded-xl py-3 flex items-center justify-center shadow-md transition-transform active:scale-95">
+                        <Settings size={20} fill="currentColor" />
+                    </button>
+                    <button 
+                        onClick={onAddPhoto}
+                        className="bg-brand-orange hover:bg-brand-orange-hover text-white rounded-xl py-3 flex items-center justify-center shadow-md transition-transform active:scale-95"
+                    >
+                        <Camera size={20} fill="currentColor" />
+                    </button>
+                    <button className="bg-brand-orange hover:bg-brand-orange-hover text-white rounded-xl py-3 flex items-center justify-center shadow-md transition-transform active:scale-95">
+                        <Video size={20} fill="currentColor" />
+                    </button>
+                </div>
+            )}
+
+            {/* BARRA DE AÇÕES DE SELEÇÃO */}
+            {isSelectionMode && (
+                <div className="flex justify-between items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                    <button 
+                        onClick={selectAll} 
+                        className="flex-1 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-white py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                        {selectedPhotoIds.size === displayPhotos.length ? <CheckSquare size={18} /> : <Square size={18} />}
+                        Todos
+                    </button>
+                    
+                    <button 
+                        onClick={handleDeleteSelected}
+                        disabled={selectedPhotoIds.size === 0}
+                        className="flex-1 bg-red-100 text-red-600 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        <Trash2 size={18} />
+                        Apagar
+                    </button>
+                    
+                    <button 
+                        onClick={handleDownloadSelected}
+                        disabled={selectedPhotoIds.size === 0 || isDownloading}
+                        className="flex-1 bg-brand-purple text-white py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {isDownloading ? (
+                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 dark:text-gray-600 bg-gray-50 dark:bg-white/5">
-                                <Camera size={32} strokeWidth={1.5} />
-                            </div>
+                             <Download size={18} />
                         )}
-                        
-                        <div className="absolute top-3 left-3">
-                             <span className="px-2.5 py-1 bg-white/90 dark:bg-black/80 backdrop-blur-md rounded-lg text-[10px] font-bold uppercase text-brand-purple shadow-sm">
-                                {project.status === 'Completed' ? 'Concluído' : 'Ativo'}
-                             </span>
-                        </div>
-
-                        {/* === GRUPO DE AÇÕES (LIXO + DOWNLOAD) === */}
-                        <div className="absolute top-3 right-3 flex gap-2 z-10">
-                            
-                            {/* Botão de Download (Novo) */}
-                            <button 
-                                onClick={(e) => handleDownloadProject(e, project)}
-                                disabled={downloadingId === project.id}
-                                className="p-2 bg-white/90 dark:bg-black/60 backdrop-blur-md rounded-full text-gray-700 dark:text-white hover:text-brand-purple dark:hover:text-brand-purple transition-colors shadow-sm disabled:opacity-50"
-                                title="Descarregar todas as fotos"
-                            >
-                                {downloadingId === project.id ? (
-                                    <Loader2 size={18} className="animate-spin" />
-                                ) : (
-                                    <Download size={18} />
-                                )}
-                            </button>
-
-                            {/* Botão de Deletar */}
-                            <button 
-                                onClick={(e) => {
-                                    e.stopPropagation(); 
-                                    if (window.confirm('Tem a certeza que deseja eliminar este projeto?')) {
-                                        onDeleteProject(project.id);
-                                    }
-                                }}
-                                className="p-2 bg-white/90 dark:bg-black/60 backdrop-blur-md rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors shadow-sm"
-                                title="Eliminar projeto"
-                            >
-                                <Trash2 size={18} />
-                            </button>
-                        </div>
-                        
-                        <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1">
-                             <Camera size={12} /> {project.photos.length}
-                        </div>
-                    </div>
-
-                    {/* Info */}
-                    <div className="p-4">
-                        <div className="flex justify-between items-start mb-2">
-                             <h3 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-1">{project.title}</h3>
-                             <ChevronRight size={18} className="text-gray-300" />
-                        </div>
-                        <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-xs mb-4">
-                             <MapPin size={12} />
-                             <span className="truncate">{project.address || 'Endereço não informado'}</span>
-                             <span className="mx-1">•</span>
-                             <span>{formatDate(project.createdAt)}</span>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-white/10 text-xs text-gray-600 dark:text-gray-400">
-                             <div className="flex gap-4">
-                                <span className="flex items-center gap-1"><Bed size={14} className="text-brand-purple"/> {project.details?.rooms || '-'}</span>
-                                <span className="flex items-center gap-1"><Bath size={14} className="text-brand-purple"/> {project.details?.bathrooms || '-'}</span>
-                                <span className="flex items-center gap-1"><Square size={14} className="text-brand-purple"/> {project.details?.area || '-'} m²</span>
-                             </div>
-                        </div>
-                    </div>
-                </Card>
-            ))}
+                        Baixar
+                    </button>
+                </div>
+            )}
         </div>
-      </div>
+      </header>
+
+      {/* GRID DE CONTEÚDO */}
+      <main className="flex-1 p-4 max-w-7xl mx-auto w-full">
+          {displayPhotos.length === 0 ? (
+             <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-20 h-20 bg-gray-200 dark:bg-white/10 rounded-full flex items-center justify-center mb-4">
+                    <Camera size={32} className="text-gray-400" />
+                </div>
+                <p className="text-gray-500 dark:text-gray-400 font-medium">Ainda não há fotos.</p>
+                <p className="text-xs text-gray-400 mt-1">Toque no botão de câmera acima para começar.</p>
+             </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {displayPhotos.map((photo: Photo) => {
+                    const isSelected = selectedPhotoIds.has(photo.id);
+                    return (
+                        <div 
+                            key={photo.id}
+                            onClick={() => {
+                                if (isSelectionMode) {
+                                    togglePhotoSelection(photo.id);
+                                } else {
+                                    onEditPhoto(photo);
+                                }
+                            }}
+                            className={`
+                                relative aspect-square bg-gray-200 dark:bg-white/5 rounded-xl overflow-hidden cursor-pointer group shadow-sm transition-all
+                                ${isSelectionMode && isSelected ? 'ring-4 ring-brand-purple ring-offset-2 dark:ring-offset-black' : ''}
+                            `}
+                        >
+                            <img 
+                                src={photo.url} 
+                                alt="thumb" 
+                                className={`w-full h-full object-cover transition-transform duration-500 ${isSelectionMode && !isSelected ? 'opacity-50 scale-95' : 'group-hover:scale-110'}`} 
+                                loading="lazy" 
+                            />
+                            
+                            {/* Indicador de Seleção */}
+                            {isSelectionMode && (
+                                <div className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center ${isSelected ? 'bg-brand-purple text-white' : 'bg-black/40 text-white/50 border-2 border-white'}`}>
+                                    {isSelected && <Check size={14} strokeWidth={3} />}
+                                </div>
+                            )}
+                            
+                            {!isSelectionMode && <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />}
+                        </div>
+                    );
+                })}
+            </div>
+          )}
+      </main>
+
+      {/* Botão Flutuante (Esconder em modo de seleção para não atrapalhar) */}
+      {!isSelectionMode && (
+          <div className="fixed bottom-8 left-0 right-0 flex justify-center px-4 z-20 pointer-events-none">
+            <button 
+                onClick={onAddPhoto}
+                className="pointer-events-auto bg-brand-orange hover:bg-brand-orange-hover text-white px-8 py-3.5 rounded-full font-bold text-sm shadow-lg shadow-orange-500/30 active:scale-95 transition-transform flex items-center gap-2"
+            >
+                Iniciar Captura
+            </button>
+          </div>
+      )}
+
     </div>
   );
 };
+
+// Exportação dupla para compatibilidade
+export const ProjectDetail = ProjectDetailComponent;
+export default ProjectDetailComponent;
