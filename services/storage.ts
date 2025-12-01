@@ -1,150 +1,184 @@
 import { 
-    getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, 
-    query, where, limit, getDoc, setDoc 
+    getFirestore, collection, getDocs, doc, updateDoc, deleteDoc, 
+    query, where, getDoc, setDoc 
 } from 'firebase/firestore';
+
 import { 
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
     signOut, updateProfile, deleteUser 
 } from 'firebase/auth';
+
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
+
 import { app } from './firebaseConfig';
-import { Project, UserProfile, CompanySettings, Device, Invoice, Photo } from '../types';
+import { Project, UserProfile, Photo } from '../types';
 
 const db = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
-// === HELPER: Upload de Imagem ===
-const uploadImageToStorage = async (base64Image: string | undefined, path: string): Promise<string> => {
-    if (!base64Image) return '';
-    if (base64Image.startsWith('http')) return base64Image;
-    
+// -------------------------------
+// Helper seguro para upload
+// -------------------------------
+const uploadImage = async (base64: string, path: string): Promise<string> => {
     try {
         const storageRef = ref(storage, path);
-        await uploadString(storageRef, base64Image, 'data_url');
-        const downloadURL = await getDownloadURL(storageRef);
-        return downloadURL;
-    } catch (error) {
-        console.error("Erro no upload:", error);
-        throw error;
+        await uploadString(storageRef, base64, "data_url");
+        return await getDownloadURL(storageRef);
+    } catch (e) {
+        console.error("Erro ao fazer upload:", e);
+        throw e;
     }
 };
 
-// === USER MANAGEMENT ===
+// -------------------------------
+// USER MANAGEMENT
+// -------------------------------
+export const registerUser = async (userProfile: UserProfile, password: string): Promise<UserProfile> => {
+    const cred = await createUserWithEmailAndPassword(auth, userProfile.email, password);
+    const user = cred.user;
 
-export const registerUser = async (userProfile: UserProfile, password?: string): Promise<UserProfile> => {
-    if (!password) throw new Error("Senha obrigatória");
-    const userCredential = await createUserWithEmailAndPassword(auth, userProfile.email, password);
-    const user = userCredential.user;
     await updateProfile(user, { displayName: `${userProfile.firstName} ${userProfile.lastName}` });
-    const newUser: UserProfile = { ...userProfile, id: user.uid };
+
+    const newUser = { ...userProfile, id: user.uid };
     await setDoc(doc(db, "users", user.uid), newUser);
+
     return newUser;
 };
 
-export const loginUser = async (email: string, password?: string): Promise<UserProfile> => {
-    if (!password) throw new Error("Senha obrigatória");
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    
-    if (userDoc.exists()) {
-        return userDoc.data() as UserProfile;
-    } else {
-        const newProfile: UserProfile = {
-            id: user.uid,
-            email: user.email!,
-            firstName: user.displayName?.split(' ')[0] || 'User',
-            lastName: user.displayName?.split(' ')[1] || '',
-            role: 'editor', 
-            createdAt: Date.now(),
-            preferences: { language: 'pt', notifications: true, marketing: false, theme: 'light' }
-        };
-        await setDoc(doc(db, "users", user.uid), newProfile);
-        return newProfile;
-    }
+export const loginUser = async (email: string, password: string): Promise<UserProfile> => {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const user = cred.user;
+
+    const snap = await getDoc(doc(db, "users", user.uid));
+    if (snap.exists()) return snap.data() as UserProfile;
+
+    // fallback
+    const profile: UserProfile = {
+        id: user.uid,
+        email: user.email!,
+        firstName: "User",
+        lastName: "",
+        role: "editor",
+        createdAt: Date.now(),
+        preferences: { language: "pt", notifications: true, marketing: false, theme: "light" }
+    };
+
+    await setDoc(doc(db, "users", user.uid), profile);
+    return profile;
 };
 
 export const logoutUser = async () => {
     await signOut(auth);
-    localStorage.removeItem('snap_user');
+    localStorage.removeItem("snap_user");
 };
 
 export const getCurrentUser = (): UserProfile | null => {
-    const stored = localStorage.getItem('snap_user');
+    const stored = localStorage.getItem("snap_user");
     return stored ? JSON.parse(stored) : null;
 };
 
 export const saveUserSession = (user: UserProfile) => {
-    localStorage.setItem('snap_user', JSON.stringify(user));
+    localStorage.setItem("snap_user", JSON.stringify(user));
 };
 
-export const updateUser = async (updatedUser: UserProfile): Promise<UserProfile> => {
-    const userRef = doc(db, "users", updatedUser.id);
-    await updateDoc(userRef, { ...updatedUser });
+export const updateUser = async (updatedUser: UserProfile) => {
+    await updateDoc(doc(db, "users", updatedUser.id), updatedUser);
     return updatedUser;
 };
 
-export const deleteUserAccount = async (email: string, userId: string) => {
+export const deleteUserAccount = async (_email: string, userId: string) => {
     const user = auth.currentUser;
-    if (user) {
-        await deleteDoc(doc(db, "users", userId));
-        await deleteUser(user);
-        localStorage.removeItem('snap_user');
-    }
+
+    await deleteDoc(doc(db, "users", userId));
+    if (user) await deleteUser(user);
+
+    localStorage.removeItem("snap_user");
 };
 
-// === PROJECTS ===
-
+// -------------------------------
+// PROJECTS
+// -------------------------------
 export const getUserProjects = async (userId: string): Promise<Project[]> => {
     const q = query(collection(db, "projects"), where("userId", "==", userId));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as Project));
 };
 
+// -------------------------------
+// SALVAR PROJETO — *VERSÃO FINAL*
+// -------------------------------
 export const saveProject = async (project: Project): Promise<Project> => {
     const projectRef = doc(db, "projects", project.id);
-    const projectToSave = JSON.parse(JSON.stringify(project)) as Project;
 
-    // Upload de Fotos
-    if (projectToSave.photos && projectToSave.photos.length > 0) {
-        const processedPhotos: Photo[] = [];
-        for (const photo of projectToSave.photos) {
-            if (photo.url && photo.url.startsWith('data:')) {
-                const path = `projects/${project.id}/photos/${photo.id}_${Date.now()}.jpg`;
-                try {
-                    const publicUrl = await uploadImageToStorage(photo.url, path);
-                    processedPhotos.push({ ...photo, url: publicUrl });
-                } catch (e) {
-                    console.warn("Falha no upload da foto, mantendo local:", e);
-                    processedPhotos.push(photo); // Mantém base64 se falhar upload para não perder dados
-                }
-            } else {
-                processedPhotos.push(photo);
-            }
+    // Construir objeto seguro (sem base64, sem undefined)
+    const cleanProject: any = {
+        id: project.id,
+        userId: project.userId,
+        title: project.title,
+        address: project.address,
+        status: project.status,
+        createdAt: project.createdAt,
+        details: project.details || {},
+        coverImage: project.coverImage || null,
+        photos: []
+    };
+
+    // -------------------------------
+    // Processar cada foto
+    // -------------------------------
+    for (const photo of project.photos) {
+        const safePhoto: any = {
+            id: photo.id,
+            name: photo.name,
+            createdAt: photo.createdAt,
+            type: photo.type || "hdr",
+            timestamp: photo.timestamp || Date.now(),
+            url: ""
+        };
+
+        // Upload se for base64
+        if (photo.url.startsWith("data:")) {
+            const path = `projects/${project.id}/photos/${photo.id}_${Date.now()}.jpg`;
+            safePhoto.url = await uploadImage(photo.url, path);
+        } else {
+            safePhoto.url = photo.url;
         }
-        projectToSave.photos = processedPhotos;
+
+        // Remover campos inválidos
+        delete safePhoto.originalUrl;
+
+        cleanProject.photos.push(safePhoto);
     }
 
-    // Upload Capa
-    if (projectToSave.coverImage && projectToSave.coverImage.startsWith('data:')) {
-        const path = `projects/${project.id}/cover_${Date.now()}.jpg`;
+    // -------------------------------
+    // Upload da imagem de capa
+    // -------------------------------
+    if (cleanProject.coverImage && cleanProject.coverImage.startsWith("data:")) {
+        const coverPath = `projects/${project.id}/cover_${Date.now()}.jpg`;
         try {
-            projectToSave.coverImage = await uploadImageToStorage(projectToSave.coverImage, path);
-        } catch (e) {
-             console.warn("Falha no upload da capa");
+            cleanProject.coverImage = await uploadImage(cleanProject.coverImage, coverPath);
+        } catch {
+            cleanProject.coverImage = null;
         }
     }
 
-    await setDoc(projectRef, projectToSave, { merge: true });
-    return projectToSave;
+    // Grava projeto final (somente dados válidos)
+    await setDoc(projectRef, cleanProject, { merge: true });
+
+    return cleanProject as Project;
 };
 
-export const deleteProject = async (projectId: string): Promise<void> => {
+// -------------------------------
+// DELETAR PROJETO
+// -------------------------------
+export const deleteProject = async (projectId: string) => {
     await deleteDoc(doc(db, "projects", projectId));
 };
 
-// === MOCKS (Para evitar erros de importação em outros ficheiros) ===
+// -------------------------------
+// MOCKS (compatibilidade)
+// -------------------------------
 export const getCompanySettings = async () => ({});
 export const saveCompanySettings = async () => {};
 export const getInvoices = async () => [];
