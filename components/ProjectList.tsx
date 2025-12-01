@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { Project } from "../types";
-import { Plus, Trash2, Camera } from "lucide-react";
+import { Plus, Trash2, Camera, MapPin, Search } from "lucide-react";
 
 interface ProjectListProps {
   projects: Project[];
@@ -15,10 +15,40 @@ const ProjectList: React.FC<ProjectListProps> = ({
   onCreateProject,
   onDeleteProject,
 }) => {
+  const [search, setSearch] = useState("");
+
+  const formatDate = (timestamp: number) => {
+    try {
+      return new Date(timestamp).toLocaleDateString("pt-PT", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+    } catch {
+      return "";
+    }
+  };
+
+  const filteredProjects = useMemo(() => {
+    if (!search.trim()) return projects;
+    const term = search.toLowerCase();
+    return projects.filter(
+      (p) =>
+        p.title.toLowerCase().includes(term) ||
+        p.address.toLowerCase().includes(term)
+    );
+  }, [projects, search]);
+
+  const recentProjects = useMemo(() => {
+    return [...projects]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 5);
+  }, [projects]);
+
   return (
     <div className="min-h-screen bg-brand-gray-50 dark:bg-black p-4 pb-24 transition-colors duration-300">
-
-      <div className="flex items-center justify-between mb-6">
+      {/* HEADER + BOTÃO */}
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">
           Seus Projetos
         </h1>
@@ -31,73 +61,157 @@ const ProjectList: React.FC<ProjectListProps> = ({
         </button>
       </div>
 
-      {/* LISTA DE PROJETOS */}
-      <div className="grid grid-cols-1 gap-4">
-        {projects.map((project) => {
-          const image = project.coverImage || project.photos?.[0]?.url;
+      {/* SEARCH BAR */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/10 rounded-2xl px-3 py-2">
+          <Search className="text-gray-400" size={18} />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Pesquisar imóveis..."
+            className="bg-transparent outline-none text-sm flex-1 text-gray-800 dark:text-gray-100 placeholder:text-gray-400"
+          />
+        </div>
+      </div>
 
-          return (
-            <div
-              key={project.id}
-              onClick={() => onSelectProject(project)}
-              className="bg-white dark:bg-[#151515] rounded-2xl shadow-md overflow-hidden border border-gray-200 dark:border-white/5 cursor-pointer transition-all hover:scale-[1.01]"
-            >
-              {/* IMAGEM DE CAPA */}
-              <div className="relative h-48 w-full bg-gray-200 dark:bg-gray-800">
-                {image ? (
-                  <img
-                    src={image}
-                    alt="Foto de capa"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-400">
-                    <Camera size={40} />
+      {/* ACTIVIDADE RECENTE */}
+      {recentProjects.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
+            Actividade recente
+          </h2>
+
+          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+            {recentProjects.map((project) => {
+              const image = project.coverImage || project.photos?.[0]?.url;
+              const photoCount = project.photos?.length || 0;
+
+              return (
+                <div
+                  key={project.id}
+                  onClick={() => onSelectProject(project)}
+                  className="min-w-[210px] max-w-[220px] bg-white dark:bg-[#151515] rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 cursor-pointer overflow-hidden flex-shrink-0"
+                >
+                  <div className="relative aspect-square w-full bg-gray-200 dark:bg-gray-800">
+                    {image ? (
+                      <img
+                        src={image}
+                        alt="Foto do imóvel"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        <Camera size={32} />
+                      </div>
+                    )}
+
+                    {/* ícone de localização (canto inferior esquerdo) */}
+                    <div className="absolute bottom-2 left-2 bg-black/60 text-white rounded-lg p-1 flex items-center justify-center">
+                      <MapPin size={14} />
+                    </div>
                   </div>
-                )}
 
-                {/* Contador de fotos */}
-                <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-xl flex items-center gap-1">
-                  <Camera size={12} />
-                  {project.photos?.length || 0}
+                  <div className="px-3 pt-2 pb-3">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                      {project.title}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatDate(project.createdAt)}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-              {/* INFORMACOES DO IMOVEL */}
-              <div className="p-4 flex justify-between items-start">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+      {/* TODOS OS IMÓVEIS */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+          Todos os imóveis
+        </h2>
+
+        {filteredProjects.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="w-16 h-16 bg-gray-200 dark:bg-white/10 rounded-full flex items-center justify-center mb-3">
+              <Camera size={28} className="text-gray-400" />
+            </div>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
+              Nenhum imóvel encontrado.
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              Ajuste a pesquisa ou crie um novo imóvel.
+            </p>
+          </div>
+        ) : (
+          filteredProjects.map((project) => {
+            const image = project.coverImage || project.photos?.[0]?.url;
+            const photoCount = project.photos?.length || 0;
+
+            return (
+              <div
+                key={project.id}
+                onClick={() => onSelectProject(project)}
+                className="bg-white dark:bg-[#151515] rounded-2xl shadow-md overflow-hidden border border-gray-200 dark:border-white/5 cursor-pointer transition-all hover:scale-[1.01]"
+              >
+                <div className="relative h-40 w-full bg-gray-200 dark:bg-gray-800">
+                  {image ? (
+                    <img
+                      src={image}
+                      alt="Foto de capa"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <Camera size={32} />
+                    </div>
+                  )}
+
+                  {/* contador de fotos (canto inferior esquerdo) */}
+                  <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-xl flex items-center gap-1">
+                    <Camera size={12} />
+                    {photoCount}
+                  </div>
+
+                  {/* botão apagar (canto superior direito) */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteProject(project.id);
+                    }}
+                    className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+
+                <div className="p-4">
+                  <p className="text-base font-semibold text-gray-900 dark:text-white">
                     {project.title}
-                  </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {formatDate(project.createdAt)}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
                     {project.address}
                   </p>
                 </div>
-
-                {/* DELETE */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteProject(project.id);
-                  }}
-                  className="p-2 rounded-full hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 transition-colors"
-                >
-                  <Trash2 size={20} />
-                </button>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
-      {/* BOTÃO FLUTUANTE */}
+      {/* BOTÃO FLUTUANTE "NOVO IMÓVEL" */}
       <div className="fixed bottom-8 left-0 right-0 flex justify-center pointer-events-none">
         <button
           onClick={onCreateProject}
           className="pointer-events-auto bg-brand-orange hover:bg-brand-orange-hover text-white px-8 py-3.5 rounded-full font-bold text-sm shadow-lg shadow-orange-500/30 active:scale-95 transition-transform flex items-center gap-2"
         >
           <Plus size={18} />
-          Criar Projeto
+          Novo imóvel
         </button>
       </div>
     </div>
