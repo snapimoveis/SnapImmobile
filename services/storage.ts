@@ -6,7 +6,6 @@ import {
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
     signOut, updateProfile, deleteUser 
 } from 'firebase/auth';
-// FIX: Garante que importamos 'app' que deve ser exportado do firebaseConfig
 import { app } from './firebaseConfig';
 import { Project, UserProfile, CompanySettings, Device, Invoice } from '../types';
 
@@ -18,14 +17,11 @@ const auth = getAuth(app);
 export const registerUser = async (userProfile: UserProfile, password?: string): Promise<UserProfile> => {
     if (!password) throw new Error("Senha é obrigatória para registro");
     
-    // 1. Criar Auth User
     const userCredential = await createUserWithEmailAndPassword(auth, userProfile.email, password);
     const user = userCredential.user;
 
-    // 2. Atualizar Perfil Auth
     await updateProfile(user, { displayName: `${userProfile.firstName} ${userProfile.lastName}` });
 
-    // 3. Salvar Perfil no Firestore
     const newUser: UserProfile = { ...userProfile, id: user.uid };
     await setDoc(doc(db, "users", user.uid), newUser);
 
@@ -38,26 +34,18 @@ export const loginUser = async (email: string, password?: string): Promise<UserP
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    // Buscar dados extras do Firestore
     const userDoc = await getDoc(doc(db, "users", user.uid));
     
     if (userDoc.exists()) {
         const userData = userDoc.data() as UserProfile;
-        
-        // Verificação de Segurança de Dispositivo (Simulada)
-        if (userData.deviceId && userData.deviceId !== 'current-device-id') {
-             // Lógica real de device check aqui
-        }
-        
         return userData;
     } else {
-        // Fallback se não existir doc (cria básico)
         const newProfile: UserProfile = {
             id: user.uid,
             email: user.email!,
             firstName: user.displayName?.split(' ')[0] || 'User',
             lastName: user.displayName?.split(' ')[1] || '',
-            role: 'editor', // Role padrão seguro
+            role: 'editor', 
             createdAt: Date.now(),
             preferences: { language: 'pt', notifications: true, marketing: false, theme: 'light' }
         };
@@ -98,13 +86,11 @@ export const deleteUserAccount = async (email: string, userId: string) => {
 // === COMPANY SETTINGS ===
 
 export const getCompanySettings = async (): Promise<CompanySettings> => {
-    // Simulação: Pegar a primeira empresa ou criar padrão
     const q = query(collection(db, "companies"), limit(1));
     const querySnapshot = await getDocs(q);
     
     if (!querySnapshot.empty) {
         const docData = querySnapshot.docs[0].data() as CompanySettings;
-        // FIX: Garantir que virtualTourDays venha como array se estiver salvo como number ou undefined
         const safeVirtualTourDays = Array.isArray(docData.virtualTourDays) 
             ? docData.virtualTourDays 
             : [];
@@ -118,14 +104,12 @@ export const getCompanySettings = async (): Promise<CompanySettings> => {
         primaryColor: '#623aa2',
         backgroundColor: '#ffffff',
         allowUserWatermark: true,
-        // FIX: Agora inicializamos com um array vazio ou dias padrão, e não com o número 30
         virtualTourDays: [] 
     };
 };
 
 export const saveCompanySettings = async (settings: CompanySettings): Promise<void> => {
     if (settings.id && settings.id !== 'default') {
-        // FIX: Garantir que o ID é string
         await updateDoc(doc(db, "companies", settings.id), { ...settings });
     } else {
         await addDoc(collection(db, "companies"), settings);
@@ -141,14 +125,15 @@ export const getUserProjects = async (userId: string): Promise<Project[]> => {
 };
 
 export const saveProject = async (project: Project): Promise<Project> => {
-    if (project.id && (await getDoc(doc(db, "projects", project.id))).exists()) {
-        await updateDoc(doc(db, "projects", project.id), { ...project });
-        return project;
-    } else {
-        // Se for novo, deixa o Firestore gerar o ID se não tiver, ou usa o fornecido
-        const docRef = await addDoc(collection(db, "projects"), project);
-        return { ...project, id: docRef.id };
-    }
+    // CORREÇÃO: Usar setDoc com merge para garantir consistência de IDs e evitar erros
+    const projectRef = doc(db, "projects", project.id);
+    
+    // Remove campos undefined (Firebase não aceita undefined, apenas null)
+    const cleanProject = JSON.parse(JSON.stringify(project));
+    
+    await setDoc(projectRef, cleanProject, { merge: true });
+    
+    return project;
 };
 
 export const deleteProject = async (projectId: string): Promise<void> => {
@@ -158,7 +143,6 @@ export const deleteProject = async (projectId: string): Promise<void> => {
 // === BILLING & DEVICES (MOCK) ===
 
 export const getInvoices = async (): Promise<Invoice[]> => {
-    // Mock data for UI development
     return [
         { id: 'INV-001', number: '2025/001', date: '2025-10-01', amount: 29.90, status: 'paid' },
         { id: 'INV-002', number: '2025/002', date: '2025-11-01', amount: 29.90, status: 'pending' }
@@ -182,7 +166,7 @@ export const getDevices = async (): Promise<Device[]> => {
         { 
             id: 'dev2', 
             name: 'MacBook Air', 
-            type: 'desktop',
+            type: 'desktop', 
             model: 'M2',
             userName: 'Tania',
             lastAccess: Date.now() - 86400000,
