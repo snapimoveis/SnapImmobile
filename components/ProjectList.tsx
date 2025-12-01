@@ -18,7 +18,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
   return (
     <div className="min-h-screen bg-brand-gray-50 dark:bg-black p-4 pb-24 transition-colors duration-300">
 
-      {/* HEADER */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">
           Seus Projetos
@@ -32,7 +31,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
         </button>
       </div>
 
-      {/* LISTA */}
       {projects.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="w-20 h-20 bg-gray-200 dark:bg-white/10 rounded-full flex items-center justify-center mb-4">
@@ -65,7 +63,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
 
                 <button
                   onClick={(e) => {
-                    e.stopPropagation(); // evita abrir projeto ao apagar
+                    e.stopPropagation();
                     onDeleteProject(project.id);
                   }}
                   className="p-2 rounded-full hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 transition-colors"
@@ -78,7 +76,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
         </div>
       )}
 
-      {/* BOTÃO FLUTUANTE */}
       <div className="fixed bottom-8 left-0 right-0 flex justify-center pointer-events-none">
         <button
           onClick={onCreateProject}
