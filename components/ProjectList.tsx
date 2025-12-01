@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Project } from '../types';
-import { Search, MapPin, Camera, Image as ImageIcon, ChevronRight, Bed, Bath, Square, Trash2 } from 'lucide-react';
+import { Search, MapPin, Camera, Image as ImageIcon, ChevronRight, Bed, Bath, Square, Trash2, Download, Loader2 } from 'lucide-react';
 import { Card, Button } from './ui';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 interface ProjectListProps {
   projects: Project[];
@@ -12,8 +14,54 @@ interface ProjectListProps {
 
 export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProject, onCreateProject, onDeleteProject }) => {
   
+  // Estado para controlar qual projeto está sendo baixado
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
+  };
+
+  const handleDownloadProject = async (e: React.MouseEvent, project: Project) => {
+      e.stopPropagation(); // Impede abrir o projeto
+      if (!project.photos || project.photos.length === 0) {
+          alert("Este projeto não tem fotos para descarregar.");
+          return;
+      }
+
+      setDownloadingId(project.id);
+
+      try {
+          const zip = new JSZip();
+          const folder = zip.folder(project.title.replace(/[^a-z0-9]/gi, '_')); // Nome seguro para pasta
+
+          // Download de cada foto e adição ao ZIP
+          const promises = project.photos.map(async (photo, index) => {
+              try {
+                  const response = await fetch(photo.url, { mode: 'cors' });
+                  const blob = await response.blob();
+                  const fileName = photo.name || `foto_${index + 1}.jpg`;
+                  // Garante extensão .jpg se não tiver
+                  const finalName = fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.png') 
+                      ? fileName 
+                      : `${fileName}.jpg`;
+                  
+                  folder?.file(finalName, blob);
+              } catch (err) {
+                  console.error(`Erro ao baixar foto ${photo.id}:`, err);
+              }
+          });
+
+          await Promise.all(promises);
+
+          const content = await zip.generateAsync({ type: "blob" });
+          saveAs(content, `${project.title}_fotos.zip`);
+
+      } catch (error) {
+          console.error("Erro ao gerar ZIP:", error);
+          alert("Ocorreu um erro ao preparar o download.");
+      } finally {
+          setDownloadingId(null);
+      }
   };
 
   const recentProjects = [...projects].sort((a, b) => b.createdAt - a.createdAt).slice(0, 3);
@@ -108,18 +156,37 @@ export const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProj
                              </span>
                         </div>
 
-                        {/* === BOTÃO DE DELETAR (NOVO) === */}
-                        <button 
-                            onClick={(e) => {
-                                e.stopPropagation(); // Impede de abrir o projeto ao clicar no lixo
-                                if (window.confirm('Tem a certeza que deseja eliminar este projeto?')) {
-                                    onDeleteProject(project.id);
-                                }
-                            }}
-                            className="absolute top-3 right-3 p-2 bg-white/90 dark:bg-black/60 backdrop-blur-md rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors shadow-sm z-10"
-                        >
-                            <Trash2 size={18} />
-                        </button>
+                        {/* === GRUPO DE AÇÕES (LIXO + DOWNLOAD) === */}
+                        <div className="absolute top-3 right-3 flex gap-2 z-10">
+                            
+                            {/* Botão de Download (Novo) */}
+                            <button 
+                                onClick={(e) => handleDownloadProject(e, project)}
+                                disabled={downloadingId === project.id}
+                                className="p-2 bg-white/90 dark:bg-black/60 backdrop-blur-md rounded-full text-gray-700 dark:text-white hover:text-brand-purple dark:hover:text-brand-purple transition-colors shadow-sm disabled:opacity-50"
+                                title="Descarregar todas as fotos"
+                            >
+                                {downloadingId === project.id ? (
+                                    <Loader2 size={18} className="animate-spin" />
+                                ) : (
+                                    <Download size={18} />
+                                )}
+                            </button>
+
+                            {/* Botão de Deletar */}
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation(); 
+                                    if (window.confirm('Tem a certeza que deseja eliminar este projeto?')) {
+                                        onDeleteProject(project.id);
+                                    }
+                                }}
+                                className="p-2 bg-white/90 dark:bg-black/60 backdrop-blur-md rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors shadow-sm"
+                                title="Eliminar projeto"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+                        </div>
                         
                         <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1">
                              <Camera size={12} /> {project.photos.length}
