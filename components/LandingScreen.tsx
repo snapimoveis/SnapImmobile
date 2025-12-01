@@ -1,71 +1,86 @@
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Mail, Lock } from 'lucide-react';
+import { Button, Input } from './ui';
 
-import React from 'react';
-import { Logo } from './Logo';
-
-interface LandingScreenProps {
-  onLogin: () => void;
-  onFreeTrial: () => void;
+interface LoginScreenProps {
+  onLogin: (email: string, password?: string) => void;
+  onBack: () => void;
+  onRegisterClick: () => void;
+  initialEmail?: string;
 }
 
-export const LandingScreen: React.FC<LandingScreenProps> = ({ onLogin, onFreeTrial }) => {
-  return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center bg-gray-900 font-sans text-white overflow-hidden">
-      {/* Background Image with Overlay */}
-      <div className="absolute inset-0 z-0">
-        <img 
-          src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1080&q=80" 
-          alt="Modern Interior" 
-          className="w-full h-full object-cover"
-        />
-        {/* Purple Overlay */}
-        <div className="absolute inset-0 bg-[#3b1e54]/90 mix-blend-multiply"></div>
-        <div className="absolute inset-0 bg-gradient-to-b from-[#3b1e54]/80 to-[#2a123d]/95"></div>
-      </div>
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack, onRegisterClick, initialEmail = '' }) => {
+  const [email, setEmail] = useState(initialEmail);
+  const [password, setPassword] = useState('');
 
-      {/* Content Container */}
-      <div className="relative z-10 flex flex-col items-center justify-center w-full max-w-md px-8 h-full text-center">
+  useEffect(() => {
+    if (initialEmail) setEmail(initialEmail);
+  }, [initialEmail]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (email) onLogin(email.trim(), password);
+  };
+
+  return (
+    <div className="min-h-screen bg-brand-gray-50 dark:bg-brand-dark flex flex-col font-sans justify-center p-6 transition-colors duration-300">
+      <div className="flex-1 flex flex-col justify-center max-w-md mx-auto w-full">
         
-        {/* Logo Area */}
-        <div className="mb-16 flex flex-col items-center justify-center relative">
-            <Logo variant="white" className="w-64 h-64" />
+        <div className="flex flex-col items-center mb-10 animate-in slide-in-from-bottom-4 duration-500">
+          <div className="w-24 h-24 bg-brand-purple rounded-[2rem] flex items-center justify-center mb-6 shadow-xl shadow-brand-purple/30 transform rotate-3 hover:rotate-0 transition-transform duration-300">
+             <span className="text-white font-bold text-4xl tracking-tighter">S</span>
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 text-center">Bem-vindo de volta!</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-center">Entre na sua conta para continuar a gerir os seus imóveis.</p>
         </div>
 
-        {/* Main Text */}
-        <div className="mb-12 space-y-4">
-            <h2 className="text-2xl font-bold uppercase tracking-wide text-white">
-              AUMENTA A SUA VISIBILIDADE
-            </h2>
-            <p className="text-base text-gray-200 leading-relaxed font-light px-4">
-              Captação profissional fácil, com qualidade visual através do seu smartphone, para melhorar os seus anuncio de imóveis.
+        <form onSubmit={handleSubmit} className="space-y-6 animate-in fade-in duration-700">
+             <Input 
+                type="email" 
+                placeholder="E-Mail" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)}
+                icon={<Mail size={20} />}
+                required
+             />
+             
+             <div>
+               <Input 
+                  type="password" 
+                  placeholder="Senha" 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)}
+                  icon={<Lock size={20} />}
+                  required
+               />
+               <div className="flex justify-end mt-2">
+                  <button type="button" className="text-sm text-brand-purple font-bold hover:underline">
+                      Esqueceu a senha?
+                  </button>
+               </div>
+             </div>
+
+             <div className="pt-4">
+                <Button type="submit" variant="secondary" size="lg" fullWidth>
+                    ENTRAR
+                </Button>
+             </div>
+        </form>
+
+        <div className="mt-8 text-center">
+            <p className="text-gray-600 dark:text-gray-400 text-sm">
+                Não tem conta?{' '}
+                <button type="button" onClick={onRegisterClick} className="text-brand-orange font-bold hover:underline ml-1">
+                    Registe-se
+                </button>
             </p>
         </div>
 
-        {/* Buttons Area */}
-        <div className="w-full space-y-6">
-            {/* Login Button */}
-            <button 
-                onClick={onLogin}
-                className="w-full py-3.5 rounded-full border border-white/50 text-white font-medium text-sm tracking-wide hover:bg-white/10 transition-colors backdrop-blur-sm"
-            >
-                JÁ TEM CONTA? ENTRE AQUI
-            </button>
-
-            {/* Separator */}
-            <div className="flex items-center gap-4 px-2">
-                <div className="flex-1 h-px bg-white/30"></div>
-                <span className="text-xs font-medium text-white/70 uppercase tracking-widest">OU</span>
-                <div className="flex-1 h-px bg-white/30"></div>
-            </div>
-
-            {/* Free Trial Button */}
-            <button 
-                onClick={onFreeTrial}
-                className="w-full py-4 rounded-full bg-[#e05618] text-white font-bold text-sm tracking-wide hover:bg-[#d04b0f] transition-colors shadow-xl shadow-orange-900/30 transform hover:scale-[1.02] active:scale-[0.98]"
-            >
-                FAÇA UM TESTE GRATUITO!
+        <div className="mt-auto pt-10 flex justify-center">
+            <button onClick={onBack} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
+                <ArrowLeft size={18} /> Voltar ao início
             </button>
         </div>
-
       </div>
     </div>
   );
