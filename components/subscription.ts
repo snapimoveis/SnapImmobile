@@ -1,7 +1,6 @@
-// services/subscription.ts
 import { UserProfile, Project } from "../types";
 
-export const DEFAULT_TRIAL: { maxProperties: number; maxPhotosPerProperty: number } = {
+export const DEFAULT_TRIAL = {
   maxProperties: 1,
   maxPhotosPerProperty: 20,
 };
@@ -20,45 +19,25 @@ export function ensureTrialInfo(user: UserProfile): UserProfile {
         usedPhotos: 0,
       },
     };
-    return user;
   }
-
-  if (!user.billing.trial && user.billing.plan === "TRIAL") {
-    user.billing.trial = {
-      startedAt: Date.now(),
-      maxProperties: DEFAULT_TRIAL.maxProperties,
-      maxPhotosPerProperty: DEFAULT_TRIAL.maxPhotosPerProperty,
-      usedProperties: 0,
-      usedPhotos: 0,
-    };
-  }
-
   return user;
 }
 
-export function canCreateNewProperty(user: UserProfile, projects: Project[]): boolean {
-  if (!user.billing || user.billing.plan !== "TRIAL") return true; // planos pagos sem limite
+export function canCreateNewProperty(user: UserProfile, projects: Project[]) {
+  if (user.billing?.plan !== "TRIAL") return true;
 
-  const trial = user.billing.trial;
+  const trial = user.billing?.trial;
   if (!trial) return true;
 
-  if (trial.usedProperties >= trial.maxProperties) return false;
-
-  // segurança extra: garantir pelos próprios projetos
-  const userProjectsCount = projects.length;
-  if (userProjectsCount >= trial.maxProperties) return false;
-
-  return true;
+  return projects.length < trial.maxProperties;
 }
 
-export function canAddPhotoToProject(user: UserProfile, project: Project): boolean {
-  if (!user.billing || user.billing.plan !== "TRIAL") return true;
+export function canAddPhotoToProject(user: UserProfile, project: Project) {
+  if (user.billing?.plan !== "TRIAL") return true;
 
   const trial = user.billing.trial;
   if (!trial) return true;
 
-  const photoCount = project.photos?.length || 0;
-  if (photoCount >= trial.maxPhotosPerProperty) return false;
-
-  return true;
+  const count = project.photos?.length || 0;
+  return count < trial.maxPhotosPerProperty;
 }
