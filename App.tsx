@@ -153,45 +153,62 @@ function App() {
     };
 
     // SAVE CAPTURED PHOTO
-    const handlePhotoCaptured = async (photo: Photo) => {
-        if (!currentUser) return;
+const handlePhotoCaptured = async (photo: Photo) => {
+    if (!currentUser) return;
 
-        try {
-            if (!activeProject) {
-                const draft: Project = {
-                    id: crypto.randomUUID(),
-                    userId: currentUser.id,
-                    title: "Imóvel Rascunho",
+    try {
+        // Se não existir projeto ativo → criar um rascunho COMPLETO
+        if (!activeProject) {
+            const draft: Project = {
+                id: crypto.randomUUID(),
+                userId: currentUser.id,
+                title: "Imóvel Rascunho",
+                address: "Sem Morada",
+                status: "In Progress",
+                photos: [photo],
+                createdAt: Date.now(),
+                coverImage: photo.url,
+
+                // 🔥 AQUI ESTÁ O CAMPO FALTANTE (OBRIGATÓRIO)
+                details: {
                     address: "Sem Morada",
-                    status: "In Progress",
-                    photos: [photo],
-                    createdAt: Date.now(),
-                    coverImage: photo.url
-                };
+                    rooms: null,
+                    area: null,
+                    price: null,
+                    bathrooms: null,
+                    garage: null,
+                    description: null
+                },
 
-                const savedDraft = await saveProject(draft);
-                setProjects([savedDraft, ...projects]);
-                setActiveProject(savedDraft);
-                return;
-            }
-
-            // AI description (fire and forget)
-            generateDescription(photo.url).catch(() => {});
-
-            const updated: Project = {
-                ...activeProject,
-                photos: [...activeProject.photos, photo],
-                coverImage: activeProject.coverImage ?? photo.url
+                // 🔥 este campo existe no tipo, então deixamos seguro
+                contacts: []
             };
 
-            const saved = await saveProject(updated);
-            setActiveProject(saved);
-            setProjects(prev => prev.map(p => p.id === saved.id ? saved : p));
-
-        } catch {
-            alert("Erro ao guardar foto.");
+            const savedDraft = await saveProject(draft);
+            setProjects([savedDraft, ...projects]);
+            setActiveProject(savedDraft);
+            return;
         }
-    };
+
+        // AI description (fire and forget)
+        generateDescription(photo.url).catch(() => {});
+
+        const updated: Project = {
+            ...activeProject,
+            photos: [...activeProject.photos, photo],
+            coverImage: activeProject.coverImage ?? photo.url
+        };
+
+        const saved = await saveProject(updated);
+
+        setActiveProject(saved);
+        setProjects(prev => prev.map(p => p.id === saved.id ? saved : p));
+
+    } catch {
+        alert("Erro ao guardar foto.");
+    }
+};
+
 
     // SAVE EDITED PHOTO
     const handleSaveEditedPhoto = async (updatedPhoto: Photo) => {
