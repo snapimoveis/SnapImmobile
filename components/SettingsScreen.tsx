@@ -1,6 +1,13 @@
-import React from 'react';
-import { FileText, Shield, LogOut, ChevronRight, Moon, Search, Compass, Heart, RefreshCw } from 'lucide-react';
-import { UserProfile } from '../types';
+import React from "react";
+import {
+  FileText,
+  Shield,
+  LogOut,
+  Moon,
+  ChevronRight,
+  User,
+} from "lucide-react";
+import { UserProfile } from "../types";
 
 export interface SettingsScreenProps {
   currentUser: UserProfile | null;
@@ -8,84 +15,159 @@ export interface SettingsScreenProps {
   onDeleteAccount: () => Promise<void> | void;
 }
 
-export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onDeleteAccount }) => {
-  
+export const SettingsScreen: React.FC<SettingsScreenProps> = ({
+  currentUser,
+  onUpdateUser,
+  onDeleteAccount,
+}) => {
   const toggleTheme = () => {
-    document.documentElement.classList.toggle('dark');
+    document.documentElement.classList.toggle("dark");
   };
 
   return (
-    <div className="flex flex-col min-h-full bg-brand-gray-50 dark:bg-black text-gray-900 dark:text-white animate-in slide-in-from-right-8 duration-300 font-sans">
-      
-      {/* Cabeçalho com Logo */}
-      <div className="pt-12 pb-8 px-6 flex justify-between items-start">
-         <div className="relative">
-            {/* Logo Imagem em vez de Ícone */}
-            <div className="h-12 w-auto">
-                <img src="/brand/logo_color.png" className="h-full w-auto dark:hidden" alt="Snap Immobile" />
-                <img src="/brand/logo_color.png" className="h-full w-auto hidden dark:block brightness-0 invert" alt="Snap Immobile" />
-            </div>
-         </div>
-         <button onClick={() => window.history.back()} className="p-2 text-gray-400 hover:text-gray-900 dark:hover:text-white">
-             <span className="sr-only">Fechar</span>
-             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-         </button>
-      </div>
+    <div className="min-h-screen bg-brand-gray-50 dark:bg-black text-gray-900 dark:text-white px-0 md:px-4 py-8 animate-in slide-in-from-right-4">
 
-      <div className="px-0 space-y-8">
-        
-        <div className="bg-transparent">
-             <LinkItem icon={Shield} label="Politica de Privacidade" isHeader />
-             <LinkItem icon={RefreshCw} label="Sincronização" />
-             <LinkItem icon={Search} label="Pesquisar" />
-             <LinkItem icon={Compass} label="Explorar" />
-             <LinkItem icon={Heart} label="Favoritos" />
+      {/* HEADER */}
+      <div className="flex justify-between items-center px-6 mb-8">
+        <div className="flex items-center gap-3">
+          <img
+            src="/brand/logo_color.png"
+            className="h-10 dark:hidden"
+            alt="Snap Immobile"
+          />
+
+          <img
+            src="/brand/logo_color.png"
+            className="h-10 hidden dark:block brightness-0 invert"
+            alt="Snap Immobile"
+          />
         </div>
 
-        <div className="h-12"></div>
-
-        <div className="bg-transparent">
-             <LinkItem icon={Shield} label="Politica de Privacidade" />
-             <LinkItem icon={FileText} label="Termos e Condições" />
-             
-             <div className="flex items-center justify-between py-4 px-6 hover:bg-gray-100 dark:hover:bg-white/5 cursor-pointer" onClick={toggleTheme}>
-                <div className="flex items-center gap-4">
-                   <div className="text-gray-900 dark:text-white">
-                       <SettingsIcon />
-                   </div>
-                   <span className="text-base font-medium text-gray-700 dark:text-gray-200">Configurações</span>
-                </div>
-                <div className="relative w-10 h-6 bg-gray-200 dark:bg-brand-purple rounded-full transition-colors pointer-events-none">
-                   <div className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform dark:translate-x-4" />
-                </div>
-             </div>
-             
-             <div className="flex items-center gap-4 py-4 px-6 cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors group" onClick={onDeleteAccount}>
-                <div className="text-gray-900 dark:text-white group-hover:text-red-600">
-                    <LogOutIcon />
-                </div>
-                <span className="text-base font-medium text-gray-700 dark:text-gray-200 group-hover:text-red-600">Sair</span>
-             </div>
-        </div>
-
+        <button
+          onClick={() => window.history.back()}
+          className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-white/10"
+        >
+          <ChevronRight size={24} className="rotate-180 text-gray-500" />
+        </button>
       </div>
+
+      {/* USER SECTION */}
+      <div className="px-6 mb-8">
+        <div className="bg-white dark:bg-[#121212] border border-gray-200 dark:border-white/5 rounded-2xl p-6 shadow-sm flex items-center gap-5">
+          <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-200 dark:bg-white/10 flex items-center justify-center">
+            {currentUser?.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <User size={28} className="text-gray-600 dark:text-gray-300" />
+            )}
+          </div>
+
+          <div>
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+              {currentUser?.firstName} {currentUser?.lastName}
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {currentUser?.email}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* MAIN LIST */}
+      <div className="space-y-6">
+        {/* PRIVACY */}
+        <Section>
+          <LinkItem icon={Shield} label="Política de Privacidade" />
+          <LinkItem icon={FileText} label="Termos e Condições" />
+        </Section>
+
+        {/* THEME */}
+        <Section>
+          <ToggleItem label="Modo Escuro" icon={Moon} onClick={toggleTheme} />
+        </Section>
+
+        {/* ACCOUNT */}
+        <Section>
+          <DangerItem label="Eliminar Conta" onClick={onDeleteAccount} />
+        </Section>
+      </div>
+
+      <div className="h-12" />
     </div>
   );
 };
 
-const SettingsIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+/* -------------------------------------------------------------------------- */
+/* COMPONENTES REUTILIZÁVEIS */
+/* -------------------------------------------------------------------------- */
+
+const Section = ({ children }: { children: React.ReactNode }) => (
+  <div className="bg-white dark:bg-[#121212] border-y border-gray-200 dark:border-white/5 divide-y divide-gray-200 dark:divide-white/5">
+    {children}
+  </div>
 );
 
-const LogOutIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-);
-
-const LinkItem = ({ icon: Icon, label, isHeader = false }: { icon: any, label: string, isHeader?: boolean }) => (
-  <div className={`flex items-center gap-4 py-4 px-6 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer ${isHeader ? 'bg-gray-100 dark:bg-white/5' : ''}`}>
-    <div className={`text-gray-900 dark:text-white ${isHeader ? 'font-bold' : ''}`}>
-       <Icon size={24} strokeWidth={isHeader ? 2.5 : 2} />
+const LinkItem = ({
+  icon: Icon,
+  label,
+}: {
+  icon: any;
+  label: string;
+}) => (
+  <div className="flex items-center justify-between py-4 px-6 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer">
+    <div className="flex items-center gap-4">
+      <Icon size={22} className="text-gray-700 dark:text-gray-200" />
+      <span className="text-base">{label}</span>
     </div>
-    <span className={`text-base font-medium text-gray-700 dark:text-gray-200`}>{label}</span>
+    <ChevronRight size={20} className="text-gray-400" />
+  </div>
+);
+
+const ToggleItem = ({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: any;
+  label: string;
+  onClick: () => void;
+}) => (
+  <div
+    onClick={onClick}
+    className="flex items-center justify-between py-4 px-6 hover:bg-gray-100 dark:hover:bg-white/5 cursor-pointer"
+  >
+    <div className="flex items-center gap-4">
+      <Icon size={22} className="text-gray-700 dark:text-gray-200" />
+      <span className="text-base">{label}</span>
+    </div>
+
+    <div className="w-11 h-6 bg-gray-300 dark:bg-brand-purple rounded-full relative transition">
+      <div className="absolute top-1 left-1 w-4 h-4 bg-white dark:bg-black rounded-full shadow transition-transform dark:translate-x-5" />
+    </div>
+  </div>
+);
+
+const DangerItem = ({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) => (
+  <div
+    onClick={onClick}
+    className="flex items-center gap-4 py-4 px-6 hover:bg-red-50 dark:hover:bg-red-700/20 cursor-pointer group transition"
+  >
+    <LogOut
+      size={22}
+      className="text-red-600 dark:text-red-400 group-hover:scale-110 transition-transform"
+    />
+    <span className="text-base text-red-600 dark:text-red-400 font-semibold">
+      {label}
+    </span>
   </div>
 );
