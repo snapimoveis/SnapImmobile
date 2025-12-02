@@ -18,8 +18,10 @@ export interface UserProfile {
   phone?: string | null;
   cpf?: string | null;
   company?: string | null;
+
   avatar?: string | null;
   lastActive?: number | null;
+
   createdAt: number;
   preferences: UserPreferences;
 }
@@ -73,13 +75,19 @@ export interface Photo {
 export interface Project {
   id: string;
   userId: string;
+
   title: string;
   address: string;
+
   status: "In Progress" | "Completed";
+
   createdAt: number;
+
   details: ProjectDetails;
+
   photos: Photo[];
   coverImage?: string | null;
+
   contacts?: Contact[];
 }
 
