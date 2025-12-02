@@ -1,6 +1,7 @@
 // CORRECT IMPORT
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { cleanBase64, getMimeType } from "../utils/helpers";
+import { ToolMode } from "../types";  // <-- ADICIONADO
 
 const getApiKey = () => {
   // @ts-ignore
@@ -15,6 +16,16 @@ const apiKey = getApiKey();
 // CORRECT INITIALIZATION
 const genAI = new GoogleGenerativeAI(apiKey);
 
+// -----------------------------
+// MAPEAR O ToolMode PARA STRING DA API
+// -----------------------------
+const mapToolModeToApi = (mode: ToolMode): "ERASE" | "STAGE" => {
+  return mode === ToolMode.MAGIC_ERASE ? "ERASE" : "STAGE";
+};
+
+// -----------------------------
+// UTILS
+// -----------------------------
 const resizeForAI = async (base64Str: string, maxWidth = 1920): Promise<string> => {
     return new Promise((resolve) => {
         const img = new Image();
@@ -40,6 +51,9 @@ const resizeForAI = async (base64Str: string, maxWidth = 1920): Promise<string> 
     });
 };
 
+// -----------------------------
+// ENHANCE IMAGE
+// -----------------------------
 export const enhanceImage = async (base64Images: string | string[], profile: string = 'hp_hdr_interior'): Promise<string> => {
   if (!apiKey) throw new Error("Chave de API não configurada.");
 
@@ -72,14 +86,37 @@ export const enhanceImage = async (base64Images: string | string[], profile: str
   }
 };
 
-export const editImageWithPrompt = async (base64Image: string, prompt: string, mode: 'ERASE' | 'STAGE' = 'ERASE'): Promise<string> => {
+// -----------------------------
+// EDIT IMAGE — CORRIGIDO PARA USAR ToolMode
+// -----------------------------
+export const editImageWithPrompt = async (
+  base64Image: string,
+  prompt: string,
+  mode: ToolMode = ToolMode.MAGIC_ERASE
+): Promise<string> => {
+
     if (!apiKey) throw new Error("Chave de API não configurada.");
+
+    // converte para o formato que eventualmente a API queira
+    const apiMode = mapToolModeToApi(mode);
+
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        return base64Image; 
-    } catch (error: any) { throw error; }
+
+        // Aqui você aplicará a lógica verdadeira no futuro:
+        // const result = await model.generateContent([...])
+
+        // Retorna a própria imagem por enquanto (placeholder)
+        return base64Image;
+
+    } catch (error: any) {
+        throw error;
+    }
 };
 
+// -----------------------------
+// AUTO DESCRIPTION
+// -----------------------------
 export const generateDescription = async (base64Image: string): Promise<string> => {
     if (!apiKey) return "Imóvel";
     try {
