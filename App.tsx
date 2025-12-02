@@ -1,5 +1,5 @@
 // ========================================
-// App.tsx — versão final totalmente corrigida
+// App.tsx — versão final corrigida
 // ========================================
 
 import React, { useState, useEffect } from 'react';
@@ -61,8 +61,7 @@ function App() {
     useEffect(() => {
         const applyTheme = () => {
             const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (isDark) document.documentElement.classList.add('dark');
-            else document.documentElement.classList.remove('dark');
+            document.documentElement.classList.toggle("dark", isDark);
         };
         applyTheme();
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
@@ -110,7 +109,6 @@ function App() {
             };
 
             const newUser = await registerUser(tempUser, data.password);
-
             saveUserSession(newUser);
             setCurrentUser(newUser);
             setProjects([]);
@@ -128,7 +126,7 @@ function App() {
     };
 
     // CREATE PROJECT
-    const handleCreateProject = async (details: ProjectDetailsType & { title: string, address: string }) => {
+    const handleCreateProject = async (details: ProjectDetailsType & { title: string; address: string }) => {
         if (!currentUser) return;
 
         const newProject: Project = {
@@ -159,7 +157,6 @@ function App() {
         if (!currentUser) return;
 
         try {
-            // CREATE DRAFT IF NO PROJECT OPEN
             if (!activeProject) {
                 const draft: Project = {
                     id: crypto.randomUUID(),
@@ -178,7 +175,7 @@ function App() {
                 return;
             }
 
-            // AI DESCRIPTION
+            // AI description (fire and forget)
             generateDescription(photo.url).catch(() => {});
 
             const updated: Project = {
@@ -188,11 +185,10 @@ function App() {
             };
 
             const saved = await saveProject(updated);
-
             setActiveProject(saved);
             setProjects(prev => prev.map(p => p.id === saved.id ? saved : p));
 
-        } catch (e: any) {
+        } catch {
             alert("Erro ao guardar foto.");
         }
     };
@@ -208,7 +204,7 @@ function App() {
         const updated = {
             ...activeProject,
             photos: newPhotos,
-            coverImage: newPhotos[0]?.url ?? activeProject.coverImage
+            coverImage: newPhotos[0]?.url ?? activeProject.coverImage ?? ""
         };
 
         const saved = await saveProject(updated);
@@ -227,7 +223,7 @@ function App() {
     };
 
     // LOGIN
-    const handleLoginSubmit = async (email: string = "", password?: string) => {
+    const handleLoginSubmit = async (email: string = "", password: string = "") => {
         try {
             const user = await loginUser(email, password);
             saveUserSession(user);
@@ -250,7 +246,7 @@ function App() {
     // DELETE ACCOUNT
     const handleDeleteAccount = async () => {
         if (!currentUser) return;
-        await deleteUserAccount(currentUser.email, currentUser.id);
+        await deleteUserAccount(currentUser.email ?? "", currentUser.id);
         await handleLogout();
     };
 
@@ -261,7 +257,7 @@ function App() {
         setCurrentRoute(AppRoute.LANDING);
     };
 
-    // FLOATING CAMERA BUTTON ACTION
+    // CAMERA ACTION
     const handleCentralCameraAction = () => {
         if (currentRoute === AppRoute.PROJECT_DETAILS && activeProject) {
             setCurrentRoute(AppRoute.CAMERA);
@@ -284,10 +280,7 @@ function App() {
         AppRoute.MENU
     ].includes(currentRoute);
 
-    // ========================================================================
-    //  ROUTER
-    // ========================================================================
-
+    // ROUTER
     const renderContent = () => {
         switch (currentRoute) {
             case AppRoute.LANDING:
@@ -319,7 +312,9 @@ function App() {
 
             case AppRoute.CAMERA:
                 return <CameraView
-                    onClose={() => setCurrentRoute(activeProject ? AppRoute.PROJECT_DETAILS : AppRoute.DASHBOARD)}
+                    onClose={() =>
+                        setCurrentRoute(activeProject ? AppRoute.PROJECT_DETAILS : AppRoute.DASHBOARD)
+                    }
                     onPhotoCaptured={handlePhotoCaptured}
                 />;
 
