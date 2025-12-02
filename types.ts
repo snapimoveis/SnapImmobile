@@ -12,7 +12,7 @@ export interface UserPreferences {
 export interface UserProfile {
   id: string;
 
-  role: string; // Corretor, Proprietario, Fotografo, etc.
+  role: string;
 
   firstName: string;
   lastName: string;
@@ -21,10 +21,8 @@ export interface UserProfile {
   cpf?: string | null;
   company?: string | null;
 
-  // Para o ProfileTab
   avatar?: string | null;
 
-  // Sessão, estatísticas etc.
   lastActive?: number | null;
 
   createdAt: number;
@@ -46,8 +44,22 @@ export interface ProjectDetails {
   garage?: number | null;
   description?: string | null;
 
-  // Obrigatório
   address: string;
+}
+
+
+
+// ==========================================================
+// CONTACT
+// ==========================================================
+
+export interface Contact {
+  id: string;
+  name: string;
+  phone: string;
+  role: string;
+  email?: string;
+  notes?: string;
 }
 
 
@@ -60,30 +72,13 @@ export interface Photo {
   id: string;
   url: string;
   name: string;
-  type?: string; // hdr | standard
+  type?: string;
   createdAt: number;
   timestamp?: number;
 
-  // Usado pelo editor
   originalUrl?: string;
 
-  // Usado pelo Tour Viewer (opcional)
   linkedTo?: string | null;
-}
-
-
-
-// ==========================================================
-// CONTACT (ProjectContacts)
-// ==========================================================
-
-export interface Contact {
-  id: string;
-  name: string;
-  phone: string;
-  role: string; // Proprietário, Inquilino, Porteiro, Outro
-  email?: string;
-  notes?: string;
 }
 
 
@@ -108,14 +103,13 @@ export interface Project {
   photos: Photo[];
   coverImage?: string | null;
 
-  // Para ProjectContacts
   contacts?: Contact[];
 }
 
 
 
 // ==========================================================
-// APP ROUTES
+// ROUTES
 // ==========================================================
 
 export enum AppRoute {
@@ -135,7 +129,7 @@ export enum AppRoute {
 
 
 // ==========================================================
-// EDITOR TOOL MODES
+// EDITOR TOOLS
 // ==========================================================
 
 export enum ToolMode {
@@ -146,13 +140,14 @@ export enum ToolMode {
 
 
 // ==========================================================
-// INVOICES (BillingTab)
+// INVOICES
 // ==========================================================
 
 export type InvoiceStatus = "paid" | "pending" | "overdue";
 
 export interface Invoice {
   id: string;
+
   number?: string;
 
   amount: number;
@@ -160,7 +155,7 @@ export interface Invoice {
 
   status: InvoiceStatus;
 
-  createdAt: number;          // data da emissão
+  createdAt: number;
   dueDate?: number | null;
 
   description?: string | null;
@@ -169,7 +164,7 @@ export interface Invoice {
 
 
 // ==========================================================
-// DEVICES (DevicesTab)
+// DEVICES
 // ==========================================================
 
 export interface Device {
@@ -191,31 +186,26 @@ export interface Device {
 
 
 // ==========================================================
-// COMPANY SETTINGS (GeneralTab)
+// COMPANY SETTINGS
 // ==========================================================
 
 export interface CompanySettings {
   id: string;
 
-  name: string; // nome da empresa
+  name: string;
 
   website?: string | null;
 
-  // logotipo
   logoUrl?: string | null;
 
-  // watermark
   watermarkUrl?: string | null;
 
-  // cores
   primaryColor?: string | null;
   backgroundColor?: string | null;
 
-  // permitir marca de água do utilizador
   allowUserWatermark?: boolean;
 
-  // visitas virtuais
-  virtualTourDays?: string[]; // ["SEG", "TER", ...]
+  virtualTourDays?: string[];
 
   updatedAt?: number | null;
 }
