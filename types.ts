@@ -1,6 +1,7 @@
 // -------------------------------------------
 // USER PROFILE
 // -------------------------------------------
+
 export interface UserPreferences {
   language: string;
   notifications: boolean;
@@ -11,17 +12,21 @@ export interface UserPreferences {
 export interface UserProfile {
   id: string;
   role: string;
+
   firstName: string;
   lastName: string;
   email: string;
+
   phone?: string | null;
   cpf?: string | null;
   company?: string | null;
 
-  // ⚠ Campo usado apenas no registo (não salvo no Firestore)
+  // ⚠ Usado apenas no processo de registo, não salvo no Firestore.
+  // Mantido como opcional para evitar erros de tipo.
   password?: string;
 
   createdAt: number;
+
   preferences: UserPreferences;
 }
 
@@ -36,7 +41,7 @@ export interface ProjectDetails {
   garage?: number | null;
   description?: string | null;
 
-  // Garantia que não explode erros:
+  // Necessário pois o App.tsx fornece SEMPRE address
   address: string;
 }
 
@@ -51,6 +56,9 @@ export interface Photo {
   createdAt: number;       // Timestamp do upload
   timestamp?: number;      // Para ordenação e histórico
   originalUrl?: string;    // Usado no editor se necessário
+
+  // ⚠ Necessário para o TourViewer — corrige o erro
+  linkedTo?: string | null;
 }
 
 // -------------------------------------------
@@ -68,8 +76,9 @@ export interface Project {
 
   details: ProjectDetails;
 
-  // Fotos processadas + capa podem ser null
   photos: Photo[];
+
+  // Pode ser null ou string
   coverImage?: string | null;
 }
 
