@@ -14,9 +14,6 @@ export const CameraView: React.FC<CameraViewProps> = ({
   onPhotoCaptured,
   onClose,
 }) => {
-  /* --------------------------------------------
-      STATES, REFS E LÓGICA ORIGINAL (mantida)
-  ---------------------------------------------*/
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -53,9 +50,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   const safeSet = (fn: () => void) => mountedRef.current && fn();
 
-  /* --------------------------------------------
-              INIT + CAMERA HANDLING
-  ---------------------------------------------*/
+  /* -------------------------------------------------------------- */
+  /* INIT */
+  /* -------------------------------------------------------------- */
   useEffect(() => {
     mountedRef.current = true;
 
@@ -76,25 +73,38 @@ export const CameraView: React.FC<CameraViewProps> = ({
     safeSet(() => setHasSaved(false));
   }, [previewImage]);
 
-  /* --------------------------------------------
-          DETECTAR CÂMERAS DISPONÍVEIS
-  ---------------------------------------------*/
-  const detectBackCameras = async () => {
+  /* -------------------------------------------------------------- */
+  /* FIX: CAMERA DETECTION (tipagem completa) */
+  /* -------------------------------------------------------------- */
+  const detectBackCameras = async (): Promise<{
+    wide?: MediaDeviceInfo;
+    ultra?: MediaDeviceInfo;
+  }> => {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videos = devices.filter((d) => d.kind === "videoinput");
 
-    let wide, ultra;
+    let wide: MediaDeviceInfo | undefined = undefined;
+    let ultra: MediaDeviceInfo | undefined = undefined;
 
     videos.forEach((cam) => {
       const l = cam.label.toLowerCase();
 
-      if (!ultra && (l.includes("0.5") || l.includes("ultra"))) ultra = cam;
-      if (!wide && !l.includes("front") && (l.includes("back") || l.includes("wide")))
+      if (!ultra && (l.includes("0.5") || l.includes("ultra"))) {
+        ultra = cam;
+      }
+
+      if (
+        !wide &&
+        !l.includes("front") &&
+        (l.includes("back") || l.includes("wide"))
+      ) {
         wide = cam;
+      }
     });
 
     if (!wide) wide = videos[0];
-    if (!ultra) ultra = videos.find((v) => v.deviceId !== wide.deviceId);
+    if (!ultra)
+      ultra = videos.find((v) => v.deviceId !== wide?.deviceId);
 
     setWideDeviceId(wide?.deviceId);
     setUltraDeviceId(ultra?.deviceId);
@@ -102,9 +112,13 @@ export const CameraView: React.FC<CameraViewProps> = ({
     return { wide, ultra };
   };
 
+  /* -------------------------------------------------------------- */
+  /* START CAMERA */
+  /* -------------------------------------------------------------- */
   const startCamera = async (lensType: LensType) => {
     stopCamera();
-    let deviceId;
+
+    let deviceId: string | undefined;
 
     if (!wideDeviceId && !ultraDeviceId) {
       const result = await detectBackCameras();
@@ -119,16 +133,17 @@ export const CameraView: React.FC<CameraViewProps> = ({
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           deviceId: deviceId ? { exact: deviceId } : undefined,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          width: { ideal: 4032 },
+          height: { ideal: 3024 },
         },
       });
 
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
+
       setLens(lensType);
       setIsStreaming(true);
-    } catch (err) {
+    } catch {
       alert("Não foi possível aceder à câmara.");
     }
   };
@@ -139,9 +154,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
     setIsStreaming(false);
   };
 
-  /* --------------------------------------------
-                 FOCUS TAP
-  ---------------------------------------------*/
+  /* -------------------------------------------------------------- */
+  /* TAP TO FOCUS */
+  /* -------------------------------------------------------------- */
   const handleTapToFocus = (e: any) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const clientX = e.clientX ?? e.touches?.[0].clientX;
@@ -155,13 +170,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
     setTimeout(() => setFocusPoint(null), 800);
   };
 
-  /* --------------------------------------------
-                 SHUTTER
-  ---------------------------------------------*/
+  /* -------------------------------------------------------------- */
+  /* SHUTTER */
+  /* -------------------------------------------------------------- */
   const handleShutterClick = () => {
     if (isProcessing) return;
 
     shutterSound.current?.play();
+
     let c = 3;
     setCountdown(c);
 
@@ -178,9 +194,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
     }, 1000);
   };
 
-  /* --------------------------------------------
-            HDR CAPTURE + IA FIXED
-  ---------------------------------------------*/
+  /* -------------------------------------------------------------- */
+  /* HDR CAPTURE */
+  /* -------------------------------------------------------------- */
   const captureHDR = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
@@ -191,20 +207,22 @@ export const CameraView: React.FC<CameraViewProps> = ({
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d")!;
+
     const frames: string[] = [];
 
-    const br = [0.6, 0.9, 1, 1.2, 1.35];
+    const br = [0.6, 0.8, 1, 1.2, 1.4];
 
     for (let i = 0; i < br.length; i++) {
       ctx.filter = `brightness(${br[i]})`;
-
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
 
-      frames.push(canvas.toDataURL("image/jpeg", 0.95));
-      setProcessingProgress(15 + i * 15);
-      await new Promise((r) => setTimeout(r, 40));
+      ctx.drawImage(video, 0, 0);
+      const jpeg = canvas.toDataURL("image/jpeg", 0.95);
+      frames.push(jpeg);
+
+      safeSet(() => setProcessingProgress(10 + i * 15));
+      await new Promise((r) => setTimeout(r, 50));
     }
 
     setProcessingStep("Processando IA…");
@@ -214,70 +232,72 @@ export const CameraView: React.FC<CameraViewProps> = ({
     try {
       const result = await enhanceImage(finalImage);
       if (result && result.length > 1000) finalImage = result;
-    } catch {}
+    } catch (e) {
+      console.warn("Erro IA:", e);
+    }
 
     setPreviewImage(finalImage);
     setProcessingProgress(100);
+
     await savePhoto(finalImage);
 
     setIsProcessing(false);
   };
 
-  /* --------------------------------------------
-                 SALVAR FOTO
-  ---------------------------------------------*/
+  /* -------------------------------------------------------------- */
+  /* SAVE */
+  /* -------------------------------------------------------------- */
   const savePhoto = async (url: string) => {
     if (hasSaved) return;
 
-    const p: Photo = {
+    const photo: Photo = {
       id: crypto.randomUUID(),
       url,
       name: `SNAP_${Date.now()}.jpg`,
-      createdAt: Date.now(),
       type: "hdr",
+      createdAt: Date.now(),
       originalUrl: url,
       timestamp: Date.now(),
     };
 
-    await onPhotoCaptured(p);
+    await onPhotoCaptured(photo);
     setHasSaved(true);
   };
 
-  /* --------------------------------------------
-              PREVIEW DA FOTO
-  ---------------------------------------------*/
+  /* -------------------------------------------------------------- */
+  /* PREVIEW FINAL */
+  /* -------------------------------------------------------------- */
   if (previewImage) {
     return (
-      <div className="fixed inset-0 bg-black flex items-center justify-center z-[999]">
+      <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
         <img src={previewImage} className="max-w-full max-h-full" />
 
         <button
           onClick={() => setPreviewImage(null)}
-          className="absolute top-5 right-5 bg-black/70 p-3 rounded-full"
+          className="absolute top-5 right-5 bg-black/60 p-3 rounded-full"
         >
           <X size={26} />
         </button>
 
         {hasSaved && (
-          <div className="absolute bottom-10 bg-green-600 text-white px-6 py-3 rounded-full flex items-center gap-3">
-            <CheckCircle size={22} />
-            FOTO GUARDADA
+          <div className="absolute bottom-10 bg-green-600 px-6 py-3 rounded-full flex items-center gap-3">
+            <CheckCircle /> Foto Guardada
           </div>
         )}
       </div>
     );
   }
 
-  /* --------------------------------------------
-              CAMERA VIEW — NOVA UI RESPONSIVA
-  ---------------------------------------------*/
+  /* -------------------------------------------------------------- */
+  /* CAMERA UI */
+  /* -------------------------------------------------------------- */
   return (
-    <div className="fixed inset-0 bg-black text-white flex flex-col z-[999]">
+    <div className="fixed inset-0 bg-black text-white flex flex-col z-50">
 
-      {/* ========== TOP BAR ========== */}
-      <div className="flex justify-between items-center px-4 py-4">
-        <button onClick={onClose} className="p-3 bg-black/40 rounded-full active:scale-95">
-          <X size={22} />
+      {/* TOP BAR */}
+      <div className="flex justify-between items-center px-6 py-4">
+        <button onClick={onClose} className="p-3 bg-black/40 rounded-full">
+          <X />
         </button>
 
         <div className="flex gap-3">
@@ -292,18 +312,18 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
           <button
             onClick={() => setShowGrid((g) => !g)}
-            className="p-3 bg-black/40 rounded-full active:scale-95"
+            className="p-3 bg-black/40 rounded-full"
           >
             <Grid3X3 size={20} />
           </button>
         </div>
       </div>
 
-      {/* ========== CAMERA PREVIEW (16:9 RESPONSIVO) ========== */}
-      <div className="flex-1 flex items-center justify-center px-4">
+      {/* CAMERA VIEW */}
+      <div className="flex-1 relative flex items-center justify-center">
         <div
-          className="relative w-full max-w-[700px] aspect-video rounded-xl overflow-hidden bg-black"
           onClick={handleTapToFocus}
+          className="relative w-full max-w-[92%] mx-auto h-full rounded-xl overflow-hidden"
         >
           <video
             ref={videoRef}
@@ -312,20 +332,17 @@ export const CameraView: React.FC<CameraViewProps> = ({
             className="absolute inset-0 w-full h-full object-cover"
           />
 
-          {/* FOCUS INDICATOR */}
+          {/* FOCUS POINT */}
           {focusPoint && (
             <div
               className="absolute w-14 h-14 border-2 border-yellow-400 rounded-lg"
-              style={{
-                top: focusPoint.y - 28,
-                left: focusPoint.x - 28,
-              }}
+              style={{ top: focusPoint.y - 28, left: focusPoint.x - 28 }}
             />
           )}
 
           {/* GRID */}
           {showGrid && (
-            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-20">
+            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-25">
               {[...Array(9)].map((_, i) => (
                 <div key={i} className="border border-white/10" />
               ))}
@@ -334,11 +351,11 @@ export const CameraView: React.FC<CameraViewProps> = ({
         </div>
       </div>
 
-      {/* ========== SHUTTER BUTTON ========== */}
-      <div className="pb-10 flex justify-center">
+      {/* SHUTTER */}
+      <div className="py-6 flex justify-center">
         <button
           onClick={handleShutterClick}
-          className="w-24 h-24 rounded-full border-4 border-white flex items-center justify-center active:scale-95"
+          className="w-24 h-24 rounded-full border-4 border-white flex items-center justify-center"
         >
           <div className="w-20 h-20 rounded-full bg-white" />
         </button>
@@ -351,7 +368,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
         </div>
       )}
 
-      {/* PROCESSAMENTO */}
+      {/* PROCESSING OVERLAY */}
       {isProcessing && (
         <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center">
           <div className="w-16 h-16 border-4 border-white/20 border-t-yellow-400 rounded-full animate-spin mb-4" />
