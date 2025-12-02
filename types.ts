@@ -11,26 +11,18 @@ export interface UserPreferences {
 
 export interface UserProfile {
   id: string;
-
   role: string;
-
   firstName: string;
   lastName: string;
   email: string;
   phone?: string | null;
   cpf?: string | null;
   company?: string | null;
-
   avatar?: string | null;
-
   lastActive?: number | null;
-
   createdAt: number;
-
   preferences: UserPreferences;
 }
-
-
 
 // ==========================================================
 // PROJECT DETAILS
@@ -43,11 +35,8 @@ export interface ProjectDetails {
   bathrooms?: number | null;
   garage?: number | null;
   description?: string | null;
-
   address: string;
 }
-
-
 
 // ==========================================================
 // CONTACT
@@ -62,8 +51,6 @@ export interface Contact {
   notes?: string;
 }
 
-
-
 // ==========================================================
 // PHOTO
 // ==========================================================
@@ -75,13 +62,9 @@ export interface Photo {
   type?: string;
   createdAt: number;
   timestamp?: number;
-
   originalUrl?: string;
-
   linkedTo?: string | null;
 }
-
-
 
 // ==========================================================
 // PROJECT
@@ -90,23 +73,15 @@ export interface Photo {
 export interface Project {
   id: string;
   userId: string;
-
   title: string;
   address: string;
-
   status: "In Progress" | "Completed";
-
   createdAt: number;
-
   details: ProjectDetails;
-
   photos: Photo[];
   coverImage?: string | null;
-
   contacts?: Contact[];
 }
-
-
 
 // ==========================================================
 // ROUTES
@@ -126,8 +101,6 @@ export enum AppRoute {
   TOUR_VIEWER = "TOUR_VIEWER",
 }
 
-
-
 // ==========================================================
 // EDITOR TOOLS
 // ==========================================================
@@ -137,8 +110,6 @@ export enum ToolMode {
   VIRTUAL_STAGING = "VIRTUAL_STAGING",
 }
 
-
-
 // ==========================================================
 // INVOICES
 // ==========================================================
@@ -147,21 +118,14 @@ export type InvoiceStatus = "paid" | "pending" | "overdue";
 
 export interface Invoice {
   id: string;
-
   number?: string;
-
   amount: number;
   currency?: string;
-
   status: InvoiceStatus;
-
   createdAt: number;
   dueDate?: number | null;
-
   description?: string | null;
 }
-
-
 
 // ==========================================================
 // DEVICES
@@ -169,21 +133,14 @@ export interface Invoice {
 
 export interface Device {
   id: string;
-
   type: "mobile" | "desktop" | "tablet" | string;
-
   name: string;
   model?: string | null;
-
   userName?: string | null;
-
   lastAccess?: number | null;
   lastActive?: number | null;
-
   status: "active" | "inactive" | "Blocked" | "Active" | string;
 }
-
-
 
 // ==========================================================
 // COMPANY SETTINGS
@@ -191,21 +148,13 @@ export interface Device {
 
 export interface CompanySettings {
   id: string;
-
   name: string;
-
   website?: string | null;
-
   logoUrl?: string | null;
-
   watermarkUrl?: string | null;
-
   primaryColor?: string | null;
   backgroundColor?: string | null;
-
   allowUserWatermark?: boolean;
-
   virtualTourDays?: string[];
-
   updatedAt?: number | null;
 }
