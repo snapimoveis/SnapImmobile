@@ -88,7 +88,6 @@ export const Editor: React.FC<EditorProps> = ({
         if (h.startsWith("blob:")) URL.revokeObjectURL(h);
       });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photo.id]);
 
   // ----------- CANVAS SYNC -----------
@@ -237,7 +236,12 @@ export const Editor: React.FC<EditorProps> = ({
         finalPrompt = `Add ${promptText}. Ultra realistic light.`;
       }
 
-      const result = await editImageWithPrompt(imgToSend, finalPrompt, mode);
+      // CORREÇÃO DEFINITIVA
+      const result = await editImageWithPrompt(
+        imgToSend,
+        finalPrompt,
+        mode
+      );
 
       const newHist = [...history.slice(0, currentIndex + 1), result];
       setHistory(newHist);
