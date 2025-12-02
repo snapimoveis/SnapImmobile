@@ -31,7 +31,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
   };
 
   // ------------------------------
-  // FILTRO DE BUSCA
+  // FILTRAGEM POR BUSCA
   // ------------------------------
   const filteredProjects = useMemo(() => {
     if (!search.trim()) return projects;
@@ -53,16 +53,18 @@ export const ProjectList: React.FC<ProjectListProps> = ({
   }, [projects]);
 
   return (
-    <div className="min-h-screen bg-brand-gray-50 dark:bg-black p-4 pb-24 transition-colors duration-300">
+    <div className="min-h-screen w-full bg-brand-gray-50 dark:bg-black p-4 pb-32 sm:pb-24 transition-colors duration-300">
+      
       {/* HEADER */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
           Seus Projetos
         </h1>
 
+        {/* DESKTOP botão “Novo imóvel” */}
         <button
           onClick={onCreateProject}
-          className="bg-brand-orange hover:bg-brand-orange-hover text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-md active:scale-95 transition-transform"
+          className="hidden sm:flex bg-brand-orange hover:bg-brand-orange-hover text-white px-4 py-2 rounded-xl items-center gap-2 shadow-md active:scale-95 transition-transform"
         >
           <Plus size={18} /> Novo Projeto
         </button>
@@ -92,19 +94,16 @@ export const ProjectList: React.FC<ProjectListProps> = ({
           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
             {recentProjects.map((project) => {
               const image =
-                project.coverImage ||
-                project.photos?.[0]?.url ||
-                null;
-
-              const photoCount = project.photos?.length || 0;
+                project.coverImage || project.photos?.[0]?.url || null;
 
               return (
                 <div
                   key={project.id}
                   onClick={() => onSelectProject(project)}
-                  className="min-w-[210px] max-w-[220px] bg-white dark:bg-[#151515] rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 cursor-pointer overflow-hidden flex-shrink-0"
+                  className="min-w-[180px] sm:min-w-[210px] bg-white dark:bg-[#151515] rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 cursor-pointer overflow-hidden flex-shrink-0"
                 >
-                  <div className="relative aspect-square w-full bg-gray-200 dark:bg-gray-800">
+                  {/* Capa */}
+                  <div className="relative aspect-square bg-gray-200 dark:bg-gray-800">
                     {image ? (
                       <img
                         src={image}
@@ -122,6 +121,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                     </div>
                   </div>
 
+                  {/* Info */}
                   <div className="px-3 pt-2 pb-3">
                     <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                       {project.title}
@@ -137,30 +137,37 @@ export const ProjectList: React.FC<ProjectListProps> = ({
         </div>
       )}
 
-      {/* LISTA DE TODOS OS IMÓVEIS */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-          Todos os imóveis
-        </h2>
+      {/* GRID – TODOS OS IMÓVEIS */}
+      <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
+        Todos os imóveis
+      </h2>
 
-        {filteredProjects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="w-16 h-16 bg-gray-200 dark:bg-white/10 rounded-full flex items-center justify-center mb-3">
-              <Camera size={28} className="text-gray-400" />
-            </div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">
-              Nenhum imóvel encontrado.
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Ajuste a pesquisa ou crie um novo imóvel.
-            </p>
+      {filteredProjects.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="w-16 h-16 bg-gray-200 dark:bg-white/10 rounded-full flex items-center justify-center mb-3">
+            <Camera size={28} className="text-gray-400" />
           </div>
-        ) : (
-          filteredProjects.map((project) => {
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
+            Nenhum imóvel encontrado.
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Ajuste a pesquisa ou crie um novo imóvel.
+          </p>
+        </div>
+      ) : (
+        <div
+          className="
+            grid 
+            grid-cols-1 
+            sm:grid-cols-2 
+            lg:grid-cols-3 
+            xl:grid-cols-4 
+            gap-4 sm:gap-6
+          "
+        >
+          {filteredProjects.map((project) => {
             const image =
-              project.coverImage ||
-              project.photos?.[0]?.url ||
-              null;
+              project.coverImage || project.photos?.[0]?.url || null;
 
             const photoCount = project.photos?.length || 0;
 
@@ -170,6 +177,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                 onClick={() => onSelectProject(project)}
                 className="bg-white dark:bg-[#151515] rounded-2xl shadow-md overflow-hidden border border-gray-200 dark:border-white/5 cursor-pointer transition-all hover:scale-[1.01]"
               >
+                {/* Capa */}
                 <div className="relative h-40 w-full bg-gray-200 dark:bg-gray-800">
                   {image ? (
                     <img
@@ -183,11 +191,13 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                     </div>
                   )}
 
+                  {/* Contador fotos */}
                   <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-xl flex items-center gap-1">
                     <Camera size={12} />
                     {photoCount}
                   </div>
 
+                  {/* Botão delete */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -199,8 +209,9 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                   </button>
                 </div>
 
+                {/* Conteúdo */}
                 <div className="p-4">
-                  <p className="text-base font-semibold text-gray-900 dark:text-white">
+                  <p className="text-base font-semibold text-gray-900 dark:text-white truncate">
                     {project.title}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -212,12 +223,12 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                 </div>
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
-      {/* BOTÃO FLUTUANTE */}
-      <div className="fixed bottom-8 left-0 right-0 flex justify-center pointer-events-none">
+      {/* BOTÃO FLUTUANTE — MOBILE */}
+      <div className="fixed sm:hidden bottom-8 left-0 right-0 flex justify-center pointer-events-none">
         <button
           onClick={onCreateProject}
           className="pointer-events-auto bg-brand-orange hover:bg-brand-orange-hover text-white px-8 py-3.5 rounded-full font-bold text-sm shadow-lg shadow-orange-500/30 active:scale-95 transition-transform flex items-center gap-2"
