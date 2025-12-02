@@ -134,4 +134,98 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 const Section = ({ children }: { children: React.ReactNode }) => (
   <div className="
     bg-white dark:bg-[#121212] 
-    border border-gray-200 dar
+    border border-gray-200 dark:border-white/5 
+    rounded-xl 
+    overflow-hidden divide-y 
+    divide-gray-200 dark:divide-white/10
+  ">
+    {children}
+  </div>
+);
+
+const LinkItem = ({
+  icon: Icon,
+  label,
+}: {
+  icon: any;
+  label: string;
+}) => (
+  <div className="
+    flex items-center justify-between 
+    py-4 px-6 
+    hover:bg-gray-100 dark:hover:bg-white/5 
+    transition cursor-pointer
+  ">
+    <div className="flex items-center gap-4">
+      <Icon size={22} className="text-gray-700 dark:text-gray-200" />
+      <span className="text-base">{label}</span>
+    </div>
+    <ChevronRight size={20} className="text-gray-400" />
+  </div>
+);
+
+const ToggleItem = ({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: any;
+  label: string;
+  onClick: () => void;
+}) => (
+  <div
+    onClick={onClick}
+    className="
+      flex items-center justify-between 
+      py-4 px-6 
+      hover:bg-gray-100 dark:hover:bg-white/5 
+      cursor-pointer transition
+    "
+  >
+    <div className="flex items-center gap-4">
+      <Icon size={22} className="text-gray-700 dark:text-gray-200" />
+      <span className="text-base">{label}</span>
+    </div>
+
+    {/* Toggle visual */}
+    <div className="
+      w-12 h-6 rounded-full 
+      bg-gray-300 dark:bg-brand-purple 
+      relative transition
+    ">
+      <div className="
+        absolute top-1 left-1 
+        w-4 h-4 rounded-full 
+        bg-white dark:bg-black 
+        shadow 
+        transition-transform dark:translate-x-6
+      " />
+    </div>
+  </div>
+);
+
+const DangerItem = ({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) => (
+  <div
+    onClick={onClick}
+    className="
+      flex items-center gap-4 
+      py-4 px-6 
+      hover:bg-red-50 dark:hover:bg-red-800/20 
+      cursor-pointer transition group
+    "
+  >
+    <LogOut
+      size={22}
+      className="text-red-600 dark:text-red-400 group-hover:scale-110 transition-transform"
+    />
+    <span className="text-base font-semibold text-red-600 dark:text-red-400">
+      {label}
+    </span>
+  </div>
+);
