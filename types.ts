@@ -21,9 +21,14 @@ export interface UserProfile {
   cpf?: string | null;
   company?: string | null;
 
-  // ⚠ Usado apenas no processo de registo, não salvo no Firestore.
-  // Mantido como opcional para evitar erros de tipo.
+  // Usado só em fluxos de registo / formulário, não no backend
   password?: string;
+
+  // URL do avatar (foto de perfil)
+  avatar?: string | null;
+
+  // Última actividade (timestamp em ms)
+  lastActive?: number | null;
 
   createdAt: number;
 
@@ -41,8 +46,19 @@ export interface ProjectDetails {
   garage?: number | null;
   description?: string | null;
 
-  // Necessário pois o App.tsx fornece SEMPRE address
   address: string;
+}
+
+// -------------------------------------------
+// CONTACTS (para ProjectContacts)
+// -------------------------------------------
+export interface Contact {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  role?: string | null;       // ex.: "Proprietário", "Cliente", etc.
+  notes?: string | null;
 }
 
 // -------------------------------------------
@@ -57,7 +73,7 @@ export interface Photo {
   timestamp?: number;      // Para ordenação e histórico
   originalUrl?: string;    // Usado no editor se necessário
 
-  // ⚠ Necessário para o TourViewer — corrige o erro
+  // Para encadear fotos no TourViewer
   linkedTo?: string | null;
 }
 
@@ -77,9 +93,53 @@ export interface Project {
   details: ProjectDetails;
 
   photos: Photo[];
-
-  // Pode ser null ou string
   coverImage?: string | null;
+
+  // Lista de contactos associada ao projecto (ProjectContacts)
+  contacts?: Contact[]; 
+}
+
+// -------------------------------------------
+// BILLING / INVOICES (BillingTab)
+// -------------------------------------------
+export type InvoiceStatus = "paid" | "pending" | "overdue";
+
+export interface Invoice {
+  id: string;
+  number?: string;          // nº da factura
+  amount: number;           // valor em €
+  currency?: string;        // ex.: "EUR"
+  status: InvoiceStatus;
+  createdAt: number;        // emissão
+  dueDate?: number | null;  // vencimento
+  description?: string | null;
+}
+
+// -------------------------------------------
+// DEVICES (DevicesTab)
+// -------------------------------------------
+export interface Device {
+  id: string;
+  name: string;            // ex.: "iPhone 15 do João"
+  os?: string | null;      // ex.: "iOS", "Android"
+  lastActive: number;      // timestamp
+  isActive: boolean;
+}
+
+// -------------------------------------------
+// COMPANY SETTINGS (GeneralTab)
+// -------------------------------------------
+export interface CompanySettings {
+  id: string;
+  name: string;
+  legalName?: string | null;
+  vatNumber?: string | null;   // NIF/NIPC
+  address?: string | null;
+  city?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  logoUrl?: string | null;
 }
 
 // -------------------------------------------
