@@ -1,286 +1,206 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 
-// -----------------------------------
-// IMPORTS DE TIPOS E SERVIÇOS
-// -----------------------------------
-import { AppRoute, Photo, Project, UserProfile } from "./types";
-import { saveUserSession, loadUserSession, logoutUser } from "./services/auth";
-import { registerUser, loginUser } from "./services/api";
-import {
-  ensureTrialInfo,
-  canAddPhotoToProject,
-  canCreateNewProperty,
-} from "./services/subscription";
-import { startAsaasCheckout } from "./services/billing";
-
-// -----------------------------------
-// IMPORT DOS SCREENS
-// -----------------------------------
-import { LandingScreen } from "./components/LandingScreen";
-import { LoginScreen } from "./components/LoginScreen";
-import { RegisterScreen } from "./components/RegisterScreen";
+// Layout e Screens
+import { MainLayout } from "./components/MainLayout";
+import LandingScreen from "./components/LandingScreen";
+import LoginScreen from "./components/LoginScreen";
+import RegisterScreen from "./components/RegisterScreen";
 import ProjectList from "./components/ProjectList";
 import ProjectDetail from "./components/ProjectDetail";
-import { CameraView } from "./components/CameraView";
-import { Editor } from "./components/Editor";
-import { SettingsScreen } from "./components/SettingsScreen";
+import CameraView from "./components/CameraView";
+import Editor from "./components/Editor";
 
-// -----------------------------------
-// APP PRINCIPAL
-// -----------------------------------
+// Types
+import { AppRoute, Project, Photo, UserProfile } from "./types";
+
+// Serviços locais (sem backend)
+import { authService } from "./services/auth";
+import { api } from "./services/api";
 
 export default function App() {
+  const [route, setRoute] = useState<AppRoute>(AppRoute.LANDING);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [activePhoto, setActivePhoto] = useState<Photo | null>(null);
-  const [currentRoute, setCurrentRoute] = useState<AppRoute>(AppRoute.LANDING);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [editorPhoto, setEditorPhoto] = useState<Photo | null>(null);
 
-  // -----------------------------------
-  // LOAD SESSION
-  // -----------------------------------
+  // ========================================================================
+  //  Load inicial (usuário + projetos)
+  // ========================================================================
   useEffect(() => {
-    const session = loadUserSession();
-    if (session) {
-      setCurrentUser(session);
-      setCurrentRoute(AppRoute.DASHBOARD);
+    const u = authService.getCurrentUser();
+    if (u) {
+      setCurrentUser(u);
+      setProjects(api.getProjects(u.id));
+      setRoute(AppRoute.DASHBOARD);
     }
   }, []);
 
-  // -----------------------------------
-  // LOGOUT
-  // -----------------------------------
-  const handleLogout = () => {
-    logoutUser();
-    setCurrentUser(null);
-    setProjects([]);
-    setActiveProject(null);
-    setCurrentRoute(AppRoute.LANDING);
-  };
-
-  // -----------------------------------
-  // REGISTO
-  // -----------------------------------
-  const handleRegister = async (data: any) => {
-    try {
-      let user: UserProfile = {
-        id: crypto.randomUUID(),
-        role: data.role,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        phone: data.phone,
-        cpf: data.cpf,
-        createdAt: Date.now(),
-      };
-
-      // Inicializa TESTE GRÁTIS
-      user = ensureTrialInfo(user);
-
-      const saved = await registerUser(user, data.password);
-      saveUserSession(saved);
-
-      setCurrentUser(saved);
-      setProjects([]);
-      setCurrentRoute(AppRoute.DASHBOARD);
-    } catch (error: any) {
-      alert(error.message || "Erro ao criar conta");
-    }
-  };
-
-  // -----------------------------------
-  // LOGIN
-  // -----------------------------------
+  // ========================================================================
+  //  LOGIN
+  // ========================================================================
   const handleLogin = async (email: string, password: string) => {
-    try {
-      const user = await loginUser(email, password);
-      saveUserSession(user);
-      setCurrentUser(user);
-      setCurrentRoute(AppRoute.DASHBOARD);
-    } catch {
-      alert("Email ou senha incorretos.");
+    const user = authService.login(email, password);
+    if (!user) {
+      alert("Credenciais inválidas.");
+      return;
     }
+
+    setCurrentUser(user);
+    setProjects(api.getProjects(user.id));
+    setRoute(AppRoute.DASHBOARD);
   };
 
-  // -----------------------------------
-  // CRIAR IMÓVEL
-  // -----------------------------------
+  // ========================================================================
+  //  REGISTO
+  // ========================================================================
+  const handleRegister = async (data: any) => {
+    const user = authService.register(data);
+    setCurrentUser(user);
+    setProjects([]);
+    setRoute(AppRoute.DASHBOARD);
+  };
+
+  // ========================================================================
+  //  LOGOUT
+  // ========================================================================
+  const handleLogout = () => {
+    authService.logout();
+    setCurrentUser(null);
+    setRoute(AppRoute.LANDING);
+  };
+
+  // ========================================================================
+  //  CRIAR PROJETO
+  // ========================================================================
   const handleCreateProject = () => {
     if (!currentUser) return;
 
-    const can = canCreateNewProperty(currentUser, projects);
+    const newProject = api.createProject(currentUser.id);
+    setProjects(api.getProjects(currentUser.id));
 
-    if (!can) {
-      alert(
-        "No teste gratuito só pode criar 1 imóvel.\nFaça upgrade para continuar."
-      );
-      return;
-    }
-
-    const p: Project = {
-      id: crypto.randomUUID(),
-      userId: currentUser.id,
-      title: "Novo Imóvel",
-      address: "Endereço",
-      createdAt: Date.now(),
-      photos: [],
-    };
-
-    setProjects([...projects, p]);
-    setActiveProject(p);
-    setCurrentRoute(AppRoute.DETAILS);
+    setSelectedProject(newProject);
+    setRoute(AppRoute.PROJECT_DETAILS);
   };
 
-  // -----------------------------------
-  // ADICIONAR FOTO
-  // -----------------------------------
+  // ========================================================================
+  //  CAPTURA DE FOTO
+  // ========================================================================
   const handlePhotoCaptured = async (photo: Photo) => {
-    if (!currentUser || !activeProject) return;
+    if (!selectedProject) return;
 
-    const can = canAddPhotoToProject(currentUser, activeProject);
-
-    if (!can) {
-      alert(
-        "No teste gratuito pode adicionar até 20 fotos por imóvel.\nFaça upgrade para continuar."
-      );
-      return;
-    }
-
-    const updated = {
-      ...activeProject,
-      photos: [...(activeProject.photos || []), photo],
-    };
-
-    setActiveProject(updated);
-    setProjects((prev) =>
-      prev.map((p) => (p.id === updated.id ? updated : p))
-    );
+    const updated = api.addPhoto(selectedProject.id, photo);
+    setSelectedProject(updated);
+    setProjects(api.getProjects(currentUser!.id));
   };
 
-  // -----------------------------------
-  // ACTUALIZAR FOTO (editor)
-  // -----------------------------------
-  const handleSavePhoto = (photo: Photo) => {
-    if (!activeProject) return;
+  // ========================================================================
+  //  SALVAR FOTO EDITADA
+  // ========================================================================
+  const handleSaveEditedPhoto = (updatedPhoto: Photo) => {
+    if (!selectedProject) return;
 
-    const updated = {
-      ...activeProject,
-      photos: activeProject.photos?.map((p) =>
-        p.id === photo.id ? photo : p
-      ),
-    };
+    const updated = api.updatePhoto(selectedProject.id, updatedPhoto);
+    setSelectedProject(updated);
 
-    setActiveProject(updated);
-    setProjects((prev) =>
-      prev.map((p) => (p.id === updated.id ? updated : p))
-    );
-
-    setActivePhoto(null);
+    setEditorPhoto(null);
   };
 
-  // -----------------------------------
-  // APAGAR IMÓVEL
-  // -----------------------------------
+  // ========================================================================
+  //  DELETAR PROJETO
+  // ========================================================================
   const handleDeleteProject = (id: string) => {
-    if (!window.confirm("Tem a certeza que deseja eliminar este imóvel?"))
-      return;
-
-    setProjects(projects.filter((p) => p.id !== id));
+    api.deleteProject(id);
+    setProjects(api.getProjects(currentUser!.id));
   };
 
-  // -----------------------------------
-  // UPGRADE ASSINATURA
-  // -----------------------------------
-  const handleUpgrade = async () => {
-    if (!currentUser) return;
+  // ========================================================================
+  //  RENDER
+  // ========================================================================
+  return (
+    <div className="bg-brand-gray-50 dark:bg-black text-gray-900 dark:text-white h-screen w-screen overflow-hidden">
+      {/* ========================= LANDING ========================= */}
+      {route === AppRoute.LANDING && (
+        <LandingScreen
+          onLogin={() => setRoute(AppRoute.LOGIN)}
+          onFreeTrial={() => setRoute(AppRoute.REGISTER)}
+        />
+      )}
 
-    try {
-      const url = await startAsaasCheckout(currentUser);
-      if (url) window.location.href = url;
-    } catch (err: any) {
-      alert(err.message || "Erro ao iniciar upgrade.");
-    }
-  };
+      {/* ========================= LOGIN ========================= */}
+      {route === AppRoute.LOGIN && (
+        <LoginScreen
+          onBack={() => setRoute(AppRoute.LANDING)}
+          onLogin={handleLogin}
+        />
+      )}
 
-  // -----------------------------------
-  // RENDER PÁGINAS
-  // -----------------------------------
-  if (currentRoute === AppRoute.LANDING)
-    return (
-      <LandingScreen
-        onLogin={() => setCurrentRoute(AppRoute.LOGIN)}
-        onFreeTrial={() => setCurrentRoute(AppRoute.REGISTER)}
-      />
-    );
+      {/* ========================= REGISTER ========================= */}
+      {route === AppRoute.REGISTER && (
+        <RegisterScreen
+          onBack={() => setRoute(AppRoute.LANDING)}
+          onSubmit={handleRegister}
+        />
+      )}
 
-  if (currentRoute === AppRoute.LOGIN)
-    return (
-      <LoginScreen
-        onLogin={handleLogin}
-        onBack={() => setCurrentRoute(AppRoute.LANDING)}
-      />
-    );
+      {/* ========================= DASHBOARD / LISTA ========================= */}
+      {route === AppRoute.DASHBOARD && currentUser && (
+        <MainLayout
+          currentRoute={route}
+          onNavigate={setRoute}
+          onLogout={handleLogout}
+          onCameraAction={handleCreateProject}
+        >
+          <ProjectList
+            projects={projects}
+            onCreateProject={handleCreateProject}
+            onDeleteProject={handleDeleteProject}
+            onSelectProject={(p) => {
+              setSelectedProject(p);
+              setRoute(AppRoute.PROJECT_DETAILS);
+            }}
+          />
+        </MainLayout>
+      )}
 
-  if (currentRoute === AppRoute.REGISTER)
-    return (
-      <RegisterScreen
-        onRegister={handleRegister}
-        onBack={() => setCurrentRoute(AppRoute.LANDING)}
-      />
-    );
+      {/* ========================= DETALHES DO PROJETO ========================= */}
+      {route === AppRoute.PROJECT_DETAILS && selectedProject && (
+        <MainLayout
+          currentRoute={route}
+          onNavigate={setRoute}
+          onLogout={handleLogout}
+          onCameraAction={() => setRoute(AppRoute.CAMERA)}
+        >
+          <ProjectDetail
+            initialProject={selectedProject}
+            onBack={() => setRoute(AppRoute.DASHBOARD)}
+            onAddPhoto={() => setRoute(AppRoute.CAMERA)}
+            onEditPhoto={(photo) => setEditorPhoto(photo)}
+            onUpdateProject={(p) => {
+              api.updateProject(p.id, p);
+              setSelectedProject(p);
+              setProjects(api.getProjects(currentUser!.id));
+            }}
+          />
+        </MainLayout>
+      )}
 
-  if (currentRoute === AppRoute.DASHBOARD)
-    return (
-      <ProjectList
-        projects={projects}
-        currentUser={currentUser}
-        onCreateProject={handleCreateProject}
-        onDeleteProject={handleDeleteProject}
-        onSelectProject={(p) => {
-          setActiveProject(p);
-          setCurrentRoute(AppRoute.DETAILS);
-        }}
-      />
-    );
+      {/* ========================= CÂMERA ========================= */}
+      {route === AppRoute.CAMERA && selectedProject && (
+        <CameraView
+          onClose={() => setRoute(AppRoute.PROJECT_DETAILS)}
+          onPhotoCaptured={handlePhotoCaptured}
+        />
+      )}
 
-  if (currentRoute === AppRoute.DETAILS && activeProject)
-    return (
-      <ProjectDetail
-        initialProject={activeProject}
-        onBack={() => setCurrentRoute(AppRoute.DASHBOARD)}
-        onAddPhoto={() => setCurrentRoute(AppRoute.CAMERA)}
-        onEditPhoto={(photo) => {
-          setActivePhoto(photo);
-          setCurrentRoute(AppRoute.EDITOR);
-        }}
-      />
-    );
-
-  if (currentRoute === AppRoute.CAMERA && activeProject)
-    return (
-      <CameraView
-        onPhotoCaptured={handlePhotoCaptured}
-        onClose={() => setCurrentRoute(AppRoute.DETAILS)}
-      />
-    );
-
-  if (currentRoute === AppRoute.EDITOR && activePhoto)
-    return (
-      <Editor
-        photo={activePhoto}
-        onCancel={() => setCurrentRoute(AppRoute.DETAILS)}
-        onSave={handleSavePhoto}
-      />
-    );
-
-  if (currentRoute === AppRoute.SETTINGS)
-    return (
-      <SettingsScreen
-        currentUser={currentUser}
-        onDeleteAccount={handleLogout}
-        onUpdateUser={(u: UserProfile) => console.log(u)}
-      />
-    );
-
-  return <div>Erro: rota desconhecida</div>;
+      {/* ========================= EDITOR ========================= */}
+      {editorPhoto && (
+        <Editor
+          photo={editorPhoto}
+          onCancel={() => setEditorPhoto(null)}
+          onSave={handleSaveEditedPhoto}
+        />
+      )}
+    </div>
+  );
 }
