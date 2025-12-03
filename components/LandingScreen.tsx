@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 
 interface LandingScreenProps {
   onLogin: () => void;
@@ -9,19 +9,9 @@ const LandingScreen: React.FC<LandingScreenProps> = ({
   onLogin,
   onFreeTrial,
 }) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  // Detecta dark mode de forma compatível com Vercel (SSR-friendly)
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const mq = window.matchMedia("(prefers-color-scheme: dark)");
-      setIsDarkMode(mq.matches);
-
-      const listener = (e: MediaQueryListEvent) => setIsDarkMode(e.matches);
-      mq.addEventListener("change", listener);
-      return () => mq.removeEventListener("change", listener);
-    }
-  }, []);
+  const isDarkMode =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-white dark:bg-black transition-colors duration-300">
@@ -38,19 +28,18 @@ const LandingScreen: React.FC<LandingScreenProps> = ({
 
       {/* Conteúdo */}
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-6 text-center">
-
+        
         {/* LOGO RESPONSIVA */}
         <img
           src={
             isDarkMode
-              ? "public/static/brand/logo_branco.png"
-              : "public/static/brand/logo_color.png"
+              ? "/static/brand/logo_branco.png"
+              : "/static/brand/logo_color.png"
           }
           alt="Snap Immobile"
           className="w-40 mb-10 drop-shadow-xl transition-all duration-300"
         />
 
-        {/* TÍTULO */}
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
           Bem-vindo ao Snap Immobile
         </h1>
@@ -59,7 +48,6 @@ const LandingScreen: React.FC<LandingScreenProps> = ({
           Fotografe, melhore e apresente imóveis com qualidade profissional.
         </p>
 
-        {/* BOTÕES */}
         <div className="flex flex-col gap-4 w-full max-w-xs">
           <button
             onClick={onLogin}
@@ -75,7 +63,6 @@ const LandingScreen: React.FC<LandingScreenProps> = ({
             Testar Gratuitamente
           </button>
         </div>
-
       </div>
     </div>
   );
