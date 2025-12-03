@@ -1,23 +1,29 @@
 // App.tsx
+
 import React, { useEffect, useState } from "react";
-import "./index.css";
 
-import { AppRoute, Project, UserProfile, Photo } from "./types";
-
-// Componentes de UI
+// COMPONENTES
 import { LandingScreen } from "./components/LandingScreen";
 import { LoginScreen } from "./components/LoginScreen";
 import { RegisterScreen } from "./components/RegisterScreen";
-import ProjectList from "./components/ProjectList";
-import ProjectDetail from "./components/ProjectDetail";
+import { MainLayout } from "./components/MainLayout";
 import { CameraView } from "./components/CameraView";
 import { Editor } from "./components/Editor";
 
-// Serviços
+// TIPOS
 import {
-  login,
-  register,
-  logout,
+  AppRoute,
+  Project,
+  Photo,
+  ToolMode,
+  UserProfile,
+} from "./types";
+
+// SERVIÇOS
+import {
+  loginUser,
+  registerUser,
+  logoutUser,
   getCurrentUser,
 } from "./services/auth";
 
@@ -28,260 +34,334 @@ import {
   updateProject,
 } from "./services/api";
 
+import { generateDescription } from "./services/geminiService";
+import { saveProjects } from "./services/storage";
+
+// -------------------------------------------
+// APP
+// -------------------------------------------
+
 const App: React.FC = () => {
   const [route, setRoute] = useState<AppRoute>(AppRoute.LANDING);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
-  const [showCamera, setShowCamera] = useState(false);
-  const [editorPhoto, setEditorPhoto] = useState<Photo | null>(null);
+  const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
+  const [editorMode] = useState<ToolMode>(ToolMode.MAGIC_ERASE);
 
-  // =====================================
-  // LOAD USER + PROJECTS
-  // =====================================
+  const [loading, setLoading] = useState<boolean>(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // -------------------------------------------
+  // LOAD USER + PROJECTS NA INICIALIZAÇÃO
+  // -------------------------------------------
   useEffect(() => {
-    const bootstrap = async () => {
-      const user = await getCurrentUser();
-      if (!user) {
-        setRoute(AppRoute.LANDING);
-        return;
+    const init = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+
+        setCurrentUser(user);
+
+        const list = await getProjects(user.id);
+        setProjects(list);
+        setRoute(AppRoute.DASHBOARD);
+      } catch (err) {
+        console.error("[App:init] erro:", err);
+      } finally {
+        setLoading(false);
       }
-
-      setCurrentUser(user);
-      const userProjects = await getProjects(user.id);
-      setProjects(userProjects);
-
-      setRoute(AppRoute.DASHBOARD);
     };
 
-    bootstrap();
+    init();
   }, []);
 
-  const reloadProjects = async () => {
-    if (!currentUser) return;
-    const list = await getProjects(currentUser.id);
-    setProjects(list);
-  };
-
-  // =====================================
+  // -------------------------------------------
   // AUTH
-  // =====================================
-  const handleLogin = async (email: string, password?: string) => {
-    const user = await login(email, password ?? "");
-    setCurrentUser(user);
-    const list = await getProjects(user.id);
-    setProjects(list);
-    setRoute(AppRoute.DASHBOARD);
+  // -------------------------------------------
+
+  const handleLogin = async (email: string, password: string) => {
+    setAuthError(null);
+    try {
+      const user = await loginUser(email, password);
+      setCurrentUser(user);
+
+      const list = await getProjects(user.id);
+      setProjects(list);
+      setRoute(AppRoute.DASHBOARD);
+    } catch (err: any) {
+      console.error("[handleLogin] erro:", err);
+      setAuthError(err.message || "Erro ao iniciar sessão.");
+    }
   };
 
   const handleRegister = async (data: any) => {
-    const user = await register(data);
-    setCurrentUser(user);
-    const list = await getProjects(user.id);
-    setProjects(list);
-    setRoute(AppRoute.DASHBOARD);
+    setAuthError(null);
+    try {
+      // ✅ CORREÇÃO 1 — registerUser exige 4 argumentos
+      const user = await registerUser(
+        data.firstName,
+        data.lastName,
+        data.email,
+        data.password
+      );
+
+      setCurrentUser(user);
+
+      const list = await getProjects(user.id);
+      setProjects(list);
+      setRoute(AppRoute.DASHBOARD);
+    } catch (err: any) {
+      console.error("[handleRegister] erro:", err);
+      setAuthError(err.message || "Erro ao criar conta.");
+    }
   };
 
   const handleLogout = async () => {
-    await logout();
-    setCurrentUser(null);
-    setProjects([]);
-    setSelectedProject(null);
-    setRoute(AppRoute.LANDING);
-  };
-
-  // =====================================
-  // PROJECTS
-  // =====================================
-  const handleCreateProject = async () => {
-    if (!currentUser) return;
-    const project = await createProject(currentUser.id);
-
-    setProjects((prev) => [...prev, project]);
-    setSelectedProject(project);
-    setRoute(AppRoute.PROJECT_DETAILS);
-  };
-
-  const handleDeleteProject = async (id: string) => {
-    await deleteProject(id);
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-
-    if (selectedProject?.id === id) {
+    try {
+      await logoutUser();
+      setCurrentUser(null);
+      setProjects([]);
       setSelectedProject(null);
-      setRoute(AppRoute.DASHBOARD);
+      setRoute(AppRoute.LANDING);
+    } catch (err) {
+      console.error("[handleLogout] erro:", err);
     }
   };
+
+  // -------------------------------------------
+  // PROJECTS
+  // -------------------------------------------
 
   const handleSelectProject = (project: Project) => {
     setSelectedProject(project);
     setRoute(AppRoute.PROJECT_DETAILS);
   };
 
-  const handleUpdateProject = async (project: Project) => {
-    const saved = await updateProject(project);
+  const handleCreateProject = async () => {
+    if (!currentUser) return;
+
+    try {
+      const base: Omit<Project, "id" | "createdAt" | "photos"> = {
+        userId: currentUser.id,
+        title: "Novo imóvel",
+        address: "",
+        status: "draft",
+        details: {},
+        coverImage: undefined,
+        contacts: [],
+      };
+
+      // ✅ CORREÇÃO 2 — createProject aceita APENAS um parâmetro string (title)
+      const newProject = await createProject(base.title);
+
+      const updated = [...projects, newProject];
+      setProjects(updated);
+      setSelectedProject(newProject);
+      setRoute(AppRoute.PROJECT_DETAILS);
+    } catch (err) {
+      console.error("[handleCreateProject] erro:", err);
+      alert("Não foi possível criar o imóvel.");
+    }
+  };
+
+  const handleDeleteProject = async (id: string) => {
+    try {
+      await deleteProject(id);
+      const updated = projects.filter((p) => p.id !== id);
+      setProjects(updated);
+
+      if (selectedProject?.id === id) {
+        setSelectedProject(null);
+        setRoute(AppRoute.DASHBOARD);
+      }
+    } catch (err) {
+      console.error("[handleDeleteProject] erro:", err);
+      alert("Não foi possível eliminar o imóvel.");
+    }
+  };
+
+  const handleUpdateProjectLocal = (updatedProject: Project) => {
     setProjects((prev) =>
-      prev.map((p) => (p.id === saved.id ? saved : p))
+      prev.map((p) => (p.id === updatedProject.id ? updatedProject : p))
     );
-    setSelectedProject(saved);
+    setSelectedProject(updatedProject);
+    saveProjects(
+      projects.map((p) => (p.id === updatedProject.id ? updatedProject : p))
+    );
   };
 
-  // =====================================
-  // CAMERA + PHOTOS
-  // =====================================
-  const openCamera = () => {
+  // -------------------------------------------
+  // FOTOS (CAMERA + EDITOR)
+  // -------------------------------------------
+
+  const handleOpenCamera = () => {
     if (!selectedProject) return;
-    setShowCamera(true);
-  };
-
-  const closeCamera = () => {
-    setShowCamera(false);
+    setRoute(AppRoute.CAMERA);
   };
 
   const handlePhotoCaptured = async (photo: Photo) => {
-    if (!selectedProject) {
-      setShowCamera(false);
-      return;
+    if (!selectedProject) return;
+    if (!currentUser) return;
+
+    try {
+      let title = selectedProject.title;
+      if (!title || title === "Novo imóvel") {
+        // tenta gerar descrição com IA
+        try {
+          title = await generateDescription(photo.url);
+        } catch {
+          title = selectedProject.title || "Imóvel";
+        }
+      }
+
+      const newPhoto: Photo = {
+        ...photo,
+        timestamp: photo.timestamp || Date.now(),
+        createdAt: photo.createdAt ?? Date.now(),
+      };
+
+      const updatedProject: Project = {
+        ...selectedProject,
+        title,
+        photos: [...(selectedProject.photos || []), newPhoto],
+        coverImage: selectedProject.coverImage || newPhoto.url,
+      };
+
+      const saved = await updateProject(updatedProject);
+
+      const updatedList = projects.map((p) =>
+        p.id === saved.id ? saved : p
+      );
+      setProjects(updatedList);
+
+      const refreshed =
+        updatedList.find((p) => p.id === saved.id) || saved;
+
+      setSelectedProject(refreshed);
+      setRoute(AppRoute.PROJECT_DETAILS);
+    } catch (err) {
+      console.error("[handlePhotoCaptured] erro:", err);
+      alert("Não foi possível guardar a foto.");
     }
-
-    // adiciona foto localmente
-    const updated: Project = {
-      ...selectedProject,
-      photos: [...(selectedProject.photos || []), photo],
-      coverImage: selectedProject.coverImage ?? photo.url,
-    };
-
-    const saved = await updateProject(updated);
-
-    setProjects((prev) =>
-      prev.map((p) => (p.id === saved.id ? saved : p))
-    );
-    setSelectedProject(saved);
-    setShowCamera(false);
   };
 
-  // =====================================
-  // EDITOR
-  // =====================================
   const openEditor = (photo: Photo) => {
-    setEditorPhoto(photo);
+    setEditingPhoto(photo);
+    setRoute(AppRoute.EDITOR);
   };
 
-  const handleSaveEditedPhoto = async (updatedPhoto: Photo) => {
-    if (!selectedProject) {
-      setEditorPhoto(null);
-      return;
+  const handleSavePhoto = async (newPhoto: Photo) => {
+    if (!selectedProject) return;
+
+    try {
+      const updatedPhotos = (selectedProject.photos || []).map((p) =>
+        p.id === newPhoto.id ? newPhoto : p
+      );
+
+      const updatedProject: Project = {
+        ...selectedProject,
+        photos: updatedPhotos,
+        coverImage: selectedProject.coverImage || updatedPhotos[0]?.url,
+      };
+
+      const saved = await updateProject(updatedProject);
+
+      const updatedList = projects.map((p) =>
+        p.id === saved.id ? saved : p
+      );
+      setProjects(updatedList);
+
+      const refreshed =
+        updatedList.find((p) => p.id === saved.id) || saved;
+
+      setSelectedProject(refreshed);
+      setEditingPhoto(null);
+      setRoute(AppRoute.PROJECT_DETAILS);
+    } catch (err) {
+      console.error("[handleSavePhoto] erro:", err);
+      alert("Não foi possível guardar as alterações.");
     }
-
-    const updatedPhotos = (selectedProject.photos || []).map((p) =>
-      p.id === updatedPhoto.id ? updatedPhoto : p
-    );
-
-    const updatedProject: Project = {
-      ...selectedProject,
-      photos: updatedPhotos,
-      coverImage:
-        selectedProject.coverImage === updatedPhoto.url
-          ? updatedPhoto.url
-          : selectedProject.coverImage,
-    };
-
-    const saved = await updateProject(updatedProject);
-
-    setProjects((prev) =>
-      prev.map((p) => (p.id === saved.id ? saved : p))
-    );
-    setSelectedProject(saved);
-    setEditorPhoto(null);
   };
 
-  const closeEditor = () => {
-    setEditorPhoto(null);
-  };
+  // -------------------------------------------
+  // RENDER
+  // -------------------------------------------
 
-  // =====================================
-  // RENDER POR ROTA
-  // =====================================
-  return (
-    <div className="min-h-screen bg-brand-gray-50 dark:bg-black text-gray-900 dark:text-white">
-      {/* LANDING (sem login) */}
-      {!currentUser && route === AppRoute.LANDING && (
-        <LandingScreen
-          onLogin={() => setRoute(AppRoute.LOGIN)}
-          onFreeTrial={() => setRoute(AppRoute.REGISTER)}
-        />
-      )}
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-black text-white">
+        A iniciar Snap Immobile...
+      </div>
+    );
+  }
 
-      {/* LOGIN */}
-      {!currentUser && route === AppRoute.LOGIN && (
+  // Auth flow (sem utilizador)
+  if (!currentUser) {
+    if (route === AppRoute.LOGIN) {
+      return (
         <LoginScreen
+          error={authError ?? undefined}
+          onLogin={(email: string, password: string) => handleLogin(email, password)}
           onBack={() => setRoute(AppRoute.LANDING)}
           onRegisterClick={() => setRoute(AppRoute.REGISTER)}
-          onLogin={(email: string, password?: string) => {
-            void handleLogin(email, password);
-          }}
         />
-      )}
+      );
+    }
 
-      {/* REGISTO */}
-      {!currentUser && route === AppRoute.REGISTER && (
+    if (route === AppRoute.REGISTER) {
+      return (
         <RegisterScreen
-          role="Corretor"
-          onBack={() => setRoute(AppRoute.LOGIN)}
-          onSubmit={(data: any) => {
-            void handleRegister(data);
-          }}
+          error={authError ?? undefined}
+          onBack={() => setRoute(AppRoute.LANDING)}
+          onSubmit={handleRegister}
         />
-      )}
+      );
+    }
 
-      {/* DASHBOARD (LISTA DE IMÓVEIS) */}
-      {currentUser && route === AppRoute.DASHBOARD && (
-        <ProjectList
-          projects={projects}
-          onCreateProject={handleCreateProject}
-          onDeleteProject={handleDeleteProject}
-          onSelectProject={handleSelectProject}
-        />
-      )}
+    // Landing
+    return (
+      <LandingScreen
+        onLogin={() => setRoute(AppRoute.LOGIN)}
+        onFreeTrial={() => setRoute(AppRoute.REGISTER)}
+      />
+    );
+  }
 
-      {/* DETALHE DO PROJETO */}
-      {currentUser && route === AppRoute.PROJECT_DETAILS && selectedProject && (
-        <ProjectDetail
-          initialProject={selectedProject}
-          onBack={() => setRoute(AppRoute.DASHBOARD)}
-          onAddPhoto={openCamera}
-          onEditPhoto={openEditor}
-          onUpdateProject={handleUpdateProject}
-        />
-      )}
-
-      {/* CAMERA (overlay) */}
-      {showCamera && (
+  // Utilizador autenticado → layout principal
+  return (
+    <MainLayout
+      currentRoute={route}
+      onNavigate={setRoute}
+      currentUser={currentUser}
+      onLogout={handleLogout}
+      projects={projects}
+      onSelectProject={handleSelectProject}
+      onCreateProject={handleCreateProject}
+      onDeleteProject={handleDeleteProject}
+    >
+      {route === AppRoute.CAMERA && selectedProject && (
         <CameraView
           onPhotoCaptured={handlePhotoCaptured}
-          onClose={closeCamera}
+          onClose={() => setRoute(AppRoute.PROJECT_DETAILS)}
         />
       )}
 
-      {/* EDITOR (overlay) */}
-      {editorPhoto && (
+      {route === AppRoute.EDITOR && editingPhoto && (
         <Editor
-          photo={editorPhoto}
-          onSave={handleSaveEditedPhoto}
-          onCancel={closeEditor}
+          photo={editingPhoto}
+          onCancel={() => {
+            setEditingPhoto(null);
+            setRoute(AppRoute.PROJECT_DETAILS);
+          }}
+          onSave={handleSavePhoto}
         />
       )}
-
-      {/* Botão de logout simples quando logado */}
-      {currentUser && (
-        <button
-          onClick={handleLogout}
-          className="fixed top-4 right-4 z-50 px-4 py-2 rounded-full bg-black/80 text-white text-xs"
-        >
-          Sair
-        </button>
-      )}
-    </div>
+    </MainLayout>
   );
 };
 

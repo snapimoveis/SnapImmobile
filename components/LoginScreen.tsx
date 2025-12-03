@@ -1,99 +1,64 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Mail, Lock } from 'lucide-react';
-import { Button, Input } from './ui';
+// components/LoginScreen.tsx
 
-interface LoginScreenProps {
-  onLogin: (email: string, password?: string) => void;
+import React, { useState } from "react";
+
+export interface LoginScreenProps {
+  onLogin: (email: string, password: string) => void | Promise<void>;
   onBack: () => void;
   onRegisterClick: () => void;
-  initialEmail?: string;
+  error?: string;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack, onRegisterClick, initialEmail = '' }) => {
-  const [email, setEmail] = useState(initialEmail);
-  const [password, setPassword] = useState('');
-
-  useEffect(() => {
-    if (initialEmail) setEmail(initialEmail);
-  }, [initialEmail]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email) onLogin(email.trim(), password);
-  };
+export const LoginScreen: React.FC<LoginScreenProps> = ({
+  onLogin,
+  onBack,
+  onRegisterClick,
+  error,
+}) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   return (
-    <div className="min-h-screen bg-brand-gray-50 dark:bg-black flex flex-col font-sans justify-center p-6 transition-colors duration-300">
-      <div className="flex-1 flex flex-col justify-center max-w-md mx-auto w-full">
-        
-        <div className="flex flex-col items-center mb-10 animate-in slide-in-from-bottom-4 duration-500">
-          
-          {/* CORREÇÃO: Logo da Marca em vez do ícone S */}
-          {/* Modo Claro: Logo Colorido */}
-          <img 
-            src="/brand/logo_color.png" 
-            alt="Snap Immobile" 
-            className="h-28 w-auto object-contain mb-6 dark:hidden" 
-          />
-          {/* Modo Escuro: Logo Branco (usando filtro se não tiver imagem branca) */}
-          <img 
-            src="/brand/logo_color.png" 
-            alt="Snap Immobile" 
-            className="h-28 w-auto object-contain mb-6 hidden dark:block brightness-0 invert" 
-          />
-          
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 text-center">Bem-vindo de volta!</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-center">Entre na sua conta para continuar a gerir os seus imóveis.</p>
-        </div>
+    <div className="flex flex-col h-screen bg-white text-black p-6">
+      <button onClick={onBack} className="text-blue-700 underline mb-4">
+        ← Voltar
+      </button>
 
-        <form onSubmit={handleSubmit} className="space-y-6 animate-in fade-in duration-700">
-             <Input 
-                type="email" 
-                placeholder="E-Mail" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)}
-                icon={<Mail size={20} />}
-                required
-             />
-             
-             <div>
-               <Input 
-                  type="password" 
-                  placeholder="Senha" 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)}
-                  icon={<Lock size={20} />}
-                  required
-               />
-               <div className="flex justify-end mt-2">
-                  <button type="button" className="text-sm text-brand-purple font-bold hover:underline">
-                      Esqueceu a senha?
-                  </button>
-               </div>
-             </div>
+      <h1 className="text-2xl font-bold mb-6">Iniciar Sessão</h1>
 
-             <div className="pt-4">
-                <Button type="submit" variant="secondary" size="lg" fullWidth>
-                    ENTRAR
-                </Button>
-             </div>
-        </form>
+      {error && (
+        <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>
+      )}
 
-        <div className="mt-8 text-center">
-            <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Não tem conta?{' '}
-                <button type="button" onClick={onRegisterClick} className="text-brand-orange font-bold hover:underline ml-1">
-                    Registe-se
-                </button>
-            </p>
-        </div>
+      <input
+        className="border p-3 mb-3 rounded w-full"
+        placeholder="E-mail"
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
 
-        <div className="mt-auto pt-10 flex justify-center">
-            <button onClick={onBack} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
-                <ArrowLeft size={18} /> Voltar ao início
-            </button>
-        </div>
-      </div>
+      <input
+        className="border p-3 mb-6 rounded w-full"
+        placeholder="Palavra-passe"
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+
+      <button
+        className="bg-blue-700 text-white p-3 rounded w-full mb-4"
+        onClick={() => onLogin(email, password)}
+      >
+        Entrar
+      </button>
+
+      <button
+        className="text-blue-700 underline"
+        onClick={onRegisterClick}
+      >
+        Criar conta
+      </button>
     </div>
   );
 };

@@ -1,110 +1,99 @@
-// ========================================================================
-// services/auth.ts — Sistema de Autenticação LocalStorage
-// 100% compatível com App.tsx e types.ts
-// ========================================================================
+// ================================
+// Firebase Auth + Firestore Service
+// ================================
 
-import { UserProfile } from "../types";
-import { loadUsers, saveUsers } from "./storage";
+import { auth, db } from "./firebaseConfig";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  User,
+} from "firebase/auth";
 
-// ========================================================================
-// KEYS
-// ========================================================================
-const CURRENT_USER_KEY = "snapimmobile_current_user";
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+} from "firebase/firestore";
 
-// ========================================================================
-// GET CURRENT USER
-// ========================================================================
-export function getCurrentUser(): UserProfile | null {
-  const raw = localStorage.getItem(CURRENT_USER_KEY);
-  if (!raw) return null;
+import { UserProfile, UserRole } from "../types";
 
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+// ================================
+// Get user profile from Firestore
+// ================================
+async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) return null;
+  return snap.data() as UserProfile;
 }
 
-// ========================================================================
-// SAVE CURRENT USER
-// ========================================================================
-function setCurrentUser(user: UserProfile | null) {
-  if (user) localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
-  else localStorage.removeItem(CURRENT_USER_KEY);
-}
+// ================================
+// Register user
+// ================================
+export async function registerUser(
+  firstName: string,
+  lastName: string,
+  email: string,
+  password: string,
+  role: UserRole = "client"
+): Promise<UserProfile> {
+  const userCred = await createUserWithEmailAndPassword(auth, email, password);
+  const user = userCred.user;
 
-// ========================================================================
-// REGISTER
-// ========================================================================
-export async function register(data: {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  cpf?: string;
-}): Promise<UserProfile> {
-  const users = loadUsers();
-
-  // Verifica duplicatas
-  if (users.some((u) => u.email === data.email)) {
-    throw new Error("Este email já está registado.");
-  }
-
-  if (data.cpf && users.some((u) => u.cpf === data.cpf)) {
-    throw new Error("Este CPF já está associado a outra conta.");
-  }
-
-  const newUser: UserProfile = {
-    id: crypto.randomUUID(),
-    firstName: data.firstName,
-    lastName: data.lastName,
-    email: data.email.toLowerCase(),
-    password: data.password,
-    cpf: data.cpf ?? "",
+  const profile: UserProfile = {
+    id: user.uid,
+    firstName,
+    lastName,
+    email,
+    role,
     createdAt: Date.now(),
-    role: "client",
     billing: {
       plan: "TRIAL",
       trial: {
         start: Date.now(),
-        expires: Date.now() + 1000 * 60 * 60 * 24 * 3, // 3 dias trial
-        maxProperties: 1,
-        maxPhotosPerProperty: 20,
+        expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        maxProperties: 5,
+        maxPhotosPerProperty: 30,
       },
     },
   };
 
-  users.push(newUser);
-  saveUsers(users);
-  setCurrentUser(newUser);
-
-  return newUser;
+  await setDoc(doc(db, "users", user.uid), profile);
+  return profile;
 }
 
-// ========================================================================
-// LOGIN
-// ========================================================================
-export async function login(
+// ================================
+// Login user
+// ================================
+export async function loginUser(
   email: string,
   password: string
 ): Promise<UserProfile> {
-  const users = loadUsers();
-  const user = users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-  );
+  const userCred = await signInWithEmailAndPassword(auth, email, password);
+  const user: User = userCred.user;
 
-  if (!user) throw new Error("Email ou palavra-passe incorretos.");
+  const profile = await getUserProfile(user.uid);
+  if (!profile) throw new Error("Utilizador sem perfil configurado.");
 
-  user.lastActive = Date.now();
-  saveUsers(users);
-  setCurrentUser(user);
-
-  return user;
+  return profile;
 }
 
-// ========================================================================
-// LOGOUT
-// ========================================================================
-export async function logout(): Promise<void> {
-  setCurrentUser(null);
+// ================================
+// Logout
+// ================================
+export async function logoutUser(): Promise<void> {
+  await signOut(auth);
+}
+
+// ================================
+// Get current logged user
+// ================================
+export async function getCurrentUser(): Promise<UserProfile | null> {
+  const current = auth.currentUser;
+  if (!current) return null;
+
+  return await getUserProfile(current.uid);
 }

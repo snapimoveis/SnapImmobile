@@ -1,77 +1,77 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Mail, Phone, FileText, Briefcase, Lock } from 'lucide-react';
-import { Button, Input } from './ui';
+// components/RegisterScreen.tsx
 
-interface RegisterScreenProps {
-  role: string;
-  onSubmit: (data: any) => void;
+import React, { useState } from "react";
+
+export interface RegisterScreenProps {
   onBack: () => void;
+  onSubmit: (data: any) => void | Promise<void>;
+  error?: string;
 }
 
-export const RegisterScreen: React.FC<RegisterScreenProps> = ({ role, onSubmit, onBack }) => {
-  const [formData, setFormData] = useState({
-    firstName: '', lastName: '', email: '', phone: '', cpf: '', company: '', password: ''
+export const RegisterScreen: React.FC<RegisterScreenProps> = ({
+  onBack,
+  onSubmit,
+  error,
+}) => {
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(formData);
+  const handleChange = (key: string, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   return (
-    <div className="min-h-screen bg-brand-gray-50 dark:bg-black flex flex-col font-sans p-6 transition-colors duration-300">
-      <div className="max-w-md mx-auto w-full flex-1 flex flex-col justify-center py-8">
-        
-        <div className="mb-8 text-center animate-in slide-in-from-top-4 duration-500">
-          {/* CORREÇÃO: Logo da Marca */}
-          <div className="flex justify-center">
-             <img 
-                src="/brand/logo_color.png" 
-                alt="Snap Immobile" 
-                className="h-24 w-auto object-contain mb-6 dark:hidden" 
-             />
-             <img 
-                src="/brand/logo_color.png" 
-                alt="Snap Immobile" 
-                className="h-24 w-auto object-contain mb-6 hidden dark:block brightness-0 invert" 
-             />
-          </div>
+    <div className="flex flex-col h-screen bg-white p-6">
+      <button onClick={onBack} className="text-blue-700 underline mb-4">
+        ← Voltar
+      </button>
 
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Crie a sua conta</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Preencha os seus dados para começar a usar o Snap Immobile</p>
-        </div>
+      <h1 className="text-2xl font-bold mb-6">Criar Conta</h1>
 
-        <form onSubmit={handleSubmit} className="space-y-4 animate-in fade-in duration-700">
-          <div className="grid grid-cols-2 gap-4">
-            <Input name="firstName" placeholder="Nome" value={formData.firstName} onChange={handleChange} required />
-            <Input name="lastName" placeholder="Sobrenome" value={formData.lastName} onChange={handleChange} required />
-          </div>
+      {error && (
+        <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>
+      )}
 
-          <Input name="email" type="email" placeholder="E-Mail" icon={<Mail size={18}/>} value={formData.email} onChange={handleChange} required />
-          <Input name="phone" type="tel" placeholder="Telefone" icon={<Phone size={18}/>} value={formData.phone} onChange={handleChange} required />
-          <Input name="password" type="password" placeholder="Senha" icon={<Lock size={18}/>} value={formData.password} onChange={handleChange} required />
-          
-          <div className="grid grid-cols-2 gap-4">
-             <Input name="cpf" placeholder="CPF" icon={<FileText size={18}/>} value={formData.cpf} onChange={handleChange} required />
-             <Input name="company" placeholder="Empresa" icon={<Briefcase size={18}/>} value={formData.company} onChange={handleChange} />
-          </div>
+      <input
+        className="border p-3 mb-3 rounded w-full"
+        placeholder="Primeiro Nome"
+        value={form.firstName}
+        onChange={(e) => handleChange("firstName", e.target.value)}
+      />
 
-          <div className="pt-6">
-            <Button type="submit" variant="primary" size="lg" fullWidth>
-               CRIAR CONTA
-            </Button>
-          </div>
-        </form>
+      <input
+        className="border p-3 mb-3 rounded w-full"
+        placeholder="Último Nome"
+        value={form.lastName}
+        onChange={(e) => handleChange("lastName", e.target.value)}
+      />
 
-        <button onClick={onBack} className="mt-6 w-full flex items-center justify-center text-gray-500 hover:text-gray-900 dark:hover:text-white gap-2 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors font-medium">
-           <ArrowLeft size={20} /> Voltar
-        </button>
+      <input
+        className="border p-3 mb-3 rounded w-full"
+        placeholder="E-mail"
+        type="email"
+        value={form.email}
+        onChange={(e) => handleChange("email", e.target.value)}
+      />
 
-      </div>
+      <input
+        className="border p-3 mb-6 rounded w-full"
+        placeholder="Palavra-passe"
+        type="password"
+        value={form.password}
+        onChange={(e) => handleChange("password", e.target.value)}
+      />
+
+      <button
+        className="bg-blue-700 text-white p-3 rounded w-full"
+        onClick={() => onSubmit(form)}
+      >
+        Criar Conta
+      </button>
     </div>
   );
 };
