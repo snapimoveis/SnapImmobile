@@ -29,7 +29,7 @@ const LandingScreen: React.FC<LandingScreenProps> = ({
 
         {/* LOGO */}
         <img
-          src="/static/brand/logo_white.svg"
+          src="/static/brand/logo_branco.png"
           alt="Snap Immobile"
           className="w-40 mb-10"
         />
