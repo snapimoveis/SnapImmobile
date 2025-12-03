@@ -43,8 +43,8 @@ const LandingScreen: React.FC<LandingScreenProps> = ({
         <img
           src={
             isDarkMode
-              ? "/static/brand/logo_branca.png"
-              : "/static/brand/logo_color.png"
+              ? "public/static/brand/logo_branca.png"
+              : "public/static/brand/logo_color.png"
           }
           alt="Snap Immobile"
           className="w-40 mb-10 drop-shadow-xl transition-all duration-300"
