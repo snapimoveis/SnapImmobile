@@ -1,43 +1,75 @@
-// ======================================
-// services/api.ts — versão compatível
-// ======================================
+// services/api.ts
+// API local baseada em localStorage — compatível com App.tsx
 
-import { Project, Photo } from "../types";
-import {
-  loadProjects,
-  saveProjects,
-  createProject as storageCreate,
-  deleteProject as storageDelete,
-  updateProject as storageUpdate,
-} from "./storage";
+import { Project } from "../types";
+import { saveProjects, getProjectsLocal } from "./storage";
 
-// ---------------------------------------------------------
-// getProjects
-// ---------------------------------------------------------
+// ========================================
+// GET PROJECTS
+// ========================================
 export async function getProjects(userId: string): Promise<Project[]> {
-  const all = loadProjects();
-
-  return all.filter((p) => p.userId === userId);
+  const list = getProjectsLocal();
+  return list.filter((p) => p.userId === userId);
 }
 
-// ---------------------------------------------------------
-// createProject
-// ---------------------------------------------------------
-export async function createProject(userId: string): Promise<Project> {
-  let project = storageCreate(userId);
+// ========================================
+// CREATE PROJECT
+// compatível com App.tsx:
+// createProject(base)
+// ========================================
+export async function createProject(
+  data: Omit<Project, "id" | "createdAt" | "photos">
+): Promise<Project> {
+  const list = getProjectsLocal();
+
+  const newProject: Project = {
+    ...data,
+    id: crypto.randomUUID(),
+    createdAt: Date.now(),
+    photos: [],
+  };
+
+  const updatedList = [...list, newProject];
+  saveProjects(updatedList);
+
+  return newProject;
+}
+
+// ========================================
+// UPDATE PROJECT
+// recebe o Project completo e substitui
+// ========================================
+export async function updateProject(project: Project): Promise<Project> {
+  const list = getProjectsLocal();
+
+  const updatedList = list.map((p) =>
+    p.id === project.id ? { ...project } : p
+  );
+
+  saveProjects(updatedList);
   return project;
 }
 
-// ---------------------------------------------------------
-// deleteProject
-// ---------------------------------------------------------
+// ========================================
+// DELETE PROJECT
+// ========================================
 export async function deleteProject(id: string): Promise<void> {
-  storageDelete(id);
+  const list = getProjectsLocal();
+  const updatedList = list.filter((p) => p.id !== id);
+  saveProjects(updatedList);
 }
 
-// ---------------------------------------------------------
-// updateProject
-// ---------------------------------------------------------
-export async function updateProject(project: Project): Promise<Project> {
-  return storageUpdate(project);
+// ========================================
+// UTILITY: usado para debugging
+// ========================================
+export function addPhotoToProject(): never {
+  throw new Error(
+    "addPhotoToProject() foi removido — App.tsx usa updateProject() agora."
+  );
+}
+
+export function updatePhotoInProject(): never {
+  throw new Error(
+    "updatePhotoInProject() foi removido — App.tsx usa updateProject()."
+  );
 }
