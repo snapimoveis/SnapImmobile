@@ -54,7 +54,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
       <img
         src={
           document.documentElement.classList.contains("dark")
-            ? "/static/brand/logo_branca.png"
+            ? "/static/brand/logo_branco.png"
             : "/static/brand/logo_color.png"
         }
         alt="Snap Immobile"

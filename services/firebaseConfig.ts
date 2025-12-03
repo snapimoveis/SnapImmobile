@@ -7,7 +7,7 @@ const firebaseConfig = {
   apiKey: import.meta.env.VITE_API_KEY,
   authDomain: "snap-immobile.firebaseapp.com",
   projectId: "snap-immobile",
-  storageBucket: "snap-immobile.firebasestorage.app",
+  storageBucket: "snap-immobile.appspot.com",
   messagingSenderId: "345642553254",
   appId: "1:345642553254:web:63e9eafc63c28a34988967"
 };

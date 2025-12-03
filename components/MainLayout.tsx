@@ -31,7 +31,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     window.matchMedia("(prefers-color-scheme: dark)").matches;
 
   const logo = prefersDark
-    ? "/static/brand/logo_branca.png"
+    ? "/static/brand/logo_branco.png"
     : "/static/brand/logo_color.png";
 
   return (
