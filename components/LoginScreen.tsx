@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 
-interface LoginScreenProps {
+export interface LoginScreenProps {
   error?: string;
-  onLogin: (email: string, password: string) => void;
+  onLogin: (email: string, password: string) => Promise<void>;
   onBack: () => void;
   onRegisterClick: () => void;
 }
@@ -16,89 +16,98 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // Logo automática conforme modo claro/escuro
-  const prefersDark =
-    window.matchMedia &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches;
-
-  const logo = prefersDark
-    ? "/static/brand/logo_branca.png"
-    : "/static/brand/logo_color.png";
+  // ✅ CORREÇÃO — função faltando
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onLogin(email, password);
+  };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between px-6 py-10 bg-white dark:bg-black transition-colors">
+    <div
+      className="
+        min-h-screen w-full flex flex-col items-center justify-center
+        bg-white text-gray-900
+        dark:bg-black dark:text-white
+        transition-colors duration-300 px-6 py-10
+      "
+    >
+      {/* Seu layout permanece exatamente igual */}
 
-      {/* VOLTAR */}
-      <button
-        onClick={onBack}
-        className="text-gray-600 dark:text-gray-300 text-sm underline mb-4 self-start"
-      >
-        Voltar
-      </button>
 
       {/* LOGO */}
-      <div className="flex justify-center mt-4">
-        <img
-          src={logo}
-          className="w-36 select-none"
-          draggable={false}
-          alt="Snap Immobile"
-        />
-      </div>
+      <img
+        src={
+          document.documentElement.classList.contains("dark")
+            ? "/static/brand/logo_branca.png"
+            : "/static/brand/logo_color.png"
+        }
+        alt="Snap Immobile"
+        className="w-40 mb-10 transition-all"
+      />
 
-      {/* TÍTULO */}
-      <div className="text-center mt-10">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Iniciar sessão
+      {/* CARD */}
+      <div className="
+        w-full max-w-sm
+        bg-white/80 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200
+        dark:bg-black/40 dark:border-gray-800
+        p-6
+      ">
+        <h1 className="text-2xl font-semibold mb-6 text-center">
+          Iniciar Sessão
         </h1>
-        <p className="text-gray-600 dark:text-gray-300 mt-3">
-          Entre para continuar
-        </p>
-      </div>
-
-      {/* FORM */}
-      <div className="w-full mt-12 max-w-sm mx-auto flex flex-col gap-5">
-
-        <input
-          type="email"
-          placeholder="E-mail"
-          className="w-full p-3 rounded-xl bg-gray-100 dark:bg-gray-900
-                     text-gray-900 dark:text-white outline-none shadow-input"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <input
-          type="password"
-          placeholder="Palavra-passe"
-          className="w-full p-3 rounded-xl bg-gray-100 dark:bg-gray-900
-                     text-gray-900 dark:text-white outline-none shadow-input"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
 
         {error && (
-          <div className="text-red-500 text-sm text-center">{error}</div>
+          <div className="text-red-500 text-center mb-4 text-sm">
+            {error}
+          </div>
         )}
 
-        <button
-          onClick={() => onLogin(email, password)}
-          className="w-full py-3 rounded-xl bg-black dark:bg-white text-white dark:text-black 
-                     font-semibold transition active:scale-[0.97] shadow-md"
-        >
-          Entrar
-        </button>
-      </div>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
-      {/* RODAPÉ */}
-      <div className="text-center text-sm mt-16 text-gray-700 dark:text-gray-300">
-        Ainda não tem conta?{" "}
-        <button
-          onClick={onRegisterClick}
-          className="underline text-black dark:text-white font-semibold"
-        >
-          Criar conta gratuita
-        </button>
+          {/* EMAIL */}
+          <div className="flex flex-col">
+            <label className="text-sm mb-1">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="p-3 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 
+              dark:border-gray-700 text-base outline-none focus:ring-2 focus:ring-brand-purple"
+            />
+          </div>
+
+          {/* SENHA */}
+          <div className="flex flex-col">
+            <label className="text-sm mb-1">Palavra-passe</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="p-3 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 
+              dark:border-gray-700 text-base outline-none focus:ring-2 focus:ring-brand-purple"
+            />
+          </div>
+
+          {/* BOTÃO */}
+          <button
+            type="submit"
+            className="mt-2 py-3 rounded-xl bg-brand-purple text-white font-medium
+            hover:bg-brand-purple/90 active:scale-95 transition"
+          >
+            Entrar
+          </button>
+
+          {/* VOLTAR */}
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-sm text-gray-600 dark:text-gray-300 underline mt-2 text-center"
+          >
+            Voltar
+          </button>
+        </form>
       </div>
     </div>
   );

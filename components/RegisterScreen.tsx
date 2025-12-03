@@ -11,215 +11,215 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   onBack,
   onSubmit,
 }) => {
-  // Etapas: 1 = criar conta, 2 = escolher plano do trial
   const [step, setStep] = useState<1 | 2>(1);
 
+  // FORM
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [trialMode, setTrialMode] = useState<"7days" | "20photos">("7days");
+  const [trialType, setTrialType] = useState<"7days" | "20photos" | null>(null);
 
-  const prefersDark =
-    window.matchMedia &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches;
-
-  const logo = prefersDark
-    ? "/static/brand/logo_branca.png"
-    : "/static/brand/logo_color.png";
-
-  // IR PARA ETAPA 2
-  const goNext = () => {
-    if (!email || !password || !firstName || !lastName) {
-      alert("Preencha todos os campos para continuar.");
-      return;
-    }
+  const handleStep1 = (e: React.FormEvent) => {
+    e.preventDefault();
     setStep(2);
   };
 
-  // SUBMETER
-  const handleSubmit = async () => {
+  const handleFinish = async () => {
+    if (!trialType) {
+      alert("Selecione uma opção de teste gratuito.");
+      return;
+    }
+
     await onSubmit({
       firstName,
       lastName,
       email,
       password,
-      trialMode,
+      trialType,
     });
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between px-6 py-10 bg-white dark:bg-black transition-colors">
-
-      {/* BOTÃO VOLTAR */}
-      <button
-        onClick={onBack}
-        className="text-gray-600 dark:text-gray-300 text-sm underline mb-4 self-start"
-      >
-        Voltar
-      </button>
-
+    <div
+      className="
+        min-h-screen w-full flex flex-col items-center justify-center 
+        bg-white text-gray-900 
+        dark:bg-black dark:text-white
+        transition-colors duration-300 px-6 py-10
+      "
+    >
       {/* LOGO */}
-      <div className="flex justify-center mt-4">
-        <img src={logo} className="w-36 select-none" draggable={false} alt="Logo" />
-      </div>
+      <img
+        src={
+          document.documentElement.classList.contains("dark")
+            ? "/static/brand/logo_branca.png"
+            : "/static/brand/logo_color.png"
+        }
+        alt="Snap Immobile"
+        className="w-40 mb-10 transition-all"
+      />
 
-      {/* ================= STEP 1 ================= */}
-      {step === 1 && (
-        <>
-          <div className="text-center mt-10">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+      {/* CARD */}
+      <div
+        className="
+          w-full max-w-sm
+          bg-white/80 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200
+          dark:bg-black/40 dark:border-gray-800
+          p-6
+        "
+      >
+        {/* ETAPA 1 */}
+        {step === 1 && (
+          <>
+            <h1 className="text-2xl font-semibold mb-6 text-center">
               Criar conta
             </h1>
-            <p className="text-gray-600 dark:text-gray-300 mt-3">
-              Vamos começar o seu acesso
-            </p>
-          </div>
-
-          <div className="w-full mt-12 max-w-sm mx-auto flex flex-col gap-5">
-
-            <div className="flex gap-3">
-              <input
-                type="text"
-                placeholder="Primeiro nome"
-                className="flex-1 p-3 rounded-xl bg-gray-100 dark:bg-gray-900 
-                           text-gray-900 dark:text-white outline-none"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-              />
-
-              <input
-                type="text"
-                placeholder="Último nome"
-                className="flex-1 p-3 rounded-xl bg-gray-100 dark:bg-gray-900 
-                           text-gray-900 dark:text-white outline-none"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-              />
-            </div>
-
-            <input
-              type="email"
-              placeholder="E-mail"
-              className="w-full p-3 rounded-xl bg-gray-100 dark:bg-gray-900 
-                         text-gray-900 dark:text-white outline-none"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-
-            <input
-              type="password"
-              placeholder="Palavra-passe"
-              className="w-full p-3 rounded-xl bg-gray-100 dark:bg-gray-900 
-                         text-gray-900 dark:text-white outline-none"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
 
             {error && (
-              <div className="text-red-500 text-sm text-center">{error}</div>
+              <div className="text-red-500 text-center mb-4 text-sm">
+                {error}
+              </div>
             )}
 
-            <button
-              onClick={goNext}
-              className="w-full py-3 rounded-xl bg-black dark:bg-white text-white 
-                         dark:text-black font-semibold transition active:scale-[0.97]"
-            >
-              Continuar →
-            </button>
-          </div>
-        </>
-      )}
+            <form onSubmit={handleStep1} className="flex flex-col gap-4">
+              {/* PRIMEIRO NOME */}
+              <div className="flex flex-col">
+                <label className="text-sm mb-1">Primeiro Nome</label>
+                <input
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                  className="p-3 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 
+                    dark:border-gray-700 text-base outline-none focus:ring-2 focus:ring-brand-purple"
+                />
+              </div>
 
-      {/* ================= STEP 2 ================= */}
-      {step === 2 && (
-        <>
-          <div className="text-center mt-10">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Escolha o seu teste gratuito
+              {/* APELIDO */}
+              <div className="flex flex-col">
+                <label className="text-sm mb-1">Apelido</label>
+                <input
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                  className="p-3 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 
+                    dark:border-gray-700 text-base outline-none focus:ring-2 focus:ring-brand-purple"
+                />
+              </div>
+
+              {/* EMAIL */}
+              <div className="flex flex-col">
+                <label className="text-sm mb-1">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="p-3 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 
+                    dark:border-gray-700 text-base outline-none focus:ring-2 focus:ring-brand-purple"
+                />
+              </div>
+
+              {/* PASSWORD */}
+              <div className="flex flex-col">
+                <label className="text-sm mb-1">Palavra-passe</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="p-3 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 
+                    dark:border-gray-700 text-base outline-none focus:ring-2 focus:ring-brand-purple"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="mt-2 py-3 rounded-xl bg-brand-purple text-white font-medium
+                  hover:bg-brand-purple/90 active:scale-95 transition"
+              >
+                Continuar
+              </button>
+
+              <button
+                type="button"
+                onClick={onBack}
+                className="text-sm text-gray-600 dark:text-gray-300 underline mt-2 text-center"
+              >
+                Voltar
+              </button>
+            </form>
+          </>
+        )}
+
+        {/* ETAPA 2 — TESTE GRATUITO */}
+        {step === 2 && (
+          <>
+            <h1 className="text-xl font-semibold mb-4 text-center">
+              Escolher Teste Gratuito
             </h1>
-            <p className="text-gray-600 dark:text-gray-300 mt-3">
-              Pode cancelar a qualquer momento
+
+            <p className="text-sm text-center text-gray-600 dark:text-gray-300 mb-6">
+              Selecione uma opção para começar:
             </p>
-          </div>
 
-          <div className="w-full mt-12 max-w-sm mx-auto flex flex-col gap-4">
+            <div className="flex flex-col gap-4">
 
-            {/* OPÇÃO 1 */}
-            <div
-              onClick={() => setTrialMode("7days")}
-              className={`p-4 rounded-xl border cursor-pointer transition 
-              ${trialMode === "7days"
-                  ? "border-black dark:border-white"
-                  : "border-gray-300 dark:border-gray-700"
-                }`}
-            >
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="font-bold text-lg text-gray-900 dark:text-white">
-                    7 dias gratuitos
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 text-sm">
-                    Acesso total por 7 dias.
-                  </p>
+              {/* OPC 1 */}
+              <button
+                onClick={() => setTrialType("7days")}
+                className={`
+                  p-4 rounded-xl border text-left transition
+                  ${
+                    trialType === "7days"
+                      ? "border-brand-purple bg-brand-purple text-white"
+                      : "border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-900"
+                  }
+                `}
+              >
+                <div className="font-semibold text-lg">7 dias grátis</div>
+                <div className="text-sm opacity-80">
+                  Acesso total ao Snap Immobile durante uma semana.
                 </div>
+              </button>
 
-                <div
-                  className={`w-5 h-5 rounded-full border-2 
-                    ${trialMode === "7days"
-                      ? "border-black dark:border-white bg-black dark:bg-white"
-                      : "border-gray-400"
-                    }`}
-                />
-              </div>
-            </div>
-
-            {/* OPÇÃO 2 */}
-            <div
-              onClick={() => setTrialMode("20photos")}
-              className={`p-4 rounded-xl border cursor-pointer transition 
-              ${trialMode === "20photos"
-                  ? "border-black dark:border-white"
-                  : "border-gray-300 dark:border-gray-700"
-                }`}
-            >
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="font-bold text-lg text-gray-900 dark:text-white">
-                    1 imóvel com 20 fotos
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 text-sm">
-                    Perfeito para testar o fluxo completo.
-                  </p>
+              {/* OPC 2 */}
+              <button
+                onClick={() => setTrialType("20photos")}
+                className={`
+                  p-4 rounded-xl border text-left transition
+                  ${
+                    trialType === "20photos"
+                      ? "border-brand-purple bg-brand-purple text-white"
+                      : "border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-900"
+                  }
+                `}
+              >
+                <div className="font-semibold text-lg">1 imóvel / 20 fotos</div>
+                <div className="text-sm opacity-80">
+                  Fotografar e editar um imóvel completo gratuitamente.
                 </div>
+              </button>
 
-                <div
-                  className={`w-5 h-5 rounded-full border-2 
-                    ${trialMode === "20photos"
-                      ? "border-black dark:border-white bg-black dark:bg-white"
-                      : "border-gray-400"
-                    }`}
-                />
-              </div>
+              <button
+                onClick={handleFinish}
+                className="mt-4 py-3 rounded-xl bg-brand-purple text-white font-medium
+                  hover:bg-brand-purple/90 active:scale-95 transition"
+              >
+                Criar Conta
+              </button>
+
+              <button
+                onClick={() => setStep(1)}
+                className="text-sm text-gray-600 dark:text-gray-300 underline text-center"
+              >
+                Voltar
+              </button>
             </div>
-
-            {error && (
-              <div className="text-red-500 text-sm text-center">{error}</div>
-            )}
-
-            <button
-              onClick={handleSubmit}
-              className="w-full py-3 rounded-xl bg-black dark:bg-white text-white 
-                         dark:text-black font-semibold transition active:scale-[0.97]"
-            >
-              Começar gratuitamente →
-            </button>
-          </div>
-        </>
-      )}
-
-      <div className="h-10" />
+          </>
+        )}
+      </div>
     </div>
   );
 };

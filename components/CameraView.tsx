@@ -26,6 +26,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState("");
   const [processingProgress, setProcessingProgress] = useState(0);
+
   const [hasSaved, setHasSaved] = useState(false);
 
   const [flashVisual, setFlashVisual] = useState(false);
@@ -36,6 +37,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(
     null
   );
+
   const [capturedPreviews, setCapturedPreviews] = useState<
     { url: string; ev: string }[]
   >([]);
@@ -74,7 +76,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   }, [previewImage]);
 
   /* -------------------------------------------------------------- */
-  /* FIX: CAMERA DETECTION (tipagem completa) */
+  /* DETECT BACK CAMERAS */
   /* -------------------------------------------------------------- */
   const detectBackCameras = async (): Promise<{
     wide?: MediaDeviceInfo;
@@ -93,18 +95,13 @@ export const CameraView: React.FC<CameraViewProps> = ({
         ultra = cam;
       }
 
-      if (
-        !wide &&
-        !l.includes("front") &&
-        (l.includes("back") || l.includes("wide"))
-      ) {
+      if (!wide && !l.includes("front") && (l.includes("back") || l.includes("wide"))) {
         wide = cam;
       }
     });
 
     if (!wide) wide = videos[0];
-    if (!ultra)
-      ultra = videos.find((v) => v.deviceId !== wide?.deviceId);
+    if (!ultra) ultra = videos.find((v) => v.deviceId !== wide?.deviceId);
 
     setWideDeviceId(wide?.deviceId);
     setUltraDeviceId(ultra?.deviceId);
@@ -245,7 +242,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   };
 
   /* -------------------------------------------------------------- */
-  /* SAVE */
+  /* SAVE RESULT */
   /* -------------------------------------------------------------- */
   const savePhoto = async (url: string) => {
     if (hasSaved) return;
@@ -289,7 +286,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   }
 
   /* -------------------------------------------------------------- */
-  /* CAMERA UI */
+  /* CAMERA UI  */
   /* -------------------------------------------------------------- */
   return (
     <div className="fixed inset-0 bg-black text-white flex flex-col z-50">
@@ -368,7 +365,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
         </div>
       )}
 
-      {/* PROCESSING OVERLAY */}
+      {/* PROCESSING */}
       {isProcessing && (
         <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center">
           <div className="w-16 h-16 border-4 border-white/20 border-t-yellow-400 rounded-full animate-spin mb-4" />
