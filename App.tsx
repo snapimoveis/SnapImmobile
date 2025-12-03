@@ -102,12 +102,12 @@ const App: React.FC = () => {
   const handleRegister = async (data: any) => {
     setAuthError(null);
     try {
-      // ✅ CORREÇÃO 1 — registerUser exige 4 argumentos
+      // ✔️ CORREÇÃO 1 — registerUser precisa de 4 argumentos
       const user = await registerUser(
-        data.firstName,
-        data.lastName,
-        data.email,
-        data.password
+        data.firstName ?? "",
+        data.lastName ?? "",
+        data.email ?? "",
+        data.password ?? ""
       );
 
       setCurrentUser(user);
@@ -146,7 +146,7 @@ const App: React.FC = () => {
     if (!currentUser) return;
 
     try {
-      const base: Omit<Project, "id" | "createdAt" | "photos"> = {
+      const base = {
         userId: currentUser.id,
         title: "Novo imóvel",
         address: "",
@@ -154,10 +154,10 @@ const App: React.FC = () => {
         details: {},
         coverImage: undefined,
         contacts: [],
+        photos: [], // ✔️ CORREÇÃO 2 — createProject exige "photos"
       };
 
-      // ✅ CORREÇÃO 2 — createProject aceita APENAS um parâmetro string (title)
-      const newProject = await createProject(base.title);
+      const newProject = await createProject(base);
 
       const updated = [...projects, newProject];
       setProjects(updated);
@@ -190,13 +190,14 @@ const App: React.FC = () => {
       prev.map((p) => (p.id === updatedProject.id ? updatedProject : p))
     );
     setSelectedProject(updatedProject);
+
     saveProjects(
       projects.map((p) => (p.id === updatedProject.id ? updatedProject : p))
     );
   };
 
   // -------------------------------------------
-  // FOTOS (CAMERA + EDITOR)
+  // FOTOS
   // -------------------------------------------
 
   const handleOpenCamera = () => {
@@ -210,8 +211,8 @@ const App: React.FC = () => {
 
     try {
       let title = selectedProject.title;
+
       if (!title || title === "Novo imóvel") {
-        // tenta gerar descrição com IA
         try {
           title = await generateDescription(photo.url);
         } catch {
@@ -221,14 +222,14 @@ const App: React.FC = () => {
 
       const newPhoto: Photo = {
         ...photo,
-        timestamp: photo.timestamp || Date.now(),
-        createdAt: photo.createdAt ?? Date.now(),
+        timestamp: Date.now(),
+        createdAt: Date.now(),
       };
 
       const updatedProject: Project = {
         ...selectedProject,
         title,
-        photos: [...(selectedProject.photos || []), newPhoto],
+        photos: [...selectedProject.photos, newPhoto],
         coverImage: selectedProject.coverImage || newPhoto.url,
       };
 
@@ -237,12 +238,9 @@ const App: React.FC = () => {
       const updatedList = projects.map((p) =>
         p.id === saved.id ? saved : p
       );
+
       setProjects(updatedList);
-
-      const refreshed =
-        updatedList.find((p) => p.id === saved.id) || saved;
-
-      setSelectedProject(refreshed);
+      setSelectedProject(saved);
       setRoute(AppRoute.PROJECT_DETAILS);
     } catch (err) {
       console.error("[handlePhotoCaptured] erro:", err);
@@ -259,14 +257,14 @@ const App: React.FC = () => {
     if (!selectedProject) return;
 
     try {
-      const updatedPhotos = (selectedProject.photos || []).map((p) =>
+      const updatedPhotos = selectedProject.photos.map((p) =>
         p.id === newPhoto.id ? newPhoto : p
       );
 
       const updatedProject: Project = {
         ...selectedProject,
         photos: updatedPhotos,
-        coverImage: selectedProject.coverImage || updatedPhotos[0]?.url,
+        coverImage: updatedPhotos[0]?.url,
       };
 
       const saved = await updateProject(updatedProject);
@@ -274,12 +272,9 @@ const App: React.FC = () => {
       const updatedList = projects.map((p) =>
         p.id === saved.id ? saved : p
       );
+
       setProjects(updatedList);
-
-      const refreshed =
-        updatedList.find((p) => p.id === saved.id) || saved;
-
-      setSelectedProject(refreshed);
+      setSelectedProject(saved);
       setEditingPhoto(null);
       setRoute(AppRoute.PROJECT_DETAILS);
     } catch (err) {
@@ -300,13 +295,12 @@ const App: React.FC = () => {
     );
   }
 
-  // Auth flow (sem utilizador)
   if (!currentUser) {
     if (route === AppRoute.LOGIN) {
       return (
         <LoginScreen
           error={authError ?? undefined}
-          onLogin={(email: string, password: string) => handleLogin(email, password)}
+          onLogin={handleLogin}
           onBack={() => setRoute(AppRoute.LANDING)}
           onRegisterClick={() => setRoute(AppRoute.REGISTER)}
         />
@@ -323,7 +317,6 @@ const App: React.FC = () => {
       );
     }
 
-    // Landing
     return (
       <LandingScreen
         onLogin={() => setRoute(AppRoute.LOGIN)}
@@ -332,7 +325,6 @@ const App: React.FC = () => {
     );
   }
 
-  // Utilizador autenticado → layout principal
   return (
     <MainLayout
       currentRoute={route}
@@ -340,7 +332,7 @@ const App: React.FC = () => {
       currentUser={currentUser}
       onLogout={handleLogout}
       projects={projects}
-      onSelectProject={handleSelectProject}
+      onSelectProject={setSelectedProject}
       onCreateProject={handleCreateProject}
       onDeleteProject={handleDeleteProject}
     >

@@ -1,109 +1,78 @@
-// ======================================================================
-// services/subscription.ts — Sistema de Trial + Limites
-// ======================================================================
+// services/subscription.ts
 
-import { BillingInfo, BillingTrialInfo, Project, UserProfile } from "../types";
-import { saveUsers, loadUsers } from "./storage";
+import { UserProfile, Project, BillingTrialInfo } from "../types";
 
-// ----------------------------------------------------------------------
-// PARÂMETROS DO TRIAL
-// ----------------------------------------------------------------------
-const TRIAL_DAYS = 7;
-const TRIAL_MAX_PROPERTIES = 1;
-const TRIAL_MAX_PHOTOS = 20;
-
-// ----------------------------------------------------------------------
-// CRIA TRIAL DO ZERO
-// ----------------------------------------------------------------------
-export function createTrial(): BillingTrialInfo {
-  const start = Date.now();
-  const expires = start + TRIAL_DAYS * 24 * 60 * 60 * 1000;
-
+// -----------------------------------------
+// Criar trial default
+// -----------------------------------------
+export function createDefaultTrial(): BillingTrialInfo {
   return {
-    start,
-    expires,
-    maxProperties: TRIAL_MAX_PROPERTIES,
-    maxPhotosPerProperty: TRIAL_MAX_PHOTOS,
+    start: Date.now(),
+    expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    maxProperties: 3,
+    maxPhotosPerProperty: 10,
   };
 }
 
-// ----------------------------------------------------------------------
-// GARANTE QUE O USER TEM BILLING E TRIAL
-// (Chamado no login em App.tsx)
-// ----------------------------------------------------------------------
-export function ensureTrialState(user: UserProfile): UserProfile {
-  if (!user.billing) {
-    user.billing = {
-      plan: "TRIAL",
-      trial: createTrial(),
-    };
-    persistUser(user);
-    return user;
-  }
-
-  // se existe billing mas não tem trial
-  if (user.billing.plan === "TRIAL" && !user.billing.trial) {
-    user.billing.trial = createTrial();
-    persistUser(user);
-  }
-
-  return user;
-}
-
-// ----------------------------------------------------------------------
-// VERIFICAR SE O TRIAL AINDA É VÁLIDO
-// ----------------------------------------------------------------------
+// -----------------------------------------
+// Verifica se ainda está dentro do trial
+// -----------------------------------------
 export function isTrialActive(user: UserProfile): boolean {
-  if (user.billing?.plan !== "TRIAL") return false;
-  if (!user.billing.trial) return false;
-
+  if (!user.billing?.trial) return false;
   return Date.now() < user.billing.trial.expires;
 }
 
-// ----------------------------------------------------------------------
-// LIMITE DE IMÓVEIS (properties)
-// ----------------------------------------------------------------------
-export function canCreateNewProperty(
+// -----------------------------------------
+// Pode criar imóvel?
+// -----------------------------------------
+export function canCreateProperty(
   user: UserProfile,
   projects: Project[]
 ): boolean {
-  // Se pagamento no futuro → permitir tudo
-  if (user.billing?.plan !== "TRIAL") return true;
+  if (!user.billing?.trial) return true;
 
   const trial = user.billing.trial;
-  if (!trial) return false;
 
-  const limit = trial.maxProperties ?? TRIAL_MAX_PROPERTIES;
-  return projects.length < limit;
+  if (!trial.maxProperties) return true;
+
+  return projects.length < trial.maxProperties;
 }
 
-// ----------------------------------------------------------------------
-// LIMITE DE FOTOS POR PROJETO
-// ----------------------------------------------------------------------
-export function canAddPhotoToProject(
+// -----------------------------------------
+// Pode adicionar foto ao imóvel?
+// -----------------------------------------
+export function canAddPhotoToProperty(
   user: UserProfile,
   project: Project
 ): boolean {
-  if (user.billing?.plan !== "TRIAL") return true;
+  if (!user.billing?.trial) return true;
 
   const trial = user.billing.trial;
-  if (!trial) return false;
 
-  const limit = trial.maxPhotosPerProperty ?? TRIAL_MAX_PHOTOS;
-  const count = project.photos.length;
+  if (!trial.maxPhotosPerProperty) return true;
 
-  return count < limit;
+  const count = project.photos?.length ?? 0;
+
+  return count < trial.maxPhotosPerProperty;
 }
 
-// ----------------------------------------------------------------------
-// SALVAR O USER APÓS ALTERAÇÃO DE BILLING/TRIAL
-// ----------------------------------------------------------------------
-function persistUser(user: UserProfile) {
-  const all = loadUsers();
-  const idx = all.findIndex((u) => u.id === user.id);
+// -----------------------------------------
+// Atualiza trial (se necessário)
+// -----------------------------------------
+export function ensureTrialState(user: UserProfile): UserProfile {
+  const trial = user.billing?.trial;
 
-  if (idx !== -1) {
-    all[idx] = user;
-    saveUsers(all);
+  if (trial && Date.now() > trial.expires) {
+    // expirou
+    return {
+      ...user,
+      billing: {
+        ...user.billing,
+        trial: undefined,
+        plan: "free",
+      },
+    };
   }
+
+  return user;
 }
