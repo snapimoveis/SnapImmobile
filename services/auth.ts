@@ -1,50 +1,110 @@
+// ========================================================================
+// services/auth.ts — Sistema de Autenticação LocalStorage
+// 100% compatível com App.tsx e types.ts
+// ========================================================================
+
 import { UserProfile } from "../types";
+import { loadUsers, saveUsers } from "./storage";
 
-const USERS_KEY = "snap_users";
-const CURRENT_KEY = "snap_current_user";
+// ========================================================================
+// KEYS
+// ========================================================================
+const CURRENT_USER_KEY = "snapimmobile_current_user";
 
-export const authService = {
-  getUsers(): UserProfile[] {
-    return JSON.parse(localStorage.getItem(USERS_KEY) || "[]");
-  },
+// ========================================================================
+// GET CURRENT USER
+// ========================================================================
+export function getCurrentUser(): UserProfile | null {
+  const raw = localStorage.getItem(CURRENT_USER_KEY);
+  if (!raw) return null;
 
-  saveUsers(users: UserProfile[]) {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  },
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
-  getCurrentUser(): UserProfile | null {
-    return JSON.parse(localStorage.getItem(CURRENT_KEY) || "null");
-  },
+// ========================================================================
+// SAVE CURRENT USER
+// ========================================================================
+function setCurrentUser(user: UserProfile | null) {
+  if (user) localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+  else localStorage.removeItem(CURRENT_USER_KEY);
+}
 
-  login(email: string, password: string): UserProfile | null {
-    const users = this.getUsers();
-    const user = users.find((u) => u.email === email && u.password === password);
-    if (!user) return null;
+// ========================================================================
+// REGISTER
+// ========================================================================
+export async function register(data: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  cpf?: string;
+}): Promise<UserProfile> {
+  const users = loadUsers();
 
-    localStorage.setItem(CURRENT_KEY, JSON.stringify(user));
-    return user;
-  },
+  // Verifica duplicatas
+  if (users.some((u) => u.email === data.email)) {
+    throw new Error("Este email já está registado.");
+  }
 
-  register(data: any): UserProfile {
-    const users = this.getUsers();
+  if (data.cpf && users.some((u) => u.cpf === data.cpf)) {
+    throw new Error("Este CPF já está associado a outra conta.");
+  }
 
-    const newUser: UserProfile = {
-      id: crypto.randomUUID(),
-      firstName: data.firstName || "",
-      lastName: data.lastName || "",
-      email: data.email,
-      password: data.password,
-      avatar: null,
-    };
+  const newUser: UserProfile = {
+    id: crypto.randomUUID(),
+    firstName: data.firstName,
+    lastName: data.lastName,
+    email: data.email.toLowerCase(),
+    password: data.password,
+    cpf: data.cpf ?? "",
+    createdAt: Date.now(),
+    role: "client",
+    billing: {
+      plan: "TRIAL",
+      trial: {
+        start: Date.now(),
+        expires: Date.now() + 1000 * 60 * 60 * 24 * 3, // 3 dias trial
+        maxProperties: 1,
+        maxPhotosPerProperty: 20,
+      },
+    },
+  };
 
-    users.push(newUser);
-    this.saveUsers(users);
-    localStorage.setItem(CURRENT_KEY, JSON.stringify(newUser));
+  users.push(newUser);
+  saveUsers(users);
+  setCurrentUser(newUser);
 
-    return newUser;
-  },
+  return newUser;
+}
 
-  logout() {
-    localStorage.removeItem(CURRENT_KEY);
-  },
-};
+// ========================================================================
+// LOGIN
+// ========================================================================
+export async function login(
+  email: string,
+  password: string
+): Promise<UserProfile> {
+  const users = loadUsers();
+  const user = users.find(
+    (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+  );
+
+  if (!user) throw new Error("Email ou palavra-passe incorretos.");
+
+  user.lastActive = Date.now();
+  saveUsers(users);
+  setCurrentUser(user);
+
+  return user;
+}
+
+// ========================================================================
+// LOGOUT
+// ========================================================================
+export async function logout(): Promise<void> {
+  setCurrentUser(null);
+}
