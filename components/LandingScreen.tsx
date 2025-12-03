@@ -1,4 +1,5 @@
 import React from "react";
+import { Moon, Sun } from "lucide-react";
 
 interface LandingScreenProps {
   onLogin: () => void;
@@ -10,54 +11,55 @@ const LandingScreen: React.FC<LandingScreenProps> = ({
   onFreeTrial,
 }) => {
   return (
-    <div className="relative min-h-screen w-full overflow-hidden">
+    <div className="relative min-h-screen w-full overflow-hidden bg-white dark:bg-black transition-colors duration-300">
 
-      {/* BACKGROUND */}
+      {/* Fundo com imagem + overlay */}
       <div className="absolute inset-0">
         <img
           src="/static/brand/modadia-moderna.jpg"
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover opacity-80 dark:opacity-60"
+          alt="Snap Immobile Background"
         />
-        {/* Overlay roxo → preto + blur */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#654092]/70 to-black/90 backdrop-blur-[2px]" />
+        <div className="absolute inset-0 bg-white/50 dark:bg-black/60 backdrop-blur-sm" />
       </div>
 
-      {/* CONTENT */}
+      {/* Conteúdo */}
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-6 text-center">
-
-        {/* LOGO (modo claro/escuro automático) */}
+        
+        {/* LOGO RESPONSIVA */}
         <img
-          src="/static/brand/logo_color.png"
-          className="w-40 hidden dark:block"
-          draggable={false}
-        />
-        <img
-          src="/static/brand/logo_branca.png"
-          className="w-40 dark:hidden"
-          draggable={false}
+          src={
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "/static/brand/logo_branca.png"
+              : "/static/brand/logo_color.png"
+          }
+          alt="Snap Immobile"
+          className="w-40 mb-10 drop-shadow-xl transition-all duration-300"
         />
 
-        <h1 className="text-white text-3xl font-bold mt-6">
+        {/* TÍTULO */}
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
           Bem-vindo ao Snap Immobile
         </h1>
 
-        <p className="text-white/80 mt-2 max-w-xs">
-          Fotografe, edite e publique os seus imóveis com qualidade profissional.
+        <p className="text-gray-700 dark:text-gray-300 max-w-md mb-10">
+          Fotografe, melhore e apresente imóveis com qualidade profissional.
         </p>
 
-        <div className="flex flex-col gap-3 w-full max-w-xs mt-10">
+        {/* BOTÕES */}
+        <div className="flex flex-col gap-4 w-full max-w-xs">
           <button
             onClick={onLogin}
-            className="w-full py-3 rounded-xl bg-white text-black font-semibold shadow-lg"
+            className="w-full bg-black dark:bg-white text-white dark:text-black py-3 rounded-xl font-semibold shadow-lg shadow-black/20 dark:shadow-white/10 transition"
           >
-            Iniciar Sessão
+            Entrar
           </button>
 
           <button
             onClick={onFreeTrial}
-            className="w-full py-3 rounded-xl bg-[#654092] text-white font-semibold shadow-lg"
+            className="w-full bg-gradient-to-r from-purple-600 to-purple-800 text-white py-3 rounded-xl font-semibold shadow-lg shadow-purple-900/30"
           >
-            Teste Gratuito
+            Testar Gratuitamente
           </button>
         </div>
       </div>

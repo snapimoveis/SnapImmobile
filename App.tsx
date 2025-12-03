@@ -3,12 +3,14 @@
 import React, { useEffect, useState } from "react";
 
 // COMPONENTES
-import LandingScreen from "./components/LandingScreen";
+import { LandingScreen } from "./components/LandingScreen";
 import { LoginScreen } from "./components/LoginScreen";
 import { RegisterScreen } from "./components/RegisterScreen";
 import { MainLayout } from "./components/MainLayout";
 import { CameraView } from "./components/CameraView";
 import { Editor } from "./components/Editor";
+import { applySystemTheme, listenToThemeChanges } from "./theme";
+
 
 // TIPOS
 import {
@@ -56,6 +58,11 @@ const App: React.FC = () => {
   // -------------------------------------------
   // LOAD USER + PROJECTS NA INICIALIZAÇÃO
   // -------------------------------------------
+useEffect(() => {
+  applySystemTheme();
+  listenToThemeChanges();
+}, []);
+
   useEffect(() => {
     const init = async () => {
       try {
