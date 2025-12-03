@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 
 // COMPONENTES
-import { LandingScreen } from "./components/LandingScreen";
+import LandingScreen from "./components/LandingScreen";
 import { LoginScreen } from "./components/LoginScreen";
 import { RegisterScreen } from "./components/RegisterScreen";
 import { MainLayout } from "./components/MainLayout";
