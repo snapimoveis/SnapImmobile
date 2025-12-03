@@ -1,5 +1,4 @@
-import React from "react";
-import { Moon, Sun } from "lucide-react";
+import React, { useEffect, useState } from "react";
 
 interface LandingScreenProps {
   onLogin: () => void;
@@ -10,6 +9,20 @@ const LandingScreen: React.FC<LandingScreenProps> = ({
   onLogin,
   onFreeTrial,
 }) => {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Detecta dark mode de forma compatível com Vercel (SSR-friendly)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      setIsDarkMode(mq.matches);
+
+      const listener = (e: MediaQueryListEvent) => setIsDarkMode(e.matches);
+      mq.addEventListener("change", listener);
+      return () => mq.removeEventListener("change", listener);
+    }
+  }, []);
+
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-white dark:bg-black transition-colors duration-300">
 
@@ -25,11 +38,11 @@ const LandingScreen: React.FC<LandingScreenProps> = ({
 
       {/* Conteúdo */}
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-6 text-center">
-        
+
         {/* LOGO RESPONSIVA */}
         <img
           src={
-            window.matchMedia("(prefers-color-scheme: dark)").matches
+            isDarkMode
               ? "/static/brand/logo_branca.png"
               : "/static/brand/logo_color.png"
           }
@@ -62,6 +75,7 @@ const LandingScreen: React.FC<LandingScreenProps> = ({
             Testar Gratuitamente
           </button>
         </div>
+
       </div>
     </div>
   );
