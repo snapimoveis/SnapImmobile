@@ -15,7 +15,7 @@ const LandingScreen: React.FC<LandingScreenProps> = ({
       className="h-screen w-full flex flex-col items-center justify-center text-white"
       style={{
         backgroundImage:
-          "url('/static/brand/bg-welcome.jpg')", // coloque aqui tua imagem de fundo
+          "url('/static/brand/modadia-moderna.jpg')", // coloque aqui tua imagem de fundo
         backgroundSize: "cover",
         backgroundPosition: "center",
         position: "relative",
