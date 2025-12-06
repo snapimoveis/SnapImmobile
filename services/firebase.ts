@@ -3,6 +3,7 @@
 // ===============================
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";   // <- ADICIONAR
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -19,4 +20,5 @@ const app = initializeApp(firebaseConfig);
 
 // Exporta serviços
 export const auth = getAuth(app);
-export const storage = getStorage(app);
+export const db = getFirestore(app);     // <- AQUI
+export const storage = getStorage(app);  // continua igual
