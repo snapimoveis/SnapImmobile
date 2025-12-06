@@ -9,14 +9,20 @@ export function getProjectsLocal(): Project[] {
     const raw = localStorage.getItem("projects");
     if (!raw) return [];
     return JSON.parse(raw) as Project[];
-  } catch {
+  } catch (error) {
+    console.error("Erro ao ler projects do localStorage:", error);
     return [];
   }
 }
 
 // ---------------------------------------------
-// Guardar imóveis
+// Guardar imóveis no localStorage
 // ---------------------------------------------
 export function saveProjects(list: Project[]) {
-  localStorage.setItem("projects", JSON.stringify(list));
+  try {
+    localStorage.setItem("projects", JSON.stringify(list));
+  } catch (error) {
+    console.error("Erro ao gravar projects no localStorage:", error);
+  }
 }
+
