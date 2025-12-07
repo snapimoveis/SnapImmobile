@@ -1,0 +1,9 @@
+<svg width="192" height="192" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="200" fill="#5b21b6"/>
+  <path d="M65 25H45C33.9 25 25 33.9 25 45V65" stroke="white" stroke-width="14" stroke-linecap="round"/>
+  <path d="M135 25H155C166 25 175 33.9 175 45V65" stroke="white" stroke-width="14" stroke-linecap="round"/>
+  <path d="M65 175H45C33.9 175 25 166 25 155V135" stroke="white" stroke-width="14" stroke-linecap="round"/>
+  <path d="M135 175H155C166 175 175 166 175 155V135" stroke="white" stroke-width="14" stroke-linecap="round"/>
+  <text x="100" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="70" fill="white" style="letter-spacing:-0.04em">snap</text>
+  <text x="100" y="148" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="22" fill="white" style="letter-spacing:0.02em">immobile</text>
+</svg>
