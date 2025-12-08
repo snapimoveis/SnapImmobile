@@ -23,6 +23,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   projects,
   children,
 }) => {
+
   const prefersDark =
     window.matchMedia &&
     window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -34,7 +35,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   return (
     <div className="flex h-screen w-full bg-white dark:bg-black transition-colors">
 
-      {/* SIDEBAR – somente desktop */}
+      {/* SIDEBAR – desktop */}
       <aside className="hidden lg:flex flex-col w-72 bg-white dark:bg-neutral-900 border-r border-gray-200 dark:border-neutral-800 p-6">
         <img src={logo} className="h-10 mb-6" />
 
@@ -85,10 +86,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         </div>
       )}
 
-      {/* MAIN AREA */}
+      {/* MAIN CONTENT AREA */}
       <main className="flex-1 overflow-y-auto pt-16 lg:pt-0">
         {children}
       </main>
+
     </div>
   );
 };
